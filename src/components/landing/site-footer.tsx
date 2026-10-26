@@ -1,0 +1,56 @@
+import Link from "next/link";
+import { Logo } from "@/components/brand/logo";
+
+const COLUMNS = [
+  {
+    title: "Product",
+    links: [
+      { href: "/studio/create", label: "Create" },
+      { href: "/studio", label: "Studio" },
+      { href: "/studio/explore", label: "Explore" },
+    ],
+  },
+  {
+    title: "Modes",
+    links: [
+      { href: "/studio/create?mode=text-to-image", label: "Text to Image" },
+      { href: "/studio/create?mode=text-to-video", label: "Text to Video" },
+      { href: "/studio/create?mode=image-to-video", label: "Image to Video" },
+    ],
+  },
+];
+
+export function SiteFooter() {
+  return (
+    <footer className="border-t border-line">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-14 sm:px-6 md:grid-cols-[1.5fr_1fr_1fr]">
+        <div>
+          <Logo />
+          <p className="mt-4 max-w-xs text-sm leading-relaxed text-fg-muted">
+            A creative studio for AI imagery and film. Currently a design preview.
+          </p>
+        </div>
+        {COLUMNS.map((col) => (
+          <nav key={col.title} aria-label={col.title}>
+            <h2 className="text-sm font-medium text-fg">{col.title}</h2>
+            <ul className="mt-4 space-y-2.5">
+              {col.links.map((link) => (
+                <li key={link.href}>
+                  <Link href={link.href} className="text-sm text-fg-muted transition-colors hover:text-fg">
+                    {link.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          </nav>
+        ))}
+      </div>
+      <div className="border-t border-line">
+        <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-fg-subtle sm:flex-row sm:items-center sm:justify-between sm:px-6">
+          <p>© 2026 AI Video Studio</p>
+          <p>Phase 1 · Interface preview. AI generation is not connected yet.</p>
+        </div>
+      </div>
+    </footer>
+  );
+}

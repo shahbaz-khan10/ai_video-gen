@@ -1,0 +1,85 @@
+import { ArrowRight } from "lucide-react";
+import { Reveal } from "@/components/motion/reveal";
+import { ButtonLink } from "@/components/ui/button";
+import { SectionLabel } from "@/components/ui/section-label";
+
+const STEPS = [
+  {
+    n: "01",
+    title: "Write the scene",
+    body: "Describe subject, light, lens and movement. Start from an example prompt if you like.",
+  },
+  {
+    n: "02",
+    title: "Frame and style it",
+    body: "Choose a mode, an aspect ratio for where it will live, and a visual style.",
+  },
+  {
+    n: "03",
+    title: "Review and iterate",
+    body: "Compare takes side by side in the preview and refine the prompt until it feels right.",
+  },
+];
+
+export function Workflow() {
+  return (
+    <section id="workflow" className="scroll-mt-20 border-t border-line py-24 sm:py-32">
+      <div className="mx-auto max-w-6xl px-4 sm:px-6">
+        <div className="grid gap-12 lg:grid-cols-[1fr_1.4fr] lg:gap-20">
+          <Reveal>
+            <SectionLabel>Workflow</SectionLabel>
+            <h2 className="mt-4 text-balance text-3xl font-semibold tracking-[-0.03em] text-fg sm:text-4xl">
+              From a sentence to a <span className="font-display font-normal italic text-gradient">shot</span>.
+            </h2>
+            <p className="mt-4 max-w-md text-pretty leading-relaxed text-fg-muted">
+              The studio keeps every decision visible, so you spend your time directing instead of
+              hunting for settings.
+            </p>
+          </Reveal>
+
+          <Reveal delay={0.1}>
+            <ol className="divide-y divide-line border-y border-line">
+              {STEPS.map((step) => (
+                <li key={step.n} className="group grid grid-cols-[3rem_1fr] gap-4 py-7">
+                  <span className="font-mono text-sm text-fg-subtle transition-colors group-hover:text-violet-soft">
+                    {step.n}
+                  </span>
+                  <div>
+                    <h3 className="text-lg font-medium tracking-tight text-fg">{step.title}</h3>
+                    <p className="mt-1.5 text-sm leading-relaxed text-fg-muted">{step.body}</p>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </Reveal>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function ClosingCta() {
+  return (
+    <section className="px-4 pb-24 sm:px-6 sm:pb-32">
+      <Reveal className="relative mx-auto max-w-6xl overflow-hidden rounded-2xl border border-line-strong bg-ink-900 px-6 py-16 text-center sm:px-12">
+        <div
+          aria-hidden
+          className="absolute inset-0 bg-[radial-gradient(60%_80%_at_50%_100%,rgb(99_102_241/0.20),transparent_70%)]"
+        />
+        <div aria-hidden className="bg-grid absolute inset-0 [mask-image:linear-gradient(to_top,black,transparent)]" />
+        <h2 className="relative text-balance text-3xl font-semibold tracking-[-0.03em] text-fg sm:text-4xl">
+          Your next scene starts with a sentence.
+        </h2>
+        <p className="relative mx-auto mt-4 max-w-lg text-pretty text-fg-muted">
+          Open the workspace and start shaping a prompt. Model connections arrive in the next phase.
+        </p>
+        <div className="relative mt-8 flex justify-center">
+          <ButtonLink href="/studio/create" size="lg">
+            Start Creating
+            <ArrowRight className="size-4 transition-transform group-hover/button:translate-x-0.5" aria-hidden />
+          </ButtonLink>
+        </div>
+      </Reveal>
+    </section>
+  );
+}

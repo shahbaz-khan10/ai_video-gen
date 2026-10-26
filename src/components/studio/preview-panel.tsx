@@ -1,9 +1,12 @@
 "use client";
 
 import { AnimatePresence, motion } from "motion/react";
-import { CircleAlert, Film, ImageIcon, X } from "lucide-react";
+import { Film, ImageIcon } from "lucide-react";
+import { BackendStatusPill } from "@/components/system/backend-status";
 import type { AspectRatio, GenerationMode } from "@/types/studio";
 import { cn } from "@/lib/cn";
+import type { CheckOutcome } from "./generation-check";
+import { OutcomeNotice } from "./outcome-notice";
 import type { SelectedImage } from "./use-image-selection";
 
 const RESULT_NOUN: Record<GenerationMode, string> = {
@@ -23,8 +26,9 @@ type PreviewPanelProps = {
   aspectRatio: AspectRatio;
   details: string[];
   image: SelectedImage | null;
-  showNotice: boolean;
-  onDismissNotice: () => void;
+  outcome: CheckOutcome | null;
+  checking: boolean;
+  onDismissOutcome: () => void;
 };
 
 function Corners() {
@@ -39,7 +43,15 @@ function Corners() {
   );
 }
 
-export function PreviewPanel({ mode, aspectRatio, details, image, showNotice, onDismissNotice }: PreviewPanelProps) {
+export function PreviewPanel({
+  mode,
+  aspectRatio,
+  details,
+  image,
+  outcome,
+  checking,
+  onDismissOutcome,
+}: PreviewPanelProps) {
   const EmptyIcon = mode === "text-to-image" ? ImageIcon : Film;
   const showSource = mode === "image-to-video" && image;
 
@@ -49,10 +61,7 @@ export function PreviewPanel({ mode, aspectRatio, details, image, showNotice, on
         <h2 id="preview-heading" className="text-[13px] font-medium text-fg">
           Preview
         </h2>
-        <span className="flex items-center gap-1.5 font-mono text-[11px] text-fg-subtle">
-          <span className="size-1.5 rounded-full bg-fg-subtle" aria-hidden />
-          Model not connected
-        </span>
+        <BackendStatusPill />
       </div>
 
       <div className="grid min-h-[380px] flex-1 place-items-center bg-[radial-gradient(70%_60%_at_50%_45%,rgb(99_102_241/0.07),transparent)] p-4 sm:p-6 lg:min-h-[600px]">
@@ -116,37 +125,7 @@ export function PreviewPanel({ mode, aspectRatio, details, image, showNotice, on
         </ul>
       </div>
 
-      <div aria-live="polite" role="status">
-        <AnimatePresence>
-          {showNotice && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: "auto" }}
-              exit={{ opacity: 0, height: 0 }}
-              className="overflow-hidden"
-            >
-              <div className="m-3 mt-0 flex gap-3 rounded-xl border border-amber-300/25 bg-amber-300/[0.06] p-3.5">
-                <CircleAlert className="mt-0.5 size-4 shrink-0 text-amber-300" aria-hidden />
-                <div className="flex-1 text-sm">
-                  <p className="font-medium text-fg">AI generation isn&apos;t connected yet</p>
-                  <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-                    This is an interface preview. Your prompt and settings are valid, but no model is
-                    wired up, so nothing was generated and nothing was sent anywhere.
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={onDismissNotice}
-                  aria-label="Dismiss notice"
-                  className="grid size-7 shrink-0 place-items-center rounded-md text-fg-subtle transition-colors hover:bg-white/5 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/70"
-                >
-                  <X className="size-4" aria-hidden />
-                </button>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </div>
+      <OutcomeNotice outcome={outcome} checking={checking} onDismiss={onDismissOutcome} />
     </section>
   );
 }

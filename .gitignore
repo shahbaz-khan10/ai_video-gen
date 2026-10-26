@@ -42,3 +42,6 @@ next-env.d.ts
 
 # playwright mcp artifacts
 /.playwright-mcp
+
+# safe example env files are committed (root and backend/)
+!.env.example

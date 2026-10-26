@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-export type SelectedImage = { url: string; name: string; size: number };
+const ACCEPTED = ["image/png", "image/jpeg", "image/webp"] as const;
+export type AcceptedImageType = (typeof ACCEPTED)[number];
+
+export type SelectedImage = { url: string; name: string; size: number; type: AcceptedImageType };
 
 export const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
-const ACCEPTED = ["image/png", "image/jpeg", "image/webp"];
 
 /**
  * Holds a locally selected image as an object URL. The file never leaves the
@@ -25,7 +27,7 @@ export function useImageSelection() {
 
   const select = useCallback((file: File | undefined) => {
     if (!file) return;
-    if (!ACCEPTED.includes(file.type)) {
+    if (!isAccepted(file.type)) {
       setError("Please choose a PNG, JPG or WebP image.");
       return;
     }
@@ -37,7 +39,7 @@ export function useImageSelection() {
     const url = URL.createObjectURL(file);
     urlRef.current = url;
     setError(null);
-    setImage({ url, name: file.name, size: file.size });
+    setImage({ url, name: file.name, size: file.size, type: file.type });
   }, []);
 
   const clear = useCallback(() => {
@@ -47,6 +49,10 @@ export function useImageSelection() {
   }, []);
 
   return { image, error, select, clear, accept: ACCEPTED.join(",") };
+}
+
+function isAccepted(type: string): type is AcceptedImageType {
+  return (ACCEPTED as readonly string[]).includes(type);
 }
 
 export function formatBytes(bytes: number) {

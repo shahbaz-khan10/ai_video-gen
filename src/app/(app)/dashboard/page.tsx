@@ -7,6 +7,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { ModeShortcuts } from "@/components/studio/mode-shortcuts";
 import { PageContainer } from "@/components/layout/page-container";
 import { PageHeader } from "@/components/layout/page-header";
+import { BackendStatusCard } from "@/components/system/backend-status";
 import { ProjectCard } from "@/components/projects/project-card";
 import { SampleBadge, SectionHeading } from "@/components/ui/section-heading";
 import { MOCK_PROJECTS, MOCK_USER } from "@/lib/mock-data";
@@ -58,18 +59,25 @@ export default function StudioOverviewPage() {
         </div>
       </Reveal>
 
-      <Reveal delay={0.15} className="mt-12">
-        <SectionHeading title="Generation queue" />
-        <EmptyState
-          icon={Layers}
-          title="Nothing rendering yet"
-          description="Renders will queue here once an AI model is connected. In this preview, the studio interface is ready but generation is not."
-          action={
-            <ButtonLink href="/create" variant="secondary" size="sm">
-              Draft a prompt
-            </ButtonLink>
-          }
-        />
+      <Reveal delay={0.15} className="mt-12 grid gap-6 lg:grid-cols-[minmax(0,1fr)_340px]">
+        <div className="flex flex-col">
+          <SectionHeading title="Generation queue" />
+          <EmptyState
+            icon={Layers}
+            title="Nothing rendering yet"
+            description="Renders will queue here once an AI model is connected. In this preview, the studio interface is ready but generation is not."
+            action={
+              <ButtonLink href="/create" variant="secondary" size="sm">
+                Draft a prompt
+              </ButtonLink>
+            }
+            className="flex-1"
+          />
+        </div>
+        <div>
+          <SectionHeading title="System" />
+          <BackendStatusCard />
+        </div>
       </Reveal>
     </PageContainer>
   );

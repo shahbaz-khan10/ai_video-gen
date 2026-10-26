@@ -1,15 +1,17 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { FolderOpen } from "lucide-react";
 import { ASPECT_RATIOS, getMode, getStyle, isVideoMode, MODELS } from "@/lib/studio-options";
+import { api } from "@/lib/api/client";
 import { prefersReducedMotion } from "@/lib/motion";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
 import { AspectRatioSelector } from "./aspect-ratio-selector";
 import { DurationSelector } from "./duration-selector";
 import { GenerateButton } from "./generate-button";
+import { buildPayload, interpretError, type CheckOutcome, type FieldErrors } from "./generation-check";
 import { ImageUploader } from "./image-uploader";
 import { ModelSelect } from "./model-select";
 import { ModeSelector } from "./mode-selector";
@@ -44,8 +46,11 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [style, setStyle] = useState(initial.styleId);
   const [duration, setDuration] = useState<ClipDuration>(initial.duration);
   const [model, setModel] = useState(MODELS[0].id);
-  const [errors, setErrors] = useState<{ prompt?: string; image?: string }>({});
-  const [showNotice, setShowNotice] = useState(false);
+  const [errors, setErrors] = useState<FieldErrors>({});
+  const [outcome, setOutcome] = useState<CheckOutcome | null>(null);
+  const [checking, setChecking] = useState(false);
+  // Ignores responses for a draft the user has since edited.
+  const requestId = useRef(0);
   const upload = useImageSelection();
 
   const isVideo = isVideoMode(mode);
@@ -59,33 +64,62 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     MODELS.find((m) => m.id === model)!.label.split(" · ")[0],
   ];
 
+  /** Any edit makes the last check stale. */
+  const invalidate = () => {
+    requestId.current += 1;
+    setOutcome(null);
+    setChecking(false);
+  };
+
   const changeMode = (next: GenerationMode) => {
     setMode(next);
     setErrors({});
-    setShowNotice(false);
+    invalidate();
   };
 
-  const handleGenerate = () => {
-    const nextErrors: typeof errors = {};
-    if (!prompt.trim()) nextErrors.prompt = "Add a prompt to describe what you want to create.";
-    if (needsImage && !upload.image) nextErrors.image = "Add a source image to animate.";
-    setErrors(nextErrors);
-    // No model is connected: never pretend to generate, only explain that.
-    const valid = Object.keys(nextErrors).length === 0;
-    setShowNotice(valid);
+  const scrollTo = (id: string, block: ScrollLogicalPosition) =>
+    document.getElementById(id)?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block });
 
-    const firstInvalid = nextErrors.image ? "source-image-field" : nextErrors.prompt ? "prompt-field" : null;
-    if (firstInvalid) {
-      document
-        .getElementById(firstInvalid)
-        ?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
+  const revealPreviewOnSmallScreens = () => {
+    // On stacked layouts the preview sits below the form; bring the result into view.
+    if (window.matchMedia("(max-width: 1023px)").matches) scrollTo("preview-panel", "start");
+  };
+
+  const handleGenerate = async () => {
+    // 1. Quick local checks, so obvious gaps don't need a round trip.
+    const localErrors: FieldErrors = {};
+    if (!prompt.trim()) localErrors.prompt = "Add a prompt to describe what you want to create.";
+    if (needsImage && !upload.image) localErrors.image = "Add a source image to animate.";
+    setErrors(localErrors);
+    if (localErrors.image || localErrors.prompt) {
+      setOutcome(null);
+      scrollTo(localErrors.image ? "source-image-field" : "prompt-field", "center");
       return;
     }
 
-    // On stacked layouts the preview sits below the form; bring the notice into view.
-    if (valid && window.matchMedia("(max-width: 1023px)").matches) {
-      const reduce = prefersReducedMotion();
-      document.getElementById("preview-panel")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
+    // 2. Ask the backend to validate. No model is connected, so nothing is generated either way.
+    const id = ++requestId.current;
+    setChecking(true);
+    setOutcome(null);
+    try {
+      const res = await api.validateGeneration(
+        buildPayload({ mode, prompt, aspectRatio, style, duration, image: upload.image }),
+      );
+      if (id !== requestId.current) return;
+      setOutcome({ kind: "validated", settings: res.settings });
+      revealPreviewOnSmallScreens();
+    } catch (err) {
+      if (id !== requestId.current) return;
+      const { fieldErrors, outcome: next } = interpretError(err);
+      setErrors(fieldErrors);
+      setOutcome(next);
+      if (fieldErrors.image || fieldErrors.prompt) {
+        scrollTo(fieldErrors.image ? "source-image-field" : "prompt-field", "center");
+      } else {
+        revealPreviewOnSmallScreens();
+      }
+    } finally {
+      if (id === requestId.current) setChecking(false);
     }
   };
 
@@ -123,8 +157,12 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                 onSelect={(file) => {
                   upload.select(file);
                   setErrors((e) => ({ ...e, image: undefined }));
+                  invalidate();
                 }}
-                onClear={upload.clear}
+                onClear={() => {
+                  upload.clear();
+                  invalidate();
+                }}
               />
             </motion.div>
           )}
@@ -137,19 +175,37 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
             onChange={(value) => {
               setPrompt(value);
               if (value.trim()) setErrors((e) => ({ ...e, prompt: undefined }));
-              setShowNotice(false);
+              invalidate();
             }}
             error={errors.prompt}
           />
         </div>
 
-        <AspectRatioSelector value={aspectRatio} onChange={setAspectRatio} />
-        <StyleSelector value={style} onChange={setStyle} />
+        <AspectRatioSelector
+          value={aspectRatio}
+          onChange={(v) => {
+            setAspectRatio(v);
+            invalidate();
+          }}
+        />
+        <StyleSelector
+          value={style}
+          onChange={(v) => {
+            setStyle(v);
+            invalidate();
+          }}
+        />
 
         <AnimatePresence initial={false}>
           {isVideo && (
             <motion.div key="duration" {...collapse} className="overflow-hidden">
-              <DurationSelector value={duration} onChange={setDuration} />
+              <DurationSelector
+                value={duration}
+                onChange={(v) => {
+                  setDuration(v);
+                  invalidate();
+                }}
+              />
             </motion.div>
           )}
         </AnimatePresence>
@@ -157,7 +213,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
         <ModelSelect value={model} onChange={setModel} />
 
         <div className="sticky bottom-0 -mx-4 border-t border-line bg-ink-950/85 px-4 pb-4 pt-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-          <GenerateButton onClick={handleGenerate} label={GENERATE_LABEL[mode]} />
+          <GenerateButton onClick={handleGenerate} label={GENERATE_LABEL[mode]} busy={checking} />
         </div>
       </form>
 
@@ -167,8 +223,9 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           aspectRatio={aspectRatio}
           details={details}
           image={upload.image}
-          showNotice={showNotice}
-          onDismissNotice={() => setShowNotice(false)}
+          outcome={outcome}
+          checking={checking}
+          onDismissOutcome={() => setOutcome(null)}
         />
       </div>
     </div>

@@ -1,6 +1,6 @@
 # AI Video Studio
 
-Frontend for an AI image and video generation studio. Phase 2 (frontend foundation) is done. No AI models, auth, database or payments are connected: project cards are mock data, and Generate says that generation is not connected yet.
+AI image and video generation studio: a Next.js frontend and a FastAPI backend (Phase 3). No AI models, auth, database or payments are connected: project cards are mock data, and Generate says that generation is not connected yet.
 
 ## Stack
 
@@ -8,13 +8,31 @@ Next.js 16 (App Router, Cache Components), TypeScript (strict), Tailwind CSS v4,
 
 ## Run
 
-```bash
-npm install
-npm run dev        # http://localhost:3000
+The app has two parts: this Next.js frontend and the FastAPI backend in [`backend/`](backend/README.md).
+
+```powershell
+# Terminal 1: backend (http://localhost:8000, docs at /docs)
+cd backend
+py -3.12 -m venv .venv            # first time only
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt   # first time only
+uvicorn app.main:app --reload --port 8000
+
+# Terminal 2: frontend (http://localhost:3000)
+npm install                        # first time only
+npm run dev
+```
+
+Checks:
+
+```powershell
 npm run lint
 npx tsc --noEmit   # run `npx next typegen` first on a fresh clone
 npm run build
+cd backend; python -m pytest
 ```
+
+The frontend finds the API through `NEXT_PUBLIC_API_BASE_URL` (see `.env.example`). In development it falls back to `http://localhost:8000`. A production build without it treats the backend as not configured. Without a running backend the studio still works: it shows "Backend offline", and settings are only checked in the browser.
 
 ## Routes
 
@@ -47,10 +65,12 @@ src/
     providers/             PreferencesProvider (in-memory session preferences)
     landing/, motion/, brand/
   lib/                     studio options, mock data, helpers
-  types/                   shared TypeScript types
+  lib/api/                 API client (the only place that calls the backend) and status hook
+  types/                   shared TypeScript types (studio + API)
+backend/                   FastAPI service, see backend/README.md
 ```
 
 ## Notes
 
 - Preferences live in React state only and reset on reload. They feed the Create defaults, the sidebar state and a "Reduce motion" override. The OS reduced-motion setting is always respected.
-- Uploaded images stay in the browser as object URLs (PNG, JPG or WebP, up to 10 MB). URLs are revoked when replaced, removed, or unmounted.
+- Uploaded images stay in the browser as object URLs (PNG, JPG or WebP, up to 10 MB). Only the image's type and size are sent to the backend for validation. URLs are revoked when replaced, removed, or unmounted.

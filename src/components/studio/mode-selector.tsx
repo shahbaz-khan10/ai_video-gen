@@ -2,7 +2,8 @@
 
 import { useId } from "react";
 import { motion } from "motion/react";
-import { MODES, type GenerationMode } from "@/lib/studio-options";
+import { MODES } from "@/lib/studio-options";
+import type { GenerationMode } from "@/types/studio";
 import { cn } from "@/lib/cn";
 
 type ModeSelectorProps = {

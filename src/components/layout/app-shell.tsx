@@ -2,18 +2,25 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Menu, PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
-import { Logo } from "@/components/brand/logo";
-import { MOCK_USER } from "@/lib/mock-data";
-import { SidebarContent } from "./sidebar-content";
-import { UserAvatar } from "./user-avatar";
+import { PanelLeftClose, PanelLeftOpen, X } from "lucide-react";
+import { usePreferences } from "@/components/providers/preferences-provider";
+import { AppHeader } from "./app-header";
+import { AppSidebar } from "./app-sidebar";
 
 const EXPANDED = 248;
 const COLLAPSED = 76;
 
-export function StudioShell({ children }: { children: ReactNode }) {
-  const [collapsed, setCollapsed] = useState(false);
+export function AppShell({ children }: { children: ReactNode }) {
+  const { preferences } = usePreferences();
+  const [collapsed, setCollapsed] = useState(preferences.startSidebarCollapsed);
   const [mobileOpen, setMobileOpen] = useState(false);
+
+  // Follow the Settings preference when it changes; manual toggles still win in between.
+  const [syncedPreference, setSyncedPreference] = useState(preferences.startSidebarCollapsed);
+  if (syncedPreference !== preferences.startSidebarCollapsed) {
+    setSyncedPreference(preferences.startSidebarCollapsed);
+    setCollapsed(preferences.startSidebarCollapsed);
+  }
   const menuButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -34,7 +41,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
   return (
     <div className="flex min-h-screen w-full">
       <a
-        href="#studio-main"
+        href="#app-main"
         className="sr-only z-50 rounded-md bg-ink-800 px-3 py-2 text-sm focus:not-sr-only focus:fixed focus:left-3 focus:top-3"
       >
         Skip to content
@@ -47,7 +54,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
         transition={{ type: "spring", stiffness: 380, damping: 38 }}
         className="sticky top-0 hidden h-screen shrink-0 border-r border-line bg-ink-900/60 lg:block"
       >
-        <SidebarContent collapsed={collapsed} />
+        <AppSidebar collapsed={collapsed} />
         <button
           type="button"
           onClick={() => setCollapsed((v) => !v)}
@@ -60,24 +67,8 @@ export function StudioShell({ children }: { children: ReactNode }) {
       </motion.aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        {/* Mobile / tablet top bar */}
-        <header className="sticky top-0 z-30 flex h-14 items-center justify-between border-b border-line bg-ink-950/80 px-4 backdrop-blur-xl lg:hidden">
-          <button
-            ref={menuButtonRef}
-            type="button"
-            onClick={() => setMobileOpen(true)}
-            aria-label="Open navigation"
-            aria-expanded={mobileOpen}
-            aria-controls="studio-drawer"
-            className="grid size-10 place-items-center rounded-lg text-fg-muted hover:bg-white/5 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/70"
-          >
-            <Menu className="size-5" aria-hidden />
-          </button>
-          <Logo href="/studio" />
-          <UserAvatar initials={MOCK_USER.initials} />
-        </header>
-
-        <main id="studio-main" className="flex-1">
+        <AppHeader ref={menuButtonRef} menuOpen={mobileOpen} onOpenMenu={() => setMobileOpen(true)} />
+        <main id="app-main" className="flex-1">
           {children}
         </main>
       </div>
@@ -96,7 +87,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
               aria-hidden
             />
             <motion.div
-              id="studio-drawer"
+              id="app-drawer"
               role="dialog"
               aria-modal="true"
               aria-label="Studio navigation"
@@ -106,7 +97,7 @@ export function StudioShell({ children }: { children: ReactNode }) {
               transition={{ type: "spring", stiffness: 420, damping: 42 }}
               className="absolute inset-y-0 left-0 w-[min(84vw,300px)] border-r border-line bg-ink-900"
             >
-              <SidebarContent onNavigate={() => setMobileOpen(false)} />
+              <AppSidebar onNavigate={() => setMobileOpen(false)} />
               <button
                 type="button"
                 autoFocus

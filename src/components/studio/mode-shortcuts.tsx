@@ -11,7 +11,7 @@ export function ModeShortcuts() {
         return (
           <li key={mode.id}>
             <Link
-              href={`/studio/create?mode=${mode.id}`}
+              href={`/create?mode=${mode.id}`}
               className="group relative flex h-full flex-col gap-4 overflow-hidden rounded-xl border border-line bg-ink-900 p-5 transition-[border-color,background-color,transform] duration-300 hover:-translate-y-0.5 hover:border-line-strong hover:bg-ink-850 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/70"
             >
               <span

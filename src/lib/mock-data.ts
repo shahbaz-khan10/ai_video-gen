@@ -1,77 +1,85 @@
-import type { AspectRatio, GenerationMode, PosterTone } from "./studio-options";
+import type { Project } from "@/types/studio";
 
-/** Mock data for Phase 1. Nothing here was produced by a model. */
-export type Project = {
-  id: string;
-  title: string;
-  mode: GenerationMode;
-  aspectRatio: AspectRatio;
-  style: string;
-  tone: PosterTone;
-  updated: string;
-  duration?: string;
-};
-
+/** Mock data. Nothing here was produced by a model. */
 export const MOCK_PROJECTS: Project[] = [
   {
-    id: "p-01",
+    id: "lighthouse-blue-hour",
     title: "Lighthouse at Blue Hour",
     mode: "text-to-video",
     aspectRatio: "16:9",
-    style: "Cinematic",
+    styleId: "cinematic",
     tone: "dusk",
+    prompt:
+      "A lone lighthouse on a basalt cliff at blue hour, waves crashing in slow motion, warm beam sweeping through drifting sea mist, anamorphic lens, gentle dolly-in.",
     updated: "2 hours ago",
-    duration: "0:08",
+    created: "Oct 24, 2026",
+    duration: "8s",
   },
   {
-    id: "p-02",
+    id: "neon-alley-rain",
     title: "Neon Alley Rain",
     mode: "text-to-image",
     aspectRatio: "9:16",
-    style: "Neon Noir",
+    styleId: "neon-noir",
     tone: "noir",
+    prompt:
+      "A narrow alley in heavy rain at night, magenta and cyan neon signs reflecting in puddles, a figure with a clear umbrella, 35mm, high contrast.",
     updated: "Yesterday",
+    created: "Oct 23, 2026",
   },
   {
-    id: "p-03",
+    id: "aurora-fjord",
     title: "Aurora Over the Fjord",
     mode: "image-to-video",
     aspectRatio: "16:9",
-    style: "Dreamlike",
+    styleId: "dreamlike",
     tone: "aurora",
+    prompt: "Slow ripples of green aurora drift across the sky while still water mirrors the light; subtle push-in.",
     updated: "3 days ago",
-    duration: "0:05",
+    created: "Oct 21, 2026",
+    duration: "4s",
   },
   {
-    id: "p-04",
+    id: "desert-caravan",
     title: "Desert Caravan, Golden Hour",
     mode: "text-to-video",
     aspectRatio: "1:1",
-    style: "Golden Hour",
+    styleId: "golden-hour",
     tone: "ember",
+    prompt:
+      "A camel caravan crossing tall dunes at golden hour, long shadows, heat shimmer, drone shot slowly tracking left.",
     updated: "Last week",
-    duration: "0:10",
+    created: "Oct 17, 2026",
+    duration: "8s",
   },
   {
-    id: "p-05",
+    id: "tidal-pools",
     title: "Tidal Pools Macro",
     mode: "text-to-image",
     aspectRatio: "1:1",
-    style: "Documentary",
+    styleId: "documentary",
     tone: "tide",
+    prompt: "Macro photograph of a tidal pool, anemones and tiny shells under clear water, soft overcast light, natural colour.",
     updated: "Last week",
+    created: "Oct 15, 2026",
   },
   {
-    id: "p-06",
+    id: "petals-zero-gravity",
     title: "Petals in Zero Gravity",
     mode: "image-to-video",
     aspectRatio: "9:16",
-    style: "Dreamlike",
+    styleId: "dreamlike",
     tone: "bloom",
+    prompt: "Pink petals float upward and slowly rotate in weightless air, soft bloom, pastel haze, gentle camera sway.",
     updated: "2 weeks ago",
-    duration: "0:06",
+    created: "Oct 10, 2026",
+    duration: "6s",
   },
 ];
+
+export function getProject(id: string) {
+  return MOCK_PROJECTS.find((p) => p.id === id);
+}
 
 export const MOCK_USER = {
   name: "Guest Creator",

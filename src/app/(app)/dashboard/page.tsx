@@ -5,9 +5,10 @@ import { Reveal } from "@/components/motion/reveal";
 import { ButtonLink } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
 import { ModeShortcuts } from "@/components/studio/mode-shortcuts";
-import { PageHeader, StudioPage } from "@/components/studio/page-header";
-import { ProjectCard } from "@/components/studio/project-card";
-import { SampleBadge, SectionHeading } from "@/components/studio/section-heading";
+import { PageContainer } from "@/components/layout/page-container";
+import { PageHeader } from "@/components/layout/page-header";
+import { ProjectCard } from "@/components/projects/project-card";
+import { SampleBadge, SectionHeading } from "@/components/ui/section-heading";
 import { MOCK_PROJECTS, MOCK_USER } from "@/lib/mock-data";
 
 export const metadata: Metadata = { title: "Overview" };
@@ -16,13 +17,13 @@ export default function StudioOverviewPage() {
   const recent = MOCK_PROJECTS.slice(0, 3);
 
   return (
-    <StudioPage>
+    <PageContainer>
       <PageHeader
         eyebrow={`Welcome back, ${MOCK_USER.name}`}
         title="Your Creative Studio"
         description="Pick up where you left off, or start a new scene from a prompt or a reference image."
         actions={
-          <ButtonLink href="/studio/create" size="lg" className="w-full sm:w-auto">
+          <ButtonLink href="/create" size="lg" className="w-full sm:w-auto">
             <Plus className="size-4" aria-hidden />
             Create New
           </ButtonLink>
@@ -41,7 +42,7 @@ export default function StudioOverviewPage() {
             <div className="flex items-center gap-3">
               <SampleBadge />
               <Link
-                href="/studio/projects"
+                href="/projects"
                 className="group flex items-center gap-1 rounded text-sm text-fg-muted transition-colors hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/70"
               >
                 View all
@@ -64,12 +65,12 @@ export default function StudioOverviewPage() {
           title="Nothing rendering yet"
           description="Renders will queue here once an AI model is connected. In this preview, the studio interface is ready but generation is not."
           action={
-            <ButtonLink href="/studio/create" variant="secondary" size="sm">
+            <ButtonLink href="/create" variant="secondary" size="sm">
               Draft a prompt
             </ButtonLink>
           }
         />
       </Reveal>
-    </StudioPage>
+    </PageContainer>
   );
 }

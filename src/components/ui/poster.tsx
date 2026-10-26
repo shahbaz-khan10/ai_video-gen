@@ -1,4 +1,4 @@
-import type { PosterTone } from "@/lib/studio-options";
+import type { PosterTone } from "@/types/studio";
 import { cn } from "@/lib/cn";
 
 type Palette = { sky: string; glow: string; far: string; near: string; haze: string };

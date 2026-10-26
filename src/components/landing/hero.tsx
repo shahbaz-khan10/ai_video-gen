@@ -52,11 +52,11 @@ export function Hero() {
         </motion.p>
 
         <motion.div variants={rise} className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <ButtonLink href="/studio/create" size="lg" className="w-full sm:w-auto">
+          <ButtonLink href="/create" size="lg" className="w-full sm:w-auto">
             Start Creating
             <ArrowRight className="size-4 transition-transform group-hover/button:translate-x-0.5" aria-hidden />
           </ButtonLink>
-          <ButtonLink href="/studio" size="lg" variant="secondary" className="w-full sm:w-auto">
+          <ButtonLink href="/dashboard" size="lg" variant="secondary" className="w-full sm:w-auto">
             Explore Studio
           </ButtonLink>
         </motion.div>

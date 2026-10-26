@@ -1,5 +1,5 @@
-import { StudioShell } from "@/components/studio/studio-shell";
+import { AppShell } from "@/components/layout/app-shell";
 
-export default function StudioLayout({ children }: LayoutProps<"/studio">) {
-  return <StudioShell>{children}</StudioShell>;
+export default function AppLayout({ children }: { children: React.ReactNode }) {
+  return <AppShell>{children}</AppShell>;
 }

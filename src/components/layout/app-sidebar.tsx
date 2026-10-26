@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { Plus } from "lucide-react";
 import { Logo } from "@/components/brand/logo";
@@ -10,14 +10,14 @@ import { Tooltip } from "@/components/ui/tooltip";
 import { MOCK_USER } from "@/lib/mock-data";
 import { cn } from "@/lib/cn";
 import { isActive, PRIMARY_NAV, SECONDARY_NAV, type NavItem } from "./nav-items";
-import { UserAvatar } from "./user-avatar";
+import { UserAvatar } from "@/components/ui/user-avatar";
 
-type SidebarContentProps = {
+type AppSidebarProps = {
   collapsed?: boolean;
   onNavigate?: () => void;
 };
 
-function FadeLabel({ show, children }: { show: boolean; children: React.ReactNode }) {
+function FadeLabel({ show, children }: { show: boolean; children: ReactNode }) {
   return (
     <AnimatePresence initial={false}>
       {show && (
@@ -74,7 +74,8 @@ function NavLink({ item, collapsed, onNavigate }: { item: NavItem; collapsed: bo
   );
 }
 
-export function SidebarContent({ collapsed = false, onNavigate }: SidebarContentProps) {
+/** Sidebar contents, shared by the desktop rail and the mobile drawer. */
+export function AppSidebar({ collapsed = false, onNavigate }: AppSidebarProps) {
   // Desktop and drawer instances can co-exist; scope the active-pill animation to each.
   const groupId = useId();
   return (
@@ -84,9 +85,9 @@ export function SidebarContent({ collapsed = false, onNavigate }: SidebarContent
           <Logo href="/" showText={!collapsed} />
         </div>
 
-        <div className={cn("px-3 pb-2", collapsed && "px-3")}>
+        <div className="px-3 pb-2">
           <Link
-            href="/studio/create"
+            href="/create"
             onClick={onNavigate}
             aria-label="Create new project"
             className={cn(
@@ -115,16 +116,24 @@ export function SidebarContent({ collapsed = false, onNavigate }: SidebarContent
         </nav>
 
         <div className="border-t border-line p-3">
-          <div className={cn("flex items-center gap-3 rounded-lg p-1.5", collapsed && "justify-center")}>
+          <Link
+            href="/settings"
+            onClick={onNavigate}
+            aria-label={`${MOCK_USER.name}, open settings`}
+            className={cn(
+              "flex items-center gap-3 rounded-lg p-1.5 transition-colors hover:bg-white/[0.04]",
+              "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/70",
+              collapsed && "justify-center",
+            )}
+          >
             <UserAvatar initials={MOCK_USER.initials} />
             {!collapsed && (
-              <div className="min-w-0">
-                <p className="truncate text-sm font-medium text-fg">{MOCK_USER.name}</p>
-                <p className="truncate text-xs text-fg-subtle">{MOCK_USER.plan}</p>
-              </div>
+              <span className="min-w-0">
+                <span className="block truncate text-sm font-medium text-fg">{MOCK_USER.name}</span>
+                <span className="block truncate text-xs text-fg-subtle">{MOCK_USER.plan}</span>
+              </span>
             )}
-            {collapsed && <span className="sr-only">{MOCK_USER.name}</span>}
-          </div>
+          </Link>
         </div>
       </div>
     </LayoutGroup>

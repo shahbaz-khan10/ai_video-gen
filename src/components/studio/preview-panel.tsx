@@ -2,7 +2,7 @@
 
 import { AnimatePresence, motion } from "motion/react";
 import { CircleAlert, Film, ImageIcon, X } from "lucide-react";
-import { type AspectRatio, type GenerationMode } from "@/lib/studio-options";
+import type { AspectRatio, GenerationMode } from "@/types/studio";
 import { cn } from "@/lib/cn";
 import type { SelectedImage } from "./use-image-selection";
 
@@ -130,7 +130,7 @@ export function PreviewPanel({ mode, aspectRatio, details, image, showNotice, on
                 <div className="flex-1 text-sm">
                   <p className="font-medium text-fg">AI generation isn&apos;t connected yet</p>
                   <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-                    This is the Phase 1 interface preview. Your prompt and settings are valid, but no model is
+                    This is an interface preview. Your prompt and settings are valid, but no model is
                     wired up, so nothing was generated and nothing was sent anywhere.
                   </p>
                 </div>

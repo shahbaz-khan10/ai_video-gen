@@ -71,10 +71,10 @@ export function ClosingCta() {
           Your next scene starts with a sentence.
         </h2>
         <p className="relative mx-auto mt-4 max-w-lg text-pretty text-fg-muted">
-          Open the workspace and start shaping a prompt. Model connections arrive in the next phase.
+          Open the workspace and start shaping a prompt. Model connections arrive in a later phase.
         </p>
         <div className="relative mt-8 flex justify-center">
-          <ButtonLink href="/studio/create" size="lg">
+          <ButtonLink href="/create" size="lg">
             Start Creating
             <ArrowRight className="size-4 transition-transform group-hover/button:translate-x-0.5" aria-hidden />
           </ButtonLink>

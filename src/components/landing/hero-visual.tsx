@@ -3,7 +3,7 @@
 import { motion } from "motion/react";
 import { Pause, Sparkles } from "lucide-react";
 import { Poster } from "@/components/ui/poster";
-import type { PosterTone } from "@/lib/studio-options";
+import type { PosterTone } from "@/types/studio";
 
 const FRAMES: PosterTone[] = ["dusk", "bloom", "noir", "tide", "aurora", "ember"];
 

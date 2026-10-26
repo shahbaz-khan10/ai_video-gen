@@ -6,7 +6,7 @@ import { InfoHint } from "@/components/ui/info-hint";
 import { cn } from "@/lib/cn";
 import { formatBytes, type SelectedImage } from "./use-image-selection";
 
-type ImageUploadProps = {
+type ImageUploaderProps = {
   image: SelectedImage | null;
   error: string | null;
   accept: string;
@@ -14,7 +14,7 @@ type ImageUploadProps = {
   onClear: () => void;
 };
 
-export function ImageUpload({ image, error, accept, onSelect, onClear }: ImageUploadProps) {
+export function ImageUploader({ image, error, accept, onSelect, onClear }: ImageUploaderProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);

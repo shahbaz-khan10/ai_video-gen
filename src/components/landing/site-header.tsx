@@ -10,8 +10,8 @@ import { ButtonLink } from "@/components/ui/button";
 const NAV = [
   { href: "/#features", label: "Features" },
   { href: "/#workflow", label: "Workflow" },
-  { href: "/studio", label: "Studio" },
-  { href: "/studio/explore", label: "Explore" },
+  { href: "/dashboard", label: "Studio" },
+  { href: "/explore", label: "Explore" },
 ];
 
 export function SiteHeader() {
@@ -44,10 +44,10 @@ export function SiteHeader() {
         </nav>
 
         <div className="hidden items-center gap-2 md:flex">
-          <ButtonLink href="/studio" variant="ghost" size="sm">
+          <ButtonLink href="/dashboard" variant="ghost" size="sm">
             Open Studio
           </ButtonLink>
-          <ButtonLink href="/studio/create" size="sm">
+          <ButtonLink href="/create" size="sm">
             Start Creating
           </ButtonLink>
         </div>
@@ -86,7 +86,7 @@ export function SiteHeader() {
                   {item.label}
                 </Link>
               ))}
-              <ButtonLink href="/studio/create" className="mt-2" onClick={() => setOpen(false)}>
+              <ButtonLink href="/create" className="mt-2" onClick={() => setOpen(false)}>
                 Start Creating
               </ButtonLink>
             </div>

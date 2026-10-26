@@ -5,17 +5,17 @@ const COLUMNS = [
   {
     title: "Product",
     links: [
-      { href: "/studio/create", label: "Create" },
-      { href: "/studio", label: "Studio" },
-      { href: "/studio/explore", label: "Explore" },
+      { href: "/create", label: "Create" },
+      { href: "/dashboard", label: "Studio" },
+      { href: "/explore", label: "Explore" },
     ],
   },
   {
     title: "Modes",
     links: [
-      { href: "/studio/create?mode=text-to-image", label: "Text to Image" },
-      { href: "/studio/create?mode=text-to-video", label: "Text to Video" },
-      { href: "/studio/create?mode=image-to-video", label: "Image to Video" },
+      { href: "/create?mode=text-to-image", label: "Text to Image" },
+      { href: "/create?mode=text-to-video", label: "Text to Video" },
+      { href: "/create?mode=image-to-video", label: "Image to Video" },
     ],
   },
 ];
@@ -48,7 +48,7 @@ export function SiteFooter() {
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-fg-subtle sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>© 2026 AI Video Studio</p>
-          <p>Phase 1 · Interface preview. AI generation is not connected yet.</p>
+          <p>Interface preview · AI generation is not connected yet.</p>
         </div>
       </div>
     </footer>

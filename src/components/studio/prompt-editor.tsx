@@ -3,7 +3,8 @@
 import { useId } from "react";
 import { Eraser, Lightbulb } from "lucide-react";
 import { InfoHint } from "@/components/ui/info-hint";
-import { EXAMPLE_PROMPT, type GenerationMode } from "@/lib/studio-options";
+import { EXAMPLE_PROMPT } from "@/lib/studio-options";
+import type { GenerationMode } from "@/types/studio";
 import { cn } from "@/lib/cn";
 
 export const PROMPT_MAX = 1000;

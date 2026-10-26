@@ -1,25 +1,66 @@
 "use client";
 
 import { useSearchParams } from "next/navigation";
-import { isMode } from "@/lib/studio-options";
+import { usePreferences } from "@/components/providers/preferences-provider";
+import { SkeletonBlock } from "@/components/ui/loading-state";
+import { getProject } from "@/lib/mock-data";
+import { EXAMPLE_PROMPT, isMode, VISUAL_STYLES } from "@/lib/studio-options";
+import type { CreateDraft } from "@/types/studio";
 import { CreateWorkspace } from "./create-workspace";
 
-/** Reads `?mode=` so dashboard shortcuts can open the workspace in a given mode. */
+/**
+ * Builds the workspace's starting values. Priority: a project opened via
+ * `?project=`, then `?mode=` / `?style=`, then the session defaults from Settings.
+ */
 export function CreateWorkspaceFromUrl() {
-  const param = useSearchParams().get("mode");
-  const mode = isMode(param) ? param : undefined;
-  return <CreateWorkspace key={mode ?? "default"} initialMode={mode} />;
+  const params = useSearchParams();
+  const { preferences } = usePreferences();
+  const project = getProject(params.get("project") ?? "");
+  const modeParam = params.get("mode");
+  const styleParam = VISUAL_STYLES.find((s) => s.id === params.get("style"))?.id;
+
+  const initial: CreateDraft = project
+    ? {
+        mode: project.mode,
+        prompt: project.prompt,
+        aspectRatio: project.aspectRatio,
+        styleId: project.styleId,
+        duration: project.duration ?? "6s",
+      }
+    : {
+        mode: isMode(modeParam) ? modeParam : preferences.defaultMode,
+        prompt: EXAMPLE_PROMPT,
+        aspectRatio: preferences.defaultAspectRatio,
+        styleId: styleParam ?? preferences.defaultStyleId,
+        duration: "6s",
+      };
+
+  // Next keeps visited pages mounted (hidden) between navigations, so remount
+  // whenever the starting values change rather than keeping a stale draft.
+  const draftKey = [params.toString(), initial.mode, initial.aspectRatio, initial.styleId].join("|");
+
+  return (
+    <CreateWorkspace
+      key={draftKey}
+      initial={initial}
+      sourceProject={project ? { id: project.id, title: project.title } : undefined}
+    />
+  );
 }
 
 export function CreateWorkspaceSkeleton() {
   return (
-    <div className="grid gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]" aria-busy="true" aria-label="Loading workspace">
+    <div
+      className="grid gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]"
+      role="status"
+      aria-label="Loading workspace"
+    >
       <div className="flex flex-col gap-6">
-        {[52, 200, 92, 120, 64].map((h, i) => (
-          <div key={i} className="animate-pulse rounded-xl bg-ink-900" style={{ height: h }} />
+        {["h-[52px]", "h-[200px]", "h-[92px]", "h-[120px]", "h-[64px]"].map((h) => (
+          <SkeletonBlock key={h} className={h} />
         ))}
       </div>
-      <div className="min-h-[380px] animate-pulse rounded-2xl bg-ink-900 lg:min-h-[680px]" />
+      <SkeletonBlock className="min-h-[380px] rounded-2xl lg:min-h-[680px]" />
     </div>
   );
 }

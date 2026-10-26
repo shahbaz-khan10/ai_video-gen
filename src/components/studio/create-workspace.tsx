@@ -1,22 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import {
-  ASPECT_RATIOS,
-  EXAMPLE_PROMPT,
-  MODELS,
-  MODES,
-  VISUAL_STYLES,
-  type AspectRatio,
-  type GenerationMode,
-} from "@/lib/studio-options";
+import { FolderOpen } from "lucide-react";
+import { ASPECT_RATIOS, getMode, getStyle, isVideoMode, MODELS } from "@/lib/studio-options";
+import { prefersReducedMotion } from "@/lib/motion";
+import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
+import { AspectRatioSelector } from "./aspect-ratio-selector";
+import { DurationSelector } from "./duration-selector";
 import { GenerateButton } from "./generate-button";
-import { ImageUpload } from "./image-upload";
+import { ImageUploader } from "./image-uploader";
+import { ModelSelect } from "./model-select";
 import { ModeSelector } from "./mode-selector";
 import { PreviewPanel } from "./preview-panel";
 import { PromptEditor } from "./prompt-editor";
-import { AspectRatioSelector, DurationSelector, ModelSelect, StyleSelector, type Duration } from "./setting-controls";
+import { StyleSelector } from "./style-selector";
 import { useImageSelection } from "./use-image-selection";
 
 const GENERATE_LABEL: Record<GenerationMode, string> = {
@@ -32,24 +31,30 @@ const collapse = {
   transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] as const },
 };
 
-export function CreateWorkspace({ initialMode = "text-to-video" }: { initialMode?: GenerationMode }) {
-  const [mode, setMode] = useState<GenerationMode>(initialMode);
-  const [prompt, setPrompt] = useState(EXAMPLE_PROMPT);
-  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("16:9");
-  const [style, setStyle] = useState(VISUAL_STYLES[0].id);
-  const [duration, setDuration] = useState<Duration>("6s");
+type CreateWorkspaceProps = {
+  initial: CreateDraft;
+  /** Set when the workspace was opened from a project's detail page. */
+  sourceProject?: { id: string; title: string };
+};
+
+export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps) {
+  const [mode, setMode] = useState<GenerationMode>(initial.mode);
+  const [prompt, setPrompt] = useState(initial.prompt);
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>(initial.aspectRatio);
+  const [style, setStyle] = useState(initial.styleId);
+  const [duration, setDuration] = useState<ClipDuration>(initial.duration);
   const [model, setModel] = useState(MODELS[0].id);
   const [errors, setErrors] = useState<{ prompt?: string; image?: string }>({});
   const [showNotice, setShowNotice] = useState(false);
   const upload = useImageSelection();
 
-  const isVideo = mode !== "text-to-image";
+  const isVideo = isVideoMode(mode);
   const needsImage = mode === "image-to-video";
 
   const details = [
-    MODES.find((m) => m.id === mode)!.label,
+    getMode(mode).label,
     `${aspectRatio} ${ASPECT_RATIOS.find((r) => r.id === aspectRatio)!.label}`,
-    VISUAL_STYLES.find((s) => s.id === style)!.label,
+    getStyle(style).label,
     ...(isVideo ? [duration] : []),
     MODELS.find((m) => m.id === model)!.label.split(" · ")[0],
   ];
@@ -65,19 +70,21 @@ export function CreateWorkspace({ initialMode = "text-to-video" }: { initialMode
     if (!prompt.trim()) nextErrors.prompt = "Add a prompt to describe what you want to create.";
     if (needsImage && !upload.image) nextErrors.image = "Add a source image to animate.";
     setErrors(nextErrors);
-    // Phase 1: never pretend to generate. Only explain that no model is connected.
+    // No model is connected: never pretend to generate, only explain that.
     const valid = Object.keys(nextErrors).length === 0;
     setShowNotice(valid);
 
     const firstInvalid = nextErrors.image ? "source-image-field" : nextErrors.prompt ? "prompt-field" : null;
     if (firstInvalid) {
-      document.getElementById(firstInvalid)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      document
+        .getElementById(firstInvalid)
+        ?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "center" });
       return;
     }
 
     // On stacked layouts the preview sits below the form; bring the notice into view.
     if (valid && window.matchMedia("(max-width: 1023px)").matches) {
-      const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      const reduce = prefersReducedMotion();
       document.getElementById("preview-panel")?.scrollIntoView({ behavior: reduce ? "auto" : "smooth", block: "start" });
     }
   };
@@ -89,12 +96,27 @@ export function CreateWorkspace({ initialMode = "text-to-video" }: { initialMode
         onSubmit={(e) => e.preventDefault()}
         className="flex flex-col gap-6"
       >
+        {sourceProject && (
+          <p className="flex items-center gap-2 rounded-lg border border-line bg-ink-900 px-3 py-2.5 text-xs text-fg-muted">
+            <FolderOpen className="size-3.5 shrink-0 text-violet-soft" aria-hidden />
+            <span className="min-w-0 flex-1 truncate">
+              Settings loaded from <span className="text-fg">{sourceProject.title}</span>
+            </span>
+            <Link
+              href={`/projects/${sourceProject.id}`}
+              className="shrink-0 rounded text-violet-soft hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/70"
+            >
+              View project
+            </Link>
+          </p>
+        )}
+
         <ModeSelector value={mode} onChange={changeMode} />
 
         <AnimatePresence initial={false}>
           {needsImage && (
             <motion.div key="upload" id="source-image-field" {...collapse} className="overflow-hidden">
-              <ImageUpload
+              <ImageUploader
                 image={upload.image}
                 error={upload.error ?? errors.image ?? null}
                 accept={upload.accept}

@@ -5,7 +5,8 @@ import { AnimatePresence, motion } from "motion/react";
 import { Search, SearchX } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { EmptyState } from "@/components/ui/empty-state";
-import type { Project } from "@/lib/mock-data";
+import { getStyle, isVideoMode } from "@/lib/studio-options";
+import type { Project } from "@/types/studio";
 import { cn } from "@/lib/cn";
 import { ProjectCard } from "./project-card";
 
@@ -18,11 +19,11 @@ const FILTERS = [
 type Filter = (typeof FILTERS)[number]["id"];
 
 function matches(project: Project, filter: Filter, query: string) {
-  const isVideo = project.mode !== "text-to-image";
+  const isVideo = isVideoMode(project.mode);
   if (filter === "image" && isVideo) return false;
   if (filter === "video" && !isVideo) return false;
   const q = query.trim().toLowerCase();
-  return !q || `${project.title} ${project.style}`.toLowerCase().includes(q);
+  return !q || `${project.title} ${getStyle(project.styleId).label} ${project.prompt}`.toLowerCase().includes(q);
 }
 
 export function ProjectLibrary({ projects }: { projects: Project[] }) {

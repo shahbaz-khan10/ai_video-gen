@@ -2,7 +2,8 @@ import { ArrowRight, Type } from "lucide-react";
 import { Reveal } from "@/components/motion/reveal";
 import { Poster } from "@/components/ui/poster";
 import { SectionLabel } from "@/components/ui/section-label";
-import { MODES, type GenerationMode } from "@/lib/studio-options";
+import { MODES } from "@/lib/studio-options";
+import type { GenerationMode } from "@/types/studio";
 
 const DETAILS: Record<GenerationMode, { headline: string; points: string[] }> = {
   "text-to-image": {

@@ -1,10 +1,10 @@
 # AI Video Studio
 
-Phase 1: the frontend UI/UX for an AI image and video generation studio. No AI models, auth, database or payments are connected yet. Project cards are mock data, and the Generate button says that generation is not connected.
+Frontend for an AI image and video generation studio. Phase 2 (frontend foundation) is done. No AI models, auth, database or payments are connected: project cards are mock data, and Generate says that generation is not connected yet.
 
 ## Stack
 
-Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Motion (`motion/react`), Lucide icons.
+Next.js 16 (App Router, Cache Components), TypeScript (strict), Tailwind CSS v4, Motion (`motion/react`), Lucide icons.
 
 ## Run
 
@@ -12,6 +12,7 @@ Next.js 16 (App Router), TypeScript, Tailwind CSS v4, Motion (`motion/react`), L
 npm install
 npm run dev        # http://localhost:3000
 npm run lint
+npx tsc --noEmit   # run `npx next typegen` first on a fresh clone
 npm run build
 ```
 
@@ -20,22 +21,36 @@ npm run build
 | Route | Purpose |
 | --- | --- |
 | `/` | Landing page |
-| `/studio` | Dashboard overview |
-| `/studio/create` | Create workspace (`?mode=text-to-image \| text-to-video \| image-to-video`) |
-| `/studio/projects` | Project library with filters, search and empty state |
-| `/studio/explore` | Visual style library |
-| `/studio/settings` | Settings placeholders |
+| `/dashboard` | Studio overview |
+| `/create` | Create workspace. Accepts `?mode=`, `?style=` and `?project=` |
+| `/projects` | Project library with filters, search and empty state |
+| `/projects/[id]` | Project detail with "Open in Create" |
+| `/explore` | Visual style library (each style opens Create with it selected) |
+| `/settings` | Session-only interface preferences |
+
+The Phase 1 `/studio/*` URLs redirect permanently to the routes above.
 
 ## Structure
 
 ```
 src/
-  app/                 routes, root layout, design tokens (globals.css)
+  app/
+    page.tsx               landing
+    (app)/                 studio routes sharing AppShell (layout, template, loading)
   components/
-    ui/                button, tooltip, empty state, CSS-generated poster artwork
-    motion/            MotionConfig provider (respects reduced motion), scroll reveal
-    landing/           header, hero, features, workflow, footer
-    studio/            shell, collapsible sidebar, project cards, page headers
-    create/            mode selector, prompt editor, uploader, settings, preview
-  lib/                 studio options, mock data, helpers
+    layout/                AppShell, AppSidebar, AppHeader, PageContainer, PageHeader
+    ui/                    Button, EmptyState, LoadingState, Switch, Tooltip, CopyButton, Poster…
+    studio/                ModeSelector, PromptEditor, AspectRatioSelector, StyleSelector,
+                           ImageUploader, PreviewPanel, CreateWorkspace…
+    projects/              ProjectCard, ProjectThumbnail, ProjectLibrary
+    settings/              PreferencesForm
+    providers/             PreferencesProvider (in-memory session preferences)
+    landing/, motion/, brand/
+  lib/                     studio options, mock data, helpers
+  types/                   shared TypeScript types
 ```
+
+## Notes
+
+- Preferences live in React state only and reset on reload. They feed the Create defaults, the sidebar state and a "Reduce motion" override. The OS reduced-motion setting is always respected.
+- Uploaded images stay in the browser as object URLs (PNG, JPG or WebP, up to 10 MB). URLs are revoked when replaced, removed, or unmounted.

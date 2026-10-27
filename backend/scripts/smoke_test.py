@@ -14,10 +14,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import get_settings  # noqa: E402
+from app.schemas.generation import IMAGE_SIZES, AspectRatio  # noqa: E402
 from app.services.image_engine import DiffusersImageEngine, EngineError, ImageParams  # noqa: E402
 from app.services.image_store import ImageStore  # noqa: E402
 
-PROMPT = "cinematic film still, a lighthouse on a cliff at blue hour, waves, mist"
+PROMPT = "RAW photo, documentary photography, three women in shawls drinking tea outdoors, natural light, highly detailed"
 
 
 def main() -> int:
@@ -35,7 +36,16 @@ def main() -> int:
         torch.cuda.reset_peak_memory_stats()
         print(f"GPU: {torch.cuda.get_device_name(0)}")
 
-    params = ImageParams(prompt=PROMPT, width=512, height=512, num_inference_steps=1, seed=42)
+    width, height = IMAGE_SIZES[settings.image_default_resolution][AspectRatio.LANDSCAPE]
+    params = ImageParams(
+        prompt=PROMPT,
+        width=width,
+        height=height,
+        num_inference_steps=settings.image_default_steps,
+        seed=42,
+        negative_prompt=settings.image_negative_prompt or None,
+    )
+    print(f"Model: {settings.image_model_id} | {width}x{height} | {params.num_inference_steps} steps")
     try:
         started = time.monotonic()
         generated = engine.generate(params, deadline=started + settings.image_generation_timeout_seconds)
@@ -48,7 +58,7 @@ def main() -> int:
         return 1
 
     store = ImageStore(settings.image_output_dir)
-    filename = store.save(generated.image, (512, 512))
+    filename = store.save(generated.image, (width, height))
     path = store.resolve(filename)
     assert path is not None
 

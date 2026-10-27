@@ -51,8 +51,11 @@ export type InfoResponse = {
     source_image_max_bytes: number;
     source_image_types: string[];
     max_request_bytes: number;
-    image_resolutions: number[];
+    image_resolutions: ImageResolution[];
+    image_default_resolution: ImageResolution;
     image_max_steps: number;
+    image_step_presets: number[];
+    image_default_steps: number;
     seed_max: number;
   };
   generation: {
@@ -69,7 +72,7 @@ export type SourceImageInfo = {
   size_bytes: number;
 };
 
-export type ImageResolution = 512 | 768;
+export type ImageResolution = 512 | 768 | 1024;
 
 type GenerationBase = { prompt: string; aspect_ratio: AspectRatio; style: string };
 

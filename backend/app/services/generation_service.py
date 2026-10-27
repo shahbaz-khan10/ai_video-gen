@@ -41,18 +41,31 @@ logger = logging.getLogger(__name__)
 MAX_RETAINED_JOBS = 200
 
 # Short style cues placed before the prompt, so CLIP's 77-token limit trims the prompt's tail, not the style.
+# Every style except anime asks for a photograph, which steers photoreal models away from painted looks.
 STYLE_PROMPTS: dict[VisualStyle, str] = {
-    VisualStyle.CINEMATIC: "cinematic film still, dramatic lighting",
-    VisualStyle.DREAMLIKE: "dreamlike, soft bloom, pastel haze",
-    VisualStyle.NEON_NOIR: "neon noir, wet streets, magenta neon, deep shadows",
-    VisualStyle.DOCUMENTARY: "documentary photo, natural light, realistic colour",
+    VisualStyle.CINEMATIC: "cinematic photo, 35mm film, natural lighting, highly detailed",
+    VisualStyle.DREAMLIKE: "dreamy photo, soft bloom, pastel haze",
+    VisualStyle.NEON_NOIR: "night photo, neon lights, wet streets, deep shadows",
+    VisualStyle.DOCUMENTARY: "RAW photo, documentary photography, natural light, realistic skin, highly detailed",
     VisualStyle.ANIME: "anime illustration, clean linework, vibrant colour",
-    VisualStyle.GOLDEN_HOUR: "golden hour, warm low sun, long shadows",
+    VisualStyle.GOLDEN_HOUR: "photo at golden hour, warm low sun, long shadows, highly detailed",
 }
+
+# The default negative prompt rejects drawings and anime, which would fight the anime style.
+_STYLES_WITHOUT_NEGATIVE = {VisualStyle.ANIME}
 
 _MODE_LABELS = {GenerationMode.TEXT_TO_VIDEO: "Text-to-video", GenerationMode.IMAGE_TO_VIDEO: "Image-to-video"}
 
 _TERMINAL = (GenerationStatus.COMPLETED, GenerationStatus.FAILED)
+
+
+def _invalid(field: str, message: str) -> AppError:
+    return AppError(
+        status_code=422,
+        code="validation_error",
+        message="The request is invalid.",
+        details=[{"field": field, "message": message}],
+    )
 
 
 class JobStore:
@@ -104,13 +117,15 @@ class GenerationService:
     def normalize(self, request: GenerationRequest) -> GenerationSettings:
         image_fields: dict[str, int | None] = {}
         if isinstance(request, TextToImageRequest):
-            width, height = IMAGE_SIZES[request.resolution][request.aspect_ratio]
-            image_fields = {
-                "width": width,
-                "height": height,
-                "num_inference_steps": request.num_inference_steps,
-                "seed": request.seed,
-            }
+            resolution = request.resolution or self.settings.image_default_resolution
+            if resolution not in self.settings.image_resolutions:
+                allowed = ", ".join(str(r) for r in self.settings.image_resolutions)
+                raise _invalid("resolution", f"This model supports these resolutions: {allowed}.")
+            steps = request.num_inference_steps or self.settings.image_default_steps
+            if steps > self.settings.image_max_steps:
+                raise _invalid("num_inference_steps", f"This model allows at most {self.settings.image_max_steps} steps.")
+            width, height = IMAGE_SIZES[resolution][request.aspect_ratio]
+            image_fields = {"width": width, "height": height, "num_inference_steps": steps, "seed": request.seed}
         return GenerationSettings(
             mode=request.mode,
             prompt=request.prompt,
@@ -134,19 +149,6 @@ class GenerationService:
                 message=f"{_MODE_LABELS[settings.mode]} is not available yet. Only text-to-image is connected.",
             )
         self._check_engine()
-        assert settings.num_inference_steps is not None
-        if settings.num_inference_steps > self.settings.image_max_steps:
-            raise AppError(
-                status_code=422,
-                code="validation_error",
-                message="The request is invalid.",
-                details=[
-                    {
-                        "field": "num_inference_steps",
-                        "message": f"This model allows at most {self.settings.image_max_steps} steps.",
-                    }
-                ],
-            )
         if settings.seed is None:
             # Record the seed actually used, so the result can be reproduced.
             settings = settings.model_copy(update={"seed": secrets.randbelow(SEED_MAX + 1)})
@@ -199,6 +201,9 @@ class GenerationService:
             height=settings.height,
             num_inference_steps=settings.num_inference_steps,
             seed=settings.seed,
+            negative_prompt=None
+            if settings.style in _STYLES_WITHOUT_NEGATIVE
+            else (self.settings.image_negative_prompt or None),
         )
         try:
             generated = self.engine.generate(params, deadline=started + self.settings.image_generation_timeout_seconds)

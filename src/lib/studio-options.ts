@@ -54,39 +54,42 @@ export const VISUAL_STYLES: VisualStyle[] = [
 
 export const DURATIONS: { id: ClipDuration }[] = [{ id: "4s" }, { id: "6s" }, { id: "8s" }];
 
-/** What runs each mode. Only the image model is real; it is set by IMAGE_MODEL_ID on the backend. */
+/** What runs each mode. The image model is set by IMAGE_MODEL_ID on the backend; its ID comes from /info. */
 export const MODELS: Record<"image" | "video", ModelOption> = {
-  image: { id: "sd-turbo", label: "SD-Turbo · local", note: "Open-weight Stable Diffusion, running on this machine's GPU" },
+  image: { id: "local", label: "Local open-weight model", note: "Runs on this machine's GPU through Diffusers" },
   video: { id: "none", label: "Not connected", note: "Video models arrive in a later phase" },
 };
 
-/** Output sizes per tier; must match IMAGE_SIZES in backend/app/schemas/generation.py. */
-export const IMAGE_RESOLUTIONS: {
-  id: ImageResolution;
-  label: string;
-  note: string;
-  sizes: Record<AspectRatio, [number, number]>;
-}[] = [
-  {
-    id: 512,
-    label: "Standard",
-    note: "Fastest. SD-Turbo's native size.",
-    sizes: { "1:1": [512, 512], "16:9": [688, 384], "9:16": [384, 688] },
-  },
-  {
-    id: 768,
-    label: "High",
-    note: "Larger and slower; uses more GPU memory.",
-    sizes: { "1:1": [768, 768], "16:9": [1024, 576], "9:16": [576, 1024] },
-  },
-];
+/** Output size per tier and aspect ratio; must match IMAGE_SIZES in backend/app/schemas/generation.py. */
+export const IMAGE_SIZES: Record<ImageResolution, Record<AspectRatio, [number, number]>> = {
+  512: { "1:1": [512, 512], "16:9": [688, 384], "9:16": [384, 688] },
+  768: { "1:1": [768, 768], "16:9": [1024, 576], "9:16": [576, 1024] },
+  1024: { "1:1": [1024, 1024], "16:9": [1344, 768], "9:16": [768, 1344] },
+};
 
-/** SD-Turbo is distilled for 1–4 steps. */
-export const IMAGE_STEPS: { id: number; label: string }[] = [
-  { id: 1, label: "Fast" },
-  { id: 2, label: "Balanced" },
-  { id: 4, label: "Detailed" },
-];
+/** What the backend's model offers. Used until /info answers; matches the backend defaults (RealVisXL). */
+export type ImageCapabilities = {
+  modelId: string | null;
+  resolutions: ImageResolution[];
+  defaultResolution: ImageResolution;
+  stepPresets: number[];
+  defaultSteps: number;
+};
+
+export const DEFAULT_IMAGE_CAPABILITIES: ImageCapabilities = {
+  modelId: null,
+  resolutions: [768, 1024],
+  defaultResolution: 1024,
+  stepPresets: [4, 6, 8],
+  defaultSteps: 6,
+};
+
+/** Labels for presets in order, smallest first: e.g. 4/6/8 steps → Fast/Balanced/Detailed. */
+export function presetLabel(index: number, count: number, labels: [string, string, string]) {
+  if (index === 0) return labels[0];
+  if (index === count - 1) return labels[2];
+  return labels[1];
+}
 
 export const SEED_MAX = 4_294_967_295;
 

@@ -54,6 +54,7 @@ class ImageParams:
     height: int
     num_inference_steps: int
     seed: int
+    negative_prompt: str | None = None
 
 
 @dataclass
@@ -214,7 +215,7 @@ class DiffusersImageEngine:
         use_cuda = device == "cuda"
         kwargs: dict[str, Any] = {
             # FP16 halves VRAM on GPU. CPUs run FP32; FP16 weight files are upcast on load.
-            "torch_dtype": torch.float16 if use_cuda else torch.float32,
+            "dtype": torch.float16 if use_cuda else torch.float32,
             "use_safetensors": True,
             "local_files_only": not s.image_allow_download,
         }
@@ -242,6 +243,13 @@ class DiffusersImageEngine:
             ) from exc
 
         pipe.set_progress_bar_config(disable=True)
+        if s.image_scheduler == "dpmpp_sde_karras":
+            from diffusers import DPMSolverMultistepScheduler
+
+            # DPM++ SDE with Karras sigmas, as RealVisXL recommends (no torchsde dependency).
+            pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+                pipe.scheduler.config, algorithm_type="sde-dpmsolver++", use_karras_sigmas=True
+            )
         try:
             if use_cuda and s.image_cpu_offload:
                 pipe.enable_model_cpu_offload()  # needs accelerate; keeps only the active sub-model on the GPU
@@ -295,6 +303,7 @@ class DiffusersImageEngine:
                         height=params.height,
                         num_inference_steps=params.num_inference_steps,
                         guidance_scale=self.settings.image_guidance_scale,
+                        negative_prompt=params.negative_prompt,
                         generator=generator,
                         callback_on_step_end=check_deadline,
                     )
@@ -303,7 +312,7 @@ class DiffusersImageEngine:
                 self._release()
                 raise EngineError(
                     "gpu_out_of_memory",
-                    "The GPU ran out of memory. Try the 512 resolution, close other GPU apps, or set IMAGE_CPU_OFFLOAD=true.",
+                    "The GPU ran out of memory. Try a smaller resolution, close other GPU apps, or set IMAGE_CPU_OFFLOAD=true.",
                 ) from exc
             except GenerationTimeout as exc:
                 self._release()

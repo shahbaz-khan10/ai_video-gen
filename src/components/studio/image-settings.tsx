@@ -2,20 +2,22 @@
 
 import { useId } from "react";
 import { Dices, X } from "lucide-react";
-import { IMAGE_RESOLUTIONS, IMAGE_STEPS, SEED_MAX } from "@/lib/studio-options";
+import { IMAGE_SIZES, presetLabel, SEED_MAX } from "@/lib/studio-options";
 import { cn } from "@/lib/cn";
 import type { ImageResolution } from "@/types/api";
 import type { AspectRatio } from "@/types/studio";
 import { FieldLegend, OptionGroup } from "./option-group";
 
-const RESOLUTION_OPTIONS = IMAGE_RESOLUTIONS.map((r) => ({ id: String(r.id) as `${ImageResolution}` }));
-const STEP_OPTIONS = IMAGE_STEPS.map((s) => ({ id: String(s.id) }));
+const GRID_COLS = ["grid-cols-1", "grid-cols-1", "grid-cols-2", "grid-cols-3"];
 
+/** Size tiers offered by the backend's model (from /info). */
 export function ResolutionSelector({
+  options,
   value,
   aspectRatio,
   onChange,
 }: {
+  options: ImageResolution[];
   value: ImageResolution;
   aspectRatio: AspectRatio;
   onChange: (value: ImageResolution) => void;
@@ -23,17 +25,17 @@ export function ResolutionSelector({
   return (
     <OptionGroup
       legend="Resolution"
-      hint="Exact pixel size follows the aspect ratio. Higher sizes take longer and use more GPU memory."
-      options={RESOLUTION_OPTIONS}
-      value={String(value) as `${ImageResolution}`}
+      hint="Exact pixel size follows the aspect ratio. Larger sizes take longer and use more GPU memory."
+      options={options.map((r) => ({ id: String(r) }))}
+      value={String(value)}
       onChange={(id) => onChange(Number(id) as ImageResolution)}
-      className="grid-cols-2"
+      className={GRID_COLS[Math.min(options.length, 3)]}
       renderOption={(id) => {
-        const tier = IMAGE_RESOLUTIONS.find((r) => String(r.id) === id)!;
-        const [w, h] = tier.sizes[aspectRatio];
+        const index = options.findIndex((r) => String(r) === id);
+        const [w, h] = IMAGE_SIZES[options[index]][aspectRatio];
         return (
-          <span className="flex flex-col gap-0.5 px-3 py-2.5" title={tier.note}>
-            <span className="text-xs font-medium">{tier.label}</span>
+          <span className="flex flex-col gap-0.5 px-3 py-2.5">
+            <span className="text-xs font-medium">{presetLabel(index, options.length, ["Faster", "Balanced", "Best quality"])}</span>
             <span className="font-mono text-[11px] text-fg-subtle">
               {w}×{h}
             </span>
@@ -44,22 +46,32 @@ export function ResolutionSelector({
   );
 }
 
-export function StepsSelector({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+/** Step counts offered by the backend's model (from /info). */
+export function StepsSelector({
+  options,
+  value,
+  onChange,
+}: {
+  options: number[];
+  value: number;
+  onChange: (value: number) => void;
+}) {
   return (
     <OptionGroup
       legend="Quality"
-      hint="Denoising steps. SD-Turbo is built for 1 to 4; more steps add detail and time."
-      options={STEP_OPTIONS}
+      hint="Denoising steps. More steps add detail and take longer."
+      options={options.map((s) => ({ id: String(s) }))}
       value={String(value)}
       onChange={(id) => onChange(Number(id))}
-      className="grid-cols-3"
+      className={GRID_COLS[Math.min(options.length, 3)]}
       renderOption={(id) => {
-        const step = IMAGE_STEPS.find((s) => String(s.id) === id)!;
+        const index = options.findIndex((s) => String(s) === id);
+        const steps = options[index];
         return (
           <span className="flex flex-col items-center gap-0.5 py-2">
-            <span className="text-xs font-medium">{step.label}</span>
+            <span className="text-xs font-medium">{presetLabel(index, options.length, ["Fast", "Balanced", "Detailed"])}</span>
             <span className="font-mono text-[11px] text-fg-subtle">
-              {step.id} step{step.id > 1 ? "s" : ""}
+              {steps} step{steps > 1 ? "s" : ""}
             </span>
           </span>
         );

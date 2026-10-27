@@ -10,6 +10,7 @@ import pytest
 from PIL import Image
 
 from app.core.config import Settings
+from app.schemas.generation import IMAGE_SIZES, AspectRatio
 from app.services.image_engine import DiffusersImageEngine, ImageParams
 from app.services.image_store import ImageStore
 
@@ -23,12 +24,20 @@ def test_real_model_generates_a_valid_png(tmp_path) -> None:
     if not status.accepts_jobs:
         pytest.skip(f"model not usable here: {status.state}: {status.detail}")
 
-    params = ImageParams(prompt="a red fox in fresh snow, photo", width=512, height=512, num_inference_steps=1, seed=1)
+    size = IMAGE_SIZES[settings.image_default_resolution][AspectRatio.SQUARE]
+    params = ImageParams(
+        prompt="a red fox in fresh snow, photo",
+        width=size[0],
+        height=size[1],
+        num_inference_steps=settings.image_default_steps,
+        seed=1,
+        negative_prompt=settings.image_negative_prompt or None,
+    )
     generated = engine.generate(params, deadline=time.monotonic() + settings.image_generation_timeout_seconds)
     store = ImageStore(tmp_path)
-    path = store.resolve(store.save(generated.image, (512, 512)))
+    path = store.resolve(store.save(generated.image, size))
     assert path is not None
     with Image.open(path) as img:
-        assert img.format == "PNG" and img.size == (512, 512)
+        assert img.format == "PNG" and img.size == size
         low, high = img.convert("L").getextrema()
     assert low != high, "image is a single flat colour"

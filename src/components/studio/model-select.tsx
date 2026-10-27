@@ -5,8 +5,11 @@ import { MODELS } from "@/lib/studio-options";
 import { cn } from "@/lib/cn";
 import { FieldLegend } from "./option-group";
 
-/** Read-only: which model serves the current mode. The image model is configured on the backend (IMAGE_MODEL_ID). */
-export function ModelInfo({ video }: { video: boolean }) {
+/**
+ * Read-only: which model serves the current mode. The image model is configured on the backend
+ * (IMAGE_MODEL_ID); `modelId` is what /info reports, or null before it answers.
+ */
+export function ModelInfo({ video, modelId }: { video: boolean; modelId: string | null }) {
   const model = video ? MODELS.video : MODELS.image;
   const Icon = video ? Clock : Cpu;
   return (
@@ -24,7 +27,7 @@ export function ModelInfo({ video }: { video: boolean }) {
           <Icon className="size-4" aria-hidden />
         </span>
         <div className="min-w-0">
-          <p className="text-sm text-fg">{model.label}</p>
+          <p className="truncate text-sm text-fg">{!video && modelId ? modelId : model.label}</p>
           <p className="truncate text-xs text-fg-subtle">{model.note}</p>
         </div>
       </div>

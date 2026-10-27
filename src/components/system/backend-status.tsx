@@ -135,7 +135,7 @@ export function BackendStatusCard() {
               <p className="mt-1 text-xs leading-relaxed text-fg-muted">
                 The studio still works, and settings are checked in the browser. To start the API, run{" "}
                 <code className="rounded bg-ink-800 px-1 py-0.5 font-mono text-[11px] text-fg">
-                  uvicorn app.main:app --reload
+                  python -m uvicorn app.main:app --reload
                 </code>{" "}
                 in <code className="font-mono text-[11px] text-fg">backend/</code>.
               </p>

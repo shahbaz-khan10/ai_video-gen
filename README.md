@@ -1,6 +1,6 @@
 # AI Video Studio
 
-AI image and video generation studio: a Next.js frontend and a FastAPI backend (Phase 4). **Text to Image generates real images with a local open-weight model** (SD-Turbo via Hugging Face Diffusers, on your own GPU). Text to Video and Image to Video are marked "Soon" and only validate settings. There is no auth, database or payment, and project cards are still mock data.
+AI image and video generation studio: a Next.js frontend and a FastAPI backend (Phase 4). **Text to Image generates real images with a local open-weight model** (RealVisXL V5 Lightning, a photorealistic SDXL model, via Hugging Face Diffusers on your own GPU). Text to Video and Image to Video are marked "Soon" and only validate settings. There is no auth, database or payment, and project cards are still mock data.
 
 ## Stack
 
@@ -14,14 +14,14 @@ The app has two parts: this Next.js frontend and the FastAPI backend in [`backen
 # Terminal 1: backend (http://localhost:8000, docs at /docs)
 cd backend
 .\.venv\Scripts\Activate.ps1
-uvicorn app.main:app --reload --port 8000
+python -m uvicorn app.main:app --reload --port 8000
 
 # Terminal 2: frontend (http://localhost:3000)
 npm install                        # first time only
 npm run dev
 ```
 
-First-time backend setup (virtual environment, CUDA PyTorch, Diffusers, and the one-time ~2.6 GB model download) is in [backend/README.md](backend/README.md#setup-windows-powershell).
+First-time backend setup (virtual environment, CUDA PyTorch, Diffusers, and the one-time ~6.9 GB model download) is in [backend/README.md](backend/README.md#setup-windows-powershell).
 
 Checks:
 

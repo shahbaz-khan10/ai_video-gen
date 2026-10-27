@@ -12,6 +12,8 @@ const eslintConfig = defineConfig([
     "out/**",
     "build/**",
     "next-env.d.ts",
+    // Python backend: its virtualenv ships third-party JS (e.g. torch's model_dump viewer).
+    "backend/**",
   ]),
 ]);
 

@@ -44,7 +44,9 @@ class Settings(BaseSettings):
     # --- Text-to-image engine ----------------------------------------------------
     # "diffusers" runs a local model; "none" disables generation (used by the test suite).
     image_engine: Literal["diffusers", "none"] = Field("diffusers", validation_alias=_image_env("IMAGE_ENGINE"))
-    image_model_id: str = Field("stabilityai/sd-turbo", validation_alias=_image_env("IMAGE_MODEL_ID"))
+    # RealVisXL V5 Lightning: a photorealistic SDXL model distilled for ~4-8 steps (openrail++).
+    # For the small, very fast SD-Turbo use the alternative values in .env.example.
+    image_model_id: str = Field("SG161222/RealVisXL_V5.0_Lightning", validation_alias=_image_env("IMAGE_MODEL_ID"))
     # Weight variant to load ("fp16" downloads only half-precision files). Empty for the default weights.
     image_model_variant: str = Field("fp16", validation_alias=_image_env("IMAGE_MODEL_VARIANT"))
     # Where generated PNGs are written. Relative paths resolve against backend/.
@@ -57,15 +59,57 @@ class Settings(BaseSettings):
     image_max_concurrent_jobs: int = Field(1, ge=1, le=4, validation_alias=_image_env("IMAGE_MAX_CONCURRENT_JOBS"))
     # Jobs waiting or running at once; further submissions get 429.
     image_max_queued_jobs: int = Field(8, ge=1, le=100, validation_alias=_image_env("IMAGE_MAX_QUEUED_JOBS"))
-    image_max_steps: int = Field(4, ge=1, le=50, validation_alias=_image_env("IMAGE_MAX_STEPS"))
-    # SD-Turbo is trained without classifier-free guidance, so 0.0 is correct for it.
-    image_guidance_scale: float = Field(0.0, ge=0.0, le=20.0, validation_alias=_image_env("IMAGE_GUIDANCE_SCALE"))
+    # Size tiers offered for this model (see IMAGE_SIZES). SDXL models are trained at 1024.
+    image_resolutions: Annotated[list[int], NoDecode] = Field(
+        [768, 1024], validation_alias=_image_env("IMAGE_RESOLUTIONS")
+    )
+    image_default_resolution: int = Field(1024, validation_alias=_image_env("IMAGE_DEFAULT_RESOLUTION"))
+    image_max_steps: int = Field(8, ge=1, le=50, validation_alias=_image_env("IMAGE_MAX_STEPS"))
+    # Shown in the UI as Fast / Balanced / Detailed.
+    image_step_presets: Annotated[list[int], NoDecode] = Field(
+        [4, 6, 8], validation_alias=_image_env("IMAGE_STEP_PRESETS")
+    )
+    image_default_steps: int = Field(6, ge=1, le=50, validation_alias=_image_env("IMAGE_DEFAULT_STEPS"))
+    # RealVisXL Lightning recommends CFG 1.0-2.0. Turbo models (SD-Turbo) need 0.0.
+    image_guidance_scale: float = Field(1.5, ge=0.0, le=20.0, validation_alias=_image_env("IMAGE_GUIDANCE_SCALE"))
+    # Only has an effect when guidance is above 1.0.
+    image_negative_prompt: str = Field(
+        "worst quality, low quality, blurry, cartoon, anime, drawing, painting, illustration, render, cgi, "
+        "3d, deformed, disfigured, bad anatomy, extra fingers, mutated hands, poorly drawn face, duplicate, "
+        "watermark, text",
+        validation_alias=_image_env("IMAGE_NEGATIVE_PROMPT"),
+    )
+    # "dpmpp_sde_karras" is the sampler RealVisXL recommends; "default" keeps the model's own scheduler.
+    image_scheduler: Literal["default", "dpmpp_sde_karras"] = Field(
+        "dpmpp_sde_karras", validation_alias=_image_env("IMAGE_SCHEDULER")
+    )
     image_generation_timeout_seconds: int = Field(
         300, ge=10, le=3600, validation_alias=_image_env("IMAGE_GENERATION_TIMEOUT_SECONDS")
     )
-    # Optional VRAM savers. Off by default: SD-Turbo fits comfortably in 8 GB and slicing slows SDPA attention.
+    # VRAM savers. SDXL (~7 GB of FP16 weights) does not fit an 8 GB card in one piece, so CPU offload is on
+    # by default: only the sub-model in use sits on the GPU. Attention slicing slows SDPA and stays off.
     image_attention_slicing: bool = Field(False, validation_alias=_image_env("IMAGE_ATTENTION_SLICING"))
-    image_cpu_offload: bool = Field(False, validation_alias=_image_env("IMAGE_CPU_OFFLOAD"))
+    image_cpu_offload: bool = Field(True, validation_alias=_image_env("IMAGE_CPU_OFFLOAD"))
+
+    @field_validator("image_resolutions", "image_step_presets", mode="before")
+    @classmethod
+    def _split_ints(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [int(part) for part in value.split(",") if part.strip()]
+        return value
+
+    @model_validator(mode="after")
+    def _consistent_image_options(self) -> "Settings":
+        from app.schemas.generation import IMAGE_SIZES
+
+        if not self.image_resolutions or any(r not in IMAGE_SIZES for r in self.image_resolutions):
+            raise ValueError(f"IMAGE_RESOLUTIONS must be a non-empty subset of {sorted(IMAGE_SIZES)}.")
+        if self.image_default_resolution not in self.image_resolutions:
+            raise ValueError("IMAGE_DEFAULT_RESOLUTION must be one of IMAGE_RESOLUTIONS.")
+        steps = [*self.image_step_presets, self.image_default_steps]
+        if not self.image_step_presets or any(s < 1 or s > self.image_max_steps for s in steps):
+            raise ValueError("IMAGE_STEP_PRESETS and IMAGE_DEFAULT_STEPS must be between 1 and IMAGE_MAX_STEPS.")
+        return self
 
     @field_validator("cors_origins", mode="before")
     @classmethod

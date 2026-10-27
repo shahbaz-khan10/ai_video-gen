@@ -387,3 +387,71 @@ def test_torch_that_fails_to_load_is_reported_not_crashing(settings: Settings, m
     assert "Visual C++" in model["detail"]
     assert "c10.dll" not in ready.text  # the raw error stays in the server log
     assert client.post(CREATE, json=image_request).json()["error"]["code"] == "engine_not_installed"
+
+
+# --- model options (resolutions, steps, negative prompt) -------------------------------
+
+
+def test_default_settings_are_realvisxl_and_consistent() -> None:
+    s = Settings(_env_file=None)
+    assert s.image_model_id == "SG161222/RealVisXL_V5.0_Lightning"
+    assert s.image_default_resolution in s.image_resolutions == [768, 1024]
+    assert s.image_cpu_offload is True
+    assert 1.0 <= s.image_guidance_scale <= 2.0
+
+
+@pytest.mark.parametrize(
+    "overrides",
+    [
+        {"image_resolutions": [640]},
+        {"image_resolutions": [512], "image_default_resolution": 1024},
+        {"image_step_presets": [4, 12], "image_max_steps": 8},
+        {"image_default_steps": 9, "image_max_steps": 8},
+    ],
+)
+def test_inconsistent_image_options_are_refused(overrides: dict) -> None:
+    with pytest.raises(ValueError):
+        Settings(_env_file=None, **overrides)
+
+
+def test_comma_separated_options_parse_from_env(monkeypatch) -> None:
+    monkeypatch.setenv("IMAGE_RESOLUTIONS", "512,768")
+    monkeypatch.setenv("IMAGE_DEFAULT_RESOLUTION", "768")
+    monkeypatch.setenv("IMAGE_STEP_PRESETS", "1,2,4")
+    monkeypatch.setenv("IMAGE_DEFAULT_STEPS", "2")
+    s = Settings(_env_file=None)
+    assert (s.image_resolutions, s.image_step_presets, s.image_default_steps) == ([512, 768], [1, 2, 4], 2)
+
+
+def test_omitted_resolution_and_steps_use_model_defaults(settings: Settings, image_request: dict) -> None:
+    client = make_client(settings.model_copy(update={"image_default_resolution": 768, "image_default_steps": 2}), FakeImageEngine())
+    s = client.post(f"{CREATE}/validate", json=image_request).json()["settings"]
+    assert (s["width"], s["height"], s["num_inference_steps"]) == (768, 768, 2)
+
+
+def test_resolution_not_offered_by_model_is_rejected(settings: Settings, image_request: dict) -> None:
+    client = make_client(settings.model_copy(update={"image_resolutions": [1024], "image_default_resolution": 1024}), FakeImageEngine())
+    image_request["resolution"] = 512
+    res = client.post(CREATE, json=image_request)
+    assert res.status_code == 422
+    assert res.json()["error"]["details"][0]["field"] == "resolution"
+    image_request.update(resolution=1024, aspect_ratio="16:9")
+    assert client.post(f"{CREATE}/validate", json=image_request).json()["settings"]["width"] == 1344
+
+
+def test_info_lists_model_presets(gen_client: TestClient) -> None:
+    limits = gen_client.get("/api/v1/info").json()["limits"]
+    assert limits["image_step_presets"] == [1, 2, 4]
+    assert limits["image_default_resolution"] == 512 and limits["image_default_steps"] == 1
+
+
+@pytest.mark.parametrize(("style", "has_negative"), [("documentary", True), ("cinematic", True), ("anime", False)])
+def test_negative_prompt_follows_style(
+    gen_client: TestClient, fake_engine: FakeImageEngine, image_request: dict, style: str, has_negative: bool
+) -> None:
+    image_request["style"] = style
+    wait_for_job(gen_client, gen_client.post(CREATE, json=image_request).json()["id"])
+    negative = fake_engine.calls[0].negative_prompt
+    assert (negative is not None) is has_negative
+    if negative:
+        assert "deformed" in negative

@@ -50,8 +50,11 @@ class Limits(BaseModel):
     source_image_max_bytes: int
     source_image_types: list[str]
     max_request_bytes: int
-    image_resolutions: list[int]
+    image_resolutions: list[int] = Field(description="Size tiers this model offers.")
+    image_default_resolution: int
     image_max_steps: int
+    image_step_presets: list[int] = Field(description="Step counts offered as Fast / Balanced / Detailed.")
+    image_default_steps: int
     seed_max: int
 
 

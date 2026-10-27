@@ -51,7 +51,7 @@ describe("generationReducer", () => {
       phase: "failed",
       error: { title: "GPU out of memory", message: "The GPU ran out of memory.", retryable: true },
     });
-    if (state.phase === "failed") expect(state.error.hint).toMatch(/Standard resolution/);
+    if (state.phase === "failed") expect(state.error.hint).toMatch(/smaller resolution/);
   });
 
   it("ignores poll results for a different job", () => {

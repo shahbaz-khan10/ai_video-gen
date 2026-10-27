@@ -38,7 +38,7 @@ type Copy = { title: string; hint?: string; retryable: boolean };
 const ERROR_COPY: Record<string, Copy> = {
   model_not_downloaded: {
     title: "Model not downloaded",
-    hint: "In backend/, run: python scripts/download_model.py (about 2.6 GB, one time).",
+    hint: "In backend/, run: python scripts/download_model.py (one time; needs internet).",
     retryable: true,
   },
   engine_not_installed: {
@@ -55,7 +55,7 @@ const ERROR_COPY: Record<string, Copy> = {
   queue_full: { title: "Queue is full", hint: "Wait for the current images to finish.", retryable: true },
   gpu_out_of_memory: {
     title: "GPU out of memory",
-    hint: "Try Standard resolution, close other GPU-heavy apps, or set IMAGE_CPU_OFFLOAD=true.",
+    hint: "Try a smaller resolution, close other GPU-heavy apps, or set IMAGE_CPU_OFFLOAD=true.",
     retryable: true,
   },
   model_unavailable: {
@@ -97,7 +97,7 @@ export function describeApiError(err: unknown): GenerationError {
     return {
       title: err.kind === "timeout" ? "Backend not responding" : "Backend unreachable",
       message: err.message,
-      hint: err.kind === "unconfigured" ? undefined : "Start it in backend/: uvicorn app.main:app --port 8000",
+      hint: err.kind === "unconfigured" ? undefined : "Start it in backend/: python -m uvicorn app.main:app --port 8000",
       retryable: err.kind !== "unconfigured",
     };
   }

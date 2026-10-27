@@ -17,7 +17,6 @@ DEFAULT_DURATION_SECONDS = 6
 SEED_MAX = 2**32 - 1
 # Upper bound accepted by the schema; the engine's own limit (IMAGE_MAX_STEPS) is checked by the service.
 STEPS_SCHEMA_MAX = 50
-DEFAULT_STEPS = 1
 
 # Control characters other than tab/newline have no place in a prompt.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -46,14 +45,15 @@ class VisualStyle(StrEnum):
 
 
 DurationSeconds = Literal[4, 6, 8]
-ImageResolution = Literal[512, 768]
-DEFAULT_RESOLUTION = 512
+ImageResolution = Literal[512, 768, 1024]
 
 # Output size per resolution tier and aspect ratio. Every side is a multiple of 8, as the
-# UNet/VAE require. 512 matches SD-Turbo's training resolution; 768 is a larger, slower tier.
+# UNet/VAE require. 512 suits SD 1.x/2.x and SD-Turbo; 1024 is SDXL's training size (1344x768 is
+# one of SDXL's native bucket sizes). Which tiers a model offers is set by IMAGE_RESOLUTIONS.
 IMAGE_SIZES: dict[int, dict[AspectRatio, tuple[int, int]]] = {
     512: {AspectRatio.SQUARE: (512, 512), AspectRatio.LANDSCAPE: (688, 384), AspectRatio.PORTRAIT: (384, 688)},
     768: {AspectRatio.SQUARE: (768, 768), AspectRatio.LANDSCAPE: (1024, 576), AspectRatio.PORTRAIT: (576, 1024)},
+    1024: {AspectRatio.SQUARE: (1024, 1024), AspectRatio.LANDSCAPE: (1344, 768), AspectRatio.PORTRAIT: (768, 1344)},
 }
 
 
@@ -94,10 +94,14 @@ class _GenerationBase(StrictModel):
 
 class TextToImageRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_IMAGE]
-    resolution: ImageResolution = Field(
-        DEFAULT_RESOLUTION, description="Size tier; the exact width and height follow from the aspect ratio."
+    resolution: ImageResolution | None = Field(
+        None,
+        description="Size tier; the exact width and height follow from the aspect ratio. "
+        "Omit for the model's default. Allowed tiers are listed in /info.",
     )
-    num_inference_steps: int = Field(DEFAULT_STEPS, ge=1, le=STEPS_SCHEMA_MAX)
+    num_inference_steps: int | None = Field(
+        None, ge=1, le=STEPS_SCHEMA_MAX, description="Omit for the model's default (see /info)."
+    )
     seed: int | None = Field(None, ge=0, le=SEED_MAX, description="Omit for a random seed. The seed used is returned.")
 
 

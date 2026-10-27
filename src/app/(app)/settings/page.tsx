@@ -25,7 +25,7 @@ export default function SettingsPage() {
 
         <SettingsSection title="Models" description="Connections to image and video models.">
           <p className="text-sm leading-relaxed text-fg-muted">
-            Text to Image uses an open-weight model (SD-Turbo by default) running on the backend machine. No API
+            Text to Image uses an open-weight model (RealVisXL V5 Lightning by default) running on the backend machine. No API
             keys are stored or required. The model is configured with IMAGE_* settings in backend/.env. Video models
             arrive in a later phase.
           </p>

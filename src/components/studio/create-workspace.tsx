@@ -4,8 +4,9 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { FolderOpen } from "lucide-react";
-import { ASPECT_RATIOS, getMode, getStyle, IMAGE_RESOLUTIONS, isVideoMode, MODELS } from "@/lib/studio-options";
+import { ASPECT_RATIOS, getMode, getStyle, IMAGE_SIZES, isVideoMode, MODELS } from "@/lib/studio-options";
 import { api } from "@/lib/api/client";
+import { useImageCapabilities } from "@/lib/api/use-image-capabilities";
 import { prefersReducedMotion } from "@/lib/motion";
 import type { GenerationPayload, ImageResolution } from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
@@ -49,8 +50,9 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(initial.aspectRatio);
   const [style, setStyle] = useState(initial.styleId);
   const [duration, setDuration] = useState<ClipDuration>(initial.duration);
-  const [resolution, setResolution] = useState<ImageResolution>(512);
-  const [steps, setSteps] = useState(1);
+  // null = use the model's default, which is only known once /info answers.
+  const [pickedResolution, setResolution] = useState<ImageResolution | null>(null);
+  const [pickedSteps, setSteps] = useState<number | null>(null);
   const [seed, setSeed] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [outcome, setOutcome] = useState<CheckOutcome | null>(null);
@@ -61,18 +63,27 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const lastPayload = useRef<GenerationPayload | null>(null);
   const upload = useImageSelection();
   const generation = useGeneration();
+  const capabilities = useImageCapabilities();
 
   const isVideo = isVideoMode(mode);
   const needsImage = mode === "image-to-video";
   const generating = isBusy(generation.state);
-  const [width, height] = IMAGE_RESOLUTIONS.find((r) => r.id === resolution)!.sizes[aspectRatio];
+  // A pick the current model doesn't offer falls back to its default.
+  const resolution =
+    pickedResolution !== null && capabilities.resolutions.includes(pickedResolution)
+      ? pickedResolution
+      : capabilities.defaultResolution;
+  const steps =
+    pickedSteps !== null && capabilities.stepPresets.includes(pickedSteps) ? pickedSteps : capabilities.defaultSteps;
+  const [width, height] = IMAGE_SIZES[resolution][aspectRatio];
+  const imageModelLabel = capabilities.modelId?.split("/").pop() ?? MODELS.image.label;
 
   const details = [
     getMode(mode).label,
     `${aspectRatio} ${ASPECT_RATIOS.find((r) => r.id === aspectRatio)!.label}`,
     getStyle(style).label,
     ...(isVideo ? [duration] : [`${width}×${height}`, `${steps} step${steps > 1 ? "s" : ""}`, seed ? `Seed ${seed}` : "Random seed"]),
-    (isVideo ? MODELS.video : MODELS.image).label,
+    isVideo ? MODELS.video.label : imageModelLabel,
   ];
 
   /** Any edit makes the last video settings check stale. A generated image stays until the next one. */
@@ -243,8 +254,13 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
             </motion.div>
           ) : (
             <motion.div key="image-settings" {...collapse} className="flex flex-col gap-6 overflow-hidden">
-              <ResolutionSelector value={resolution} aspectRatio={aspectRatio} onChange={setResolution} />
-              <StepsSelector value={steps} onChange={setSteps} />
+              <ResolutionSelector
+                options={capabilities.resolutions}
+                value={resolution}
+                aspectRatio={aspectRatio}
+                onChange={setResolution}
+              />
+              <StepsSelector options={capabilities.stepPresets} value={steps} onChange={setSteps} />
               <div id="seed-field">
                 <SeedInput
                   value={seed}
@@ -259,7 +275,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           )}
         </AnimatePresence>
 
-        <ModelInfo video={isVideo} />
+        <ModelInfo video={isVideo} modelId={capabilities.modelId} />
 
         <div className="sticky bottom-0 -mx-4 border-t border-line bg-ink-950/85 px-4 pb-4 pt-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
           <GenerateButton

@@ -22,6 +22,13 @@ def settings(tmp_path: Path) -> Settings:
         cors_origins=["http://localhost:3000"],
         image_engine="none",
         image_output_dir=tmp_path / "images",
+        # Pinned SD-Turbo-like options so tests don't depend on the default model's settings.
+        image_resolutions=[512, 768],
+        image_default_resolution=512,
+        image_max_steps=4,
+        image_step_presets=[1, 2, 4],
+        image_default_steps=1,
+        image_guidance_scale=0.0,
     )
 
 

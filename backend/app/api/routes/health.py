@@ -1,7 +1,6 @@
 """Health, readiness and application info."""
 
 from datetime import UTC, datetime
-from typing import get_args
 
 from fastapi import APIRouter
 
@@ -13,7 +12,6 @@ from app.schemas.generation import (
     SEED_MAX,
     AspectRatio,
     GenerationMode,
-    ImageResolution,
     SourceImageInfo,
     VisualStyle,
 )
@@ -105,8 +103,11 @@ def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
             source_image_max_bytes=MAX_SOURCE_IMAGE_BYTES,
             source_image_types=_source_image_types(),
             max_request_bytes=settings.max_request_bytes,
-            image_resolutions=list(get_args(ImageResolution)),
+            image_resolutions=settings.image_resolutions,
+            image_default_resolution=settings.image_default_resolution,
             image_max_steps=settings.image_max_steps,
+            image_step_presets=settings.image_step_presets,
+            image_default_steps=settings.image_default_steps,
             seed_max=SEED_MAX,
         ),
         generation=GenerationAvailability(

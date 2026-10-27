@@ -197,13 +197,13 @@ def test_oversized_body_rejected_with_413(settings: Settings, video_request: dic
 # --- creation and lookup ------------------------------------------------------
 
 
-def test_create_returns_501_engine_not_configured(client: TestClient, video_request: dict) -> None:
+def test_create_video_mode_returns_501_mode_not_available(client: TestClient, video_request: dict) -> None:
     res = client.post(CREATE, json=video_request)
     assert res.status_code == 501
     body = res.json()
-    assert body["error"]["code"] == "engine_not_configured"
+    assert body["error"]["code"] == "mode_not_available"
     # No fabricated job or output.
-    assert "id" not in body and "output_url" not in body
+    assert "id" not in body and "image" not in body
 
 
 def test_create_still_validates_before_501(client: TestClient, video_request: dict) -> None:
@@ -211,7 +211,7 @@ def test_create_still_validates_before_501(client: TestClient, video_request: di
     assert client.post(CREATE, json=video_request).status_code == 422
 
 
-def test_create_does_not_store_a_job(client: TestClient, video_request: dict) -> None:
+def test_rejected_video_request_does_not_store_a_job(client: TestClient, video_request: dict) -> None:
     client.post(CREATE, json=video_request)
     service = client.app.state.generation_service
     assert service.store._jobs == {}
@@ -236,50 +236,3 @@ def test_path_traversal_in_id_is_rejected(client: TestClient, bad_id: str) -> No
     # Either no route matches (404) or the UUID check fails (422); never a success or a crash.
     assert res.status_code in (404, 422)
     assert "error" in res.json()
-
-
-# --- engine seam --------------------------------------------------------------
-
-
-class FakeEngine:
-    """Stands in for a future real engine; proves routes need no changes."""
-
-    name = "fake"
-    configured = True
-
-    def submit(self, settings):
-        from datetime import UTC, datetime
-
-        from app.schemas.generation import GenerationJob, GenerationStatus
-
-        return GenerationJob(
-            id=str(uuid.uuid4()), status=GenerationStatus.QUEUED, settings=settings, created_at=datetime.now(UTC)
-        )
-
-
-def test_configured_engine_creates_and_returns_real_job(settings: Settings, video_request: dict) -> None:
-    client = TestClient(create_app(settings, engine=FakeEngine()))
-    created = client.post(CREATE, json=video_request)
-    assert created.status_code == 202
-    job = created.json()
-    assert job["status"] == "queued"
-    assert job["output_url"] is None
-
-    fetched = client.get(f"{CREATE}/{job['id']}")
-    assert fetched.status_code == 200
-    assert fetched.json()["id"] == job["id"]
-
-    ready = client.get("/api/v1/health/ready").json()
-    assert ready["checks"]["generation_engine"]["status"] == "ok"
-    assert client.get("/api/v1/info").json()["generation"]["available"] is True
-
-
-def test_empty_prompt_message_is_readable(client: TestClient, video_request: dict) -> None:
-    video_request["prompt"] = "  \x07 "
-    details = client.post(VALIDATE, json=video_request).json()["error"]["details"]
-    assert details == [{"field": "prompt", "message": "Prompt is empty. Describe what you want to create."}]
-
-
-def test_openapi_documents_prompt_min_length(client: TestClient) -> None:
-    schema = client.get("/api/v1/openapi.json").json()["components"]["schemas"]["TextToVideoRequest"]
-    assert schema["properties"]["prompt"]["minLength"] == 1

@@ -1,4 +1,4 @@
-"""Health, readiness and application info."""
+"""Health, readiness, application info and image-model status. None of these load the model."""
 
 from datetime import UTC, datetime
 
@@ -7,6 +7,9 @@ from fastapi import APIRouter
 from app.api.deps import GenerationServiceDep, SettingsDep
 from app.schemas.generation import (
     DURATION_OPTIONS_SECONDS,
+    IMAGE_SIZES,
+    IMAGE_STEP_OPTIONS,
+    MAX_SEED,
     MAX_SOURCE_IMAGE_BYTES,
     PROMPT_MAX_CHARS,
     AspectRatio,
@@ -17,13 +20,26 @@ from app.schemas.generation import (
 from app.schemas.system import (
     GenerationAvailability,
     HealthResponse,
+    ImageModelStatus,
+    ImageSizeOption,
     InfoResponse,
     Limits,
+    ModelLicense,
     ReadinessCheck,
     ReadinessResponse,
 )
+from app.services.generation_service import GenerationService
 
 router = APIRouter(tags=["system"])
+
+# Licenses of models we document. Unknown models report no license rather than a guessed one.
+KNOWN_LICENSES = {
+    "stabilityai/sd-turbo": ModelLicense(
+        name="Stability AI Community License",
+        url="https://huggingface.co/stabilityai/sd-turbo/blob/main/LICENSE.md",
+        attribution="Powered by Stability AI",
+    ),
+}
 
 
 def _source_image_types() -> list[str]:
@@ -31,29 +47,60 @@ def _source_image_types() -> list[str]:
     return list(getattr(annotation, "__args__", ()))
 
 
+def image_model_status(service: GenerationService) -> ImageModelStatus:
+    status = service.engine_status()
+    if status is None:
+        return ImageModelStatus(
+            engine="none", model_id=None, state="disabled", detail="AI generation is turned off.", can_generate=False
+        )
+    return ImageModelStatus(
+        engine=service.engine.name,  # type: ignore[union-attr]
+        model_id=status.model_id,
+        state=status.state,
+        detail=status.detail,
+        device=status.device,
+        optimizations=status.optimizations,
+        can_generate=service.available,
+    )
+
+
 @router.get("/health", response_model=HealthResponse, summary="Liveness check")
 def health(settings: SettingsDep) -> HealthResponse:
     return HealthResponse(service=settings.app_name, version=settings.version, timestamp=datetime.now(UTC))
 
 
-@router.get("/health/ready", response_model=ReadinessResponse, summary="Readiness of the API itself")
+_MODEL_CHECK = {
+    "disabled": "not_configured",
+    "unavailable": "unavailable",
+    "not_downloaded": "not_downloaded",
+    "not_loaded": "not_loaded",
+    "loading": "loading",
+    "loaded": "ok",
+    "error": "error",
+}
+
+
+@router.get("/health/ready", response_model=ReadinessResponse, summary="Readiness of the API and, separately, the model")
 def ready(settings: SettingsDep, service: GenerationServiceDep) -> ReadinessResponse:
-    engine_check = (
-        ReadinessCheck(status="ok", detail=f"Engine '{service.engine.name}' is configured.")
-        if service.available
-        else ReadinessCheck(status="not_configured", detail="No AI engine is connected. Generation requests return 501.")
-    )
+    model = image_model_status(service)
     checks = {
         "api": ReadinessCheck(status="ok", detail="Serving requests."),
         "config": ReadinessCheck(status="ok", detail=f"Loaded for '{settings.environment}'."),
-        "generation_engine": engine_check,
+        "image_model": ReadinessCheck(status=_MODEL_CHECK[model.state], detail=model.detail),  # type: ignore[arg-type]
     }
-    # The engine is optional for readiness: the API can serve validation and info without it.
-    return ReadinessResponse(ready=checks["api"].status == "ok" and checks["config"].status == "ok", checks=checks)
+    return ReadinessResponse(ready=True, model_ready=model.state == "loaded", checks=checks)
 
 
 @router.get("/info", response_model=InfoResponse, summary="Application metadata and capabilities")
 def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
+    model = image_model_status(service)
+    available = model.can_generate
+    if available:
+        message = "Text-to-image runs on a local open-weight model. Video modes are coming soon."
+    elif model.state == "disabled":
+        message = "AI generation is turned off on this server."
+    else:
+        message = f"Text-to-image is not ready: {model.detail}"
     return InfoResponse(
         name=settings.app_name,
         version=settings.version,
@@ -67,14 +114,20 @@ def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
             source_image_max_bytes=MAX_SOURCE_IMAGE_BYTES,
             source_image_types=_source_image_types(),
             max_request_bytes=settings.max_request_bytes,
+            image_sizes=[
+                ImageSizeOption(resolution=res, aspect_ratio=ratio, width=w, height=h)
+                for res, by_ratio in IMAGE_SIZES.items()
+                for ratio, (w, h) in by_ratio.items()
+            ],
+            image_steps=list(IMAGE_STEP_OPTIONS),
+            max_seed=MAX_SEED,
         ),
         generation=GenerationAvailability(
-            available=service.available,
-            engine=service.engine.name,
-            message=(
-                "AI generation is available."
-                if service.available
-                else "AI generation is not configured yet. Requests can be validated, but no media is generated."
-            ),
+            available=available,
+            modes_available=[GenerationMode.TEXT_TO_IMAGE] if available else [],
+            engine=model.engine,
+            model_id=model.model_id,
+            license=KNOWN_LICENSES.get(model.model_id or ""),
+            message=message,
         ),
     )

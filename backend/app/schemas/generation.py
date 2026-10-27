@@ -14,6 +14,8 @@ PROMPT_MAX_CHARS = 1000
 MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024
 DURATION_OPTIONS_SECONDS = (4, 6, 8)
 DEFAULT_DURATION_SECONDS = 6
+MAX_SEED = 2**32 - 1
+IMAGE_STEP_OPTIONS = (1, 2, 4)
 
 # Control characters other than tab/newline have no place in a prompt.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -42,6 +44,30 @@ class VisualStyle(StrEnum):
 
 
 DurationSeconds = Literal[4, 6, 8]
+ImageSteps = Literal[1, 2, 4]
+
+
+class ImageResolution(StrEnum):
+    """Size tiers. Exact pixels come from IMAGE_SIZES, never from the client."""
+
+    STANDARD = "standard"
+    LARGE = "large"
+
+
+# All sides are multiples of 8, as Stable Diffusion's latent space requires.
+# "standard" stays near sd-turbo's native 512x512 pixel budget.
+IMAGE_SIZES: dict[ImageResolution, dict[AspectRatio, tuple[int, int]]] = {
+    ImageResolution.STANDARD: {
+        AspectRatio.SQUARE: (512, 512),
+        AspectRatio.LANDSCAPE: (680, 384),
+        AspectRatio.PORTRAIT: (384, 680),
+    },
+    ImageResolution.LARGE: {
+        AspectRatio.SQUARE: (768, 768),
+        AspectRatio.LANDSCAPE: (1024, 576),
+        AspectRatio.PORTRAIT: (576, 1024),
+    },
+}
 
 
 class StrictModel(BaseModel):
@@ -81,6 +107,9 @@ class _GenerationBase(StrictModel):
 
 class TextToImageRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_IMAGE]
+    resolution: ImageResolution = ImageResolution.STANDARD
+    steps: ImageSteps = Field(1, description="Denoising steps. sd-turbo is distilled for 1-4.")
+    seed: int | None = Field(None, ge=0, le=MAX_SEED, description="Omit for a random seed.")
 
 
 class TextToVideoRequest(_GenerationBase):
@@ -110,6 +139,12 @@ class GenerationSettings(BaseModel):
     style: VisualStyle
     duration_seconds: int | None = Field(description="Null for still images.")
     source_image: SourceImageInfo | None = None
+    # Image-only settings; null for video modes.
+    resolution: ImageResolution | None = None
+    width: int | None = None
+    height: int | None = None
+    steps: int | None = None
+    seed: int | None = Field(None, description="Null until the server picks one for a random-seed job.")
 
 
 class ValidationResponse(BaseModel):
@@ -120,20 +155,42 @@ class ValidationResponse(BaseModel):
 
 class GenerationStatus(StrEnum):
     QUEUED = "queued"
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
     FAILED = "failed"
 
 
+class GeneratedImage(BaseModel):
+    """A real image file written by the engine. Only present once it exists on disk."""
+
+    url: str = Field(description="Path on this API, e.g. /api/v1/files/images/<id>.png")
+    download_url: str
+    content_type: Literal["image/png"] = "image/png"
+    width: int
+    height: int
+    size_bytes: int
+
+
+class JobError(BaseModel):
+    code: str
+    message: str
+    retryable: bool
+
+
 class GenerationJob(BaseModel):
-    """A stored generation job. No jobs exist until an engine is connected."""
+    """A generation job. Jobs live in memory and do not survive a backend restart."""
 
     id: str
     status: GenerationStatus
     settings: GenerationSettings
+    model_id: str
+    device: str | None = Field(None, description="Device the model ran on, once known.")
     created_at: datetime
-    output_url: str | None = None
-    error: str | None = None
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    queue_position: int | None = Field(None, description="Jobs ahead of this one while queued.")
+    image: GeneratedImage | None = None
+    error: JobError | None = None
 
 
 class ErrorDetail(BaseModel):

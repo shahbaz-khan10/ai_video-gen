@@ -1,0 +1,11 @@
+# Local text-to-image inference (Phase 4).
+#
+# PyTorch is NOT listed here on purpose: the right build depends on the machine.
+# Install it first, then this file. See README.md, "Installing the AI libraries".
+#   NVIDIA GPU (CUDA 12.x driver):  pip install torch --index-url https://download.pytorch.org/whl/cu126
+#   CPU only:                       pip install torch
+diffusers==0.42.0
+transformers==5.21.0
+accelerate==1.15.0
+safetensors==0.8.0
+huggingface_hub>=0.34,<2

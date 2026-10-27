@@ -48,7 +48,7 @@ export function SiteFooter() {
       <div className="border-t border-line">
         <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 py-6 text-xs text-fg-subtle sm:flex-row sm:items-center sm:justify-between sm:px-6">
           <p>© 2026 AI Video Studio</p>
-          <p>Interface preview · AI generation is not connected yet.</p>
+          <p>Text to Image runs locally · video generation is coming soon.</p>
         </div>
       </div>
     </footer>

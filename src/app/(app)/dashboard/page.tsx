@@ -65,7 +65,7 @@ export default function StudioOverviewPage() {
           <EmptyState
             icon={Layers}
             title="Nothing rendering yet"
-            description="Renders will queue here once an AI model is connected. In this preview, the studio interface is ready but generation is not."
+            description="Images you generate in Create are not saved to projects yet. Project history arrives in a later phase."
             action={
               <ButtonLink href="/create" variant="secondary" size="sm">
                 Draft a prompt

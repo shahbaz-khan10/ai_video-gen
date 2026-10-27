@@ -7,12 +7,14 @@ import { buttonStyles } from "@/components/ui/button";
 type GenerateButtonProps = {
   onClick: () => void;
   label: string;
-  /** True while the backend is validating the request. */
+  /** True while a request is in flight or an image is being generated. */
   busy?: boolean;
+  busyLabel?: string;
+  note: string;
 };
 
 /** Primary action. A soft sheen sweeps across on hover; static under reduced motion. */
-export function GenerateButton({ onClick, label, busy = false }: GenerateButtonProps) {
+export function GenerateButton({ onClick, label, busy = false, busyLabel = "Working…", note }: GenerateButtonProps) {
   return (
     <div>
       <button
@@ -32,10 +34,10 @@ export function GenerateButton({ onClick, label, busy = false }: GenerateButtonP
         ) : (
           <Sparkles className="relative size-4 transition-transform duration-300 group-hover/button:rotate-12" aria-hidden />
         )}
-        <span className="relative">{busy ? "Checking settings…" : label}</span>
+        <span className="relative">{busy ? busyLabel : label}</span>
       </button>
       <p id="generate-note" className="mt-2 text-center text-xs text-fg-subtle">
-        Settings are validated by the backend · AI generation is not connected yet
+        {note}
       </p>
     </div>
   );

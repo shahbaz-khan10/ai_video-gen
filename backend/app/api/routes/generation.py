@@ -1,4 +1,4 @@
-"""Generation endpoints. Validation works today; creation returns 501 until an engine exists."""
+"""Generation endpoints. Text-to-image runs on the local model; video modes are not connected yet."""
 
 import uuid
 
@@ -26,8 +26,14 @@ def validate_generation(request: GenerationRequest, service: GenerationServiceDe
     "",
     status_code=202,
     response_model=GenerationJob,
-    responses={**_validation_error, 501: {"model": ErrorResponse, "description": "No AI engine is connected"}},
-    summary="Submit a generation",
+    responses={
+        **_validation_error,
+        429: {"model": ErrorResponse, "description": "Too many generations are queued"},
+        501: {"model": ErrorResponse, "description": "Mode not supported yet, or no engine configured"},
+        503: {"model": ErrorResponse, "description": "Model weights or AI libraries are missing"},
+    },
+    summary="Queue a text-to-image generation",
+    description="Returns immediately with a queued job. Poll `GET /generations/{id}` until it is completed or failed.",
 )
 def create_generation(request: GenerationRequest, service: GenerationServiceDep) -> GenerationJob:
     return service.create(request)

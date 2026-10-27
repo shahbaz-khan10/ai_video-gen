@@ -6,6 +6,8 @@ import { BackendStatusPill } from "@/components/system/backend-status";
 import type { AspectRatio, GenerationMode } from "@/types/studio";
 import { cn } from "@/lib/cn";
 import type { CheckOutcome } from "./generation-check";
+import { GeneratedImage, GenerationFooter, GenerationProgress } from "./generation-result";
+import type { GenerationState } from "./generation-state";
 import { OutcomeNotice } from "./outcome-notice";
 import type { SelectedImage } from "./use-image-selection";
 
@@ -21,6 +23,14 @@ const FRAME_SIZE: Record<AspectRatio, string> = {
   "1:1": "aspect-square w-full max-w-[360px] lg:max-w-[480px]",
 };
 
+export type GenerationControls = {
+  state: GenerationState;
+  onRetry: () => void;
+  onResume: () => void;
+  onReuseSeed: (seed: number) => void;
+  onDismiss: () => void;
+};
+
 type PreviewPanelProps = {
   mode: GenerationMode;
   aspectRatio: AspectRatio;
@@ -29,6 +39,7 @@ type PreviewPanelProps = {
   outcome: CheckOutcome | null;
   checking: boolean;
   onDismissOutcome: () => void;
+  generation: GenerationControls;
 };
 
 function Corners() {
@@ -51,9 +62,15 @@ export function PreviewPanel({
   outcome,
   checking,
   onDismissOutcome,
+  generation,
 }: PreviewPanelProps) {
   const EmptyIcon = mode === "text-to-image" ? ImageIcon : Film;
   const showSource = mode === "image-to-video" && image;
+  const isImageMode = mode === "text-to-image";
+  const { state } = generation;
+  const result = isImageMode && state.phase === "completed" ? state.job : null;
+  // While an image is shown, the frame takes that image's shape rather than the current selection.
+  const frameRatio = result ? result.settings.aspect_ratio : aspectRatio;
 
   return (
     <section aria-labelledby="preview-heading" className="flex flex-col rounded-2xl border border-line bg-ink-900/60">
@@ -70,14 +87,16 @@ export function PreviewPanel({
           transition={{ type: "spring", stiffness: 260, damping: 32 }}
           className={cn(
             "relative max-h-full overflow-hidden rounded-xl border border-line-strong bg-ink-950",
-            FRAME_SIZE[aspectRatio],
+            FRAME_SIZE[frameRatio],
           )}
         >
           <div aria-hidden className="bg-grid absolute inset-0 opacity-60 [mask-image:radial-gradient(closest-side,black,transparent)]" />
           <Corners />
 
           <AnimatePresence mode="wait" initial={false}>
-            {showSource ? (
+            {result ? (
+              <GeneratedImage key={result.id} job={result} />
+            ) : showSource ? (
               <motion.figure
                 key="source"
                 initial={{ opacity: 0 }}
@@ -105,13 +124,17 @@ export function PreviewPanel({
                 </span>
                 <p className="mt-4 text-sm font-medium text-fg">Your {RESULT_NOUN[mode]} will appear here</p>
                 <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-fg-muted">
-                  {mode === "image-to-video"
-                    ? "Add a source image and describe the motion to set up the shot."
-                    : "Set up your shot. Results will render in this frame once a model is connected."}
+                  {isImageMode
+                    ? "Describe your shot and press Generate. Images are rendered by a local open-weight model."
+                    : mode === "image-to-video"
+                      ? "Video generation is coming soon. You can add a source image and check your settings now."
+                      : "Video generation is coming soon. You can set up the shot and check your settings now."}
                 </p>
               </motion.div>
             )}
           </AnimatePresence>
+
+          <AnimatePresence>{isImageMode && <GenerationProgress key="progress" state={state} />}</AnimatePresence>
         </motion.div>
       </div>
 
@@ -125,7 +148,19 @@ export function PreviewPanel({
         </ul>
       </div>
 
-      <OutcomeNotice outcome={outcome} checking={checking} onDismiss={onDismissOutcome} />
+      {isImageMode ? (
+        <div aria-live="polite" role="status">
+          <GenerationFooter
+            state={state}
+            onRetry={generation.onRetry}
+            onResume={generation.onResume}
+            onReuseSeed={generation.onReuseSeed}
+            onDismiss={generation.onDismiss}
+          />
+        </div>
+      ) : (
+        <OutcomeNotice outcome={outcome} checking={checking} onDismiss={onDismissOutcome} />
+      )}
     </section>
   );
 }

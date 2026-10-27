@@ -48,6 +48,11 @@ export function ModeSelector({ value, onChange }: ModeSelectorProps) {
               )}
               <Icon className={cn("relative size-4 shrink-0", checked && "text-violet-soft")} aria-hidden />
               <span className="relative">{mode.label}</span>
+              {!mode.connected && (
+                <span className="absolute -top-2 right-1 z-10 rounded-full border border-amber-300/30 bg-ink-900 px-1.5 py-px font-mono text-[9px] uppercase leading-normal tracking-wider text-amber-200">
+                  Soon<span className="sr-only">: not connected yet</span>
+                </span>
+              )}
             </label>
           );
         })}

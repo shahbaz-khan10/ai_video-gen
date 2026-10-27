@@ -14,6 +14,10 @@ PROMPT_MAX_CHARS = 1000
 MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024
 DURATION_OPTIONS_SECONDS = (4, 6, 8)
 DEFAULT_DURATION_SECONDS = 6
+SEED_MAX = 2**32 - 1
+# Upper bound accepted by the schema; the engine's own limit (IMAGE_MAX_STEPS) is checked by the service.
+STEPS_SCHEMA_MAX = 50
+DEFAULT_STEPS = 1
 
 # Control characters other than tab/newline have no place in a prompt.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -42,6 +46,15 @@ class VisualStyle(StrEnum):
 
 
 DurationSeconds = Literal[4, 6, 8]
+ImageResolution = Literal[512, 768]
+DEFAULT_RESOLUTION = 512
+
+# Output size per resolution tier and aspect ratio. Every side is a multiple of 8, as the
+# UNet/VAE require. 512 matches SD-Turbo's training resolution; 768 is a larger, slower tier.
+IMAGE_SIZES: dict[int, dict[AspectRatio, tuple[int, int]]] = {
+    512: {AspectRatio.SQUARE: (512, 512), AspectRatio.LANDSCAPE: (688, 384), AspectRatio.PORTRAIT: (384, 688)},
+    768: {AspectRatio.SQUARE: (768, 768), AspectRatio.LANDSCAPE: (1024, 576), AspectRatio.PORTRAIT: (576, 1024)},
+}
 
 
 class StrictModel(BaseModel):
@@ -81,6 +94,11 @@ class _GenerationBase(StrictModel):
 
 class TextToImageRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_IMAGE]
+    resolution: ImageResolution = Field(
+        DEFAULT_RESOLUTION, description="Size tier; the exact width and height follow from the aspect ratio."
+    )
+    num_inference_steps: int = Field(DEFAULT_STEPS, ge=1, le=STEPS_SCHEMA_MAX)
+    seed: int | None = Field(None, ge=0, le=SEED_MAX, description="Omit for a random seed. The seed used is returned.")
 
 
 class TextToVideoRequest(_GenerationBase):
@@ -110,6 +128,11 @@ class GenerationSettings(BaseModel):
     style: VisualStyle
     duration_seconds: int | None = Field(description="Null for still images.")
     source_image: SourceImageInfo | None = None
+    # Still-image settings; null for video modes.
+    width: int | None = None
+    height: int | None = None
+    num_inference_steps: int | None = None
+    seed: int | None = None
 
 
 class ValidationResponse(BaseModel):
@@ -120,20 +143,36 @@ class ValidationResponse(BaseModel):
 
 class GenerationStatus(StrEnum):
     QUEUED = "queued"
-    RUNNING = "running"
-    SUCCEEDED = "succeeded"
+    PROCESSING = "processing"
+    COMPLETED = "completed"
     FAILED = "failed"
 
 
+class GenerationResult(BaseModel):
+    """Metadata about an image that was actually generated and saved."""
+
+    width: int
+    height: int
+    seed: int
+    num_inference_steps: int
+    model_id: str
+    device: str
+    duration_seconds: float = Field(description="Wall-clock inference time, including any model loading.")
+
+
 class GenerationJob(BaseModel):
-    """A stored generation job. No jobs exist until an engine is connected."""
+    """A generation job. Jobs live in memory and do not survive a backend restart."""
 
     id: str
     status: GenerationStatus
     settings: GenerationSettings
     created_at: datetime
-    output_url: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
+    output_url: str | None = Field(None, description="Set only once the image exists on disk.")
+    result: GenerationResult | None = None
     error: str | None = None
+    error_code: str | None = None
 
 
 class ErrorDetail(BaseModel):

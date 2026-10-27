@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { getApiBaseUrl } from "@/lib/api/client";
 import { useBackendStatus, type BackendStatus } from "@/lib/api/use-backend-status";
 import { cn } from "@/lib/cn";
+import type { ModelState } from "@/types/api";
 
 type Tone = "ok" | "warn" | "off" | "pending";
 
@@ -19,12 +20,20 @@ function StatusDot({ tone }: { tone: Tone }) {
   return <span aria-hidden className={cn("size-1.5 shrink-0 rounded-full", DOT[tone])} />;
 }
 
+const MODEL_LABEL: Record<ModelState, { tone: Tone; label: string }> = {
+  ready: { tone: "ok", label: "Model loaded" },
+  not_loaded: { tone: "ok", label: "Model ready to load" },
+  loading: { tone: "pending", label: "Loading model" },
+  error: { tone: "warn", label: "Model load failed" },
+  weights_missing: { tone: "warn", label: "Model not downloaded" },
+  not_installed: { tone: "warn", label: "AI libraries missing" },
+  disabled: { tone: "warn", label: "Engine disabled" },
+};
+
 function summarize(status: BackendStatus): { tone: Tone; label: string } {
   if (status.state === "loading") return { tone: "pending", label: "Checking backend" };
   if (status.state === "offline") return { tone: "off", label: "Backend offline" };
-  return status.info.generation.available
-    ? { tone: "ok", label: "Engine ready" }
-    : { tone: "warn", label: "Engine not connected" };
+  return MODEL_LABEL[status.ready.model.state];
 }
 
 /** Compact status pill, e.g. in the Create preview header. */
@@ -93,12 +102,28 @@ export function BackendStatusCard() {
               <Row label="API" value={`Online · v${status.health.version}`} tone="ok" />
               <Row label="Ready" value={status.ready.ready ? "Yes" : "No"} tone={status.ready.ready ? "ok" : "off"} />
               <Row
-                label="AI engine"
-                value={status.info.generation.available ? status.info.generation.engine : "Not connected"}
-                tone={status.info.generation.available ? "ok" : "warn"}
+                label="Image model"
+                value={MODEL_LABEL[status.ready.model.state].label}
+                tone={MODEL_LABEL[status.ready.model.state].tone}
+              />
+              {status.ready.model.model_id && (
+                <Row label="Model ID" value={status.ready.model.model_id} tone={MODEL_LABEL[status.ready.model.state].tone} />
+              )}
+              <Row
+                label="GPU"
+                value={
+                  status.ready.model.cuda_available === null
+                    ? "Unknown"
+                    : status.ready.model.cuda_available
+                      ? "CUDA available"
+                      : "No CUDA · CPU only"
+                }
+                tone={status.ready.model.cuda_available ? "ok" : "warn"}
               />
             </dl>
-            <p className="mt-3 text-xs leading-relaxed text-fg-muted">{status.info.generation.message}</p>
+            <p className="mt-3 text-xs leading-relaxed text-fg-muted">
+              {status.info.generation.message} {status.ready.model.detail}
+            </p>
           </>
         )}
 

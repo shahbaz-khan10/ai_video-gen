@@ -21,3 +21,8 @@ dist/
 htmlcov/
 .mypy_cache/
 .ruff_cache/
+
+# Generated images, temporary files and local model weights
+outputs/
+*.tmp
+models/

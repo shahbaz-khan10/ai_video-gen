@@ -11,7 +11,7 @@ export default function CreatePage() {
     <PageContainer width="wide">
       <PageHeader
         title="Create"
-        description="Choose a mode, describe your shot, and set the frame and look. Generation will be enabled once a model is connected."
+        description="Describe your shot and set the frame and look. Text to Image runs on a local open-weight model; video modes are coming soon."
       />
       <div className="mt-8">
         <Suspense fallback={<CreateWorkspaceSkeleton />}>

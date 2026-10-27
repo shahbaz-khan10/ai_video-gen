@@ -13,13 +13,13 @@ const VARIANTS: Record<CheckOutcome["kind"], Variant> = {
     icon: CircleCheck,
     box: "border-amber-300/25 bg-amber-300/[0.06]",
     iconClass: "text-amber-300",
-    title: "Settings validated · AI generation isn't connected yet",
+    title: "Settings validated · video generation is coming soon",
   },
   offline: {
     icon: WifiOff,
     box: "border-line-strong bg-ink-850",
     iconClass: "text-fg-muted",
-    title: "Backend unreachable · AI generation isn't connected yet",
+    title: "Backend unreachable",
   },
   rejected: {
     icon: CircleAlert,
@@ -40,7 +40,8 @@ function Body({ outcome }: { outcome: CheckOutcome }) {
     ].join(" · ");
     return (
       <>
-        The studio backend accepted your request ({summary}). No AI model is connected, so nothing was generated.
+        The studio backend accepted your request ({summary}). No video model is connected yet, so nothing was
+        generated.
       </>
     );
   }

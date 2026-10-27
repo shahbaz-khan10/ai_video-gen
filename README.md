@@ -1,6 +1,6 @@
 # AI Video Studio
 
-AI image and video generation studio: a Next.js frontend and a FastAPI backend (Phase 3). No AI models, auth, database or payments are connected: project cards are mock data, and Generate says that generation is not connected yet.
+AI image and video generation studio: a Next.js frontend and a FastAPI backend (Phase 4). **Text to Image generates real images with a local open-weight model** (SD-Turbo via Hugging Face Diffusers, on your own GPU). Text to Video and Image to Video are marked "Soon" and only validate settings. There is no auth, database or payment, and project cards are still mock data.
 
 ## Stack
 
@@ -13,9 +13,7 @@ The app has two parts: this Next.js frontend and the FastAPI backend in [`backen
 ```powershell
 # Terminal 1: backend (http://localhost:8000, docs at /docs)
 cd backend
-py -3.12 -m venv .venv            # first time only
 .\.venv\Scripts\Activate.ps1
-python -m pip install -r requirements.txt   # first time only
 uvicorn app.main:app --reload --port 8000
 
 # Terminal 2: frontend (http://localhost:3000)
@@ -23,13 +21,17 @@ npm install                        # first time only
 npm run dev
 ```
 
+First-time backend setup (virtual environment, CUDA PyTorch, Diffusers, and the one-time ~2.6 GB model download) is in [backend/README.md](backend/README.md#setup-windows-powershell).
+
 Checks:
 
 ```powershell
 npm run lint
 npx tsc --noEmit   # run `npx next typegen` first on a fresh clone
+npm test           # Vitest: generation state and result UI
 npm run build
-cd backend; python -m pytest
+cd backend; python -m pytest                    # mocked model, no GPU needed
+cd backend; python -m pytest -m real_inference  # real model (needs PyTorch + weights)
 ```
 
 The frontend finds the API through `NEXT_PUBLIC_API_BASE_URL` (see `.env.example`). In development it falls back to `http://localhost:8000`. A production build without it treats the backend as not configured. Without a running backend the studio still works: it shows "Backend offline", and settings are only checked in the browser.
@@ -73,4 +75,5 @@ backend/                   FastAPI service, see backend/README.md
 ## Notes
 
 - Preferences live in React state only and reset on reload. They feed the Create defaults, the sidebar state and a "Reduce motion" override. The OS reduced-motion setting is always respected.
+- Create polls a job every 1.5 s while it is queued or processing and shows the real elapsed time, never a made-up percentage. Finished images load from the backend's file route and download as PNG. Generated images aren't saved to projects yet.
 - Uploaded images stay in the browser as object URLs (PNG, JPG or WebP, up to 10 MB). Only the image's type and size are sent to the backend for validation. URLs are revoked when replaced, removed, or unmounted.

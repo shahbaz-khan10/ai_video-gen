@@ -1,5 +1,7 @@
 import { Clapperboard, ImageIcon, ImagePlay } from "lucide-react";
+import type { ImageResolution } from "@/types/api";
 import type {
+  AspectRatio,
   AspectRatioOption,
   ClipDuration,
   GenerationMode,
@@ -13,8 +15,9 @@ export const MODES: ModeOption[] = [
     id: "text-to-image",
     label: "Text to Image",
     short: "Image",
-    description: "Describe a frame and render a high-resolution still.",
+    description: "Describe a frame and render a still on your own GPU.",
     icon: ImageIcon,
+    connected: true,
   },
   {
     id: "text-to-video",
@@ -22,6 +25,7 @@ export const MODES: ModeOption[] = [
     short: "Video",
     description: "Turn a written scene into a short cinematic clip.",
     icon: Clapperboard,
+    connected: false,
   },
   {
     id: "image-to-video",
@@ -29,6 +33,7 @@ export const MODES: ModeOption[] = [
     short: "Animate",
     description: "Bring a reference image to life with guided motion.",
     icon: ImagePlay,
+    connected: false,
   },
 ];
 
@@ -49,11 +54,41 @@ export const VISUAL_STYLES: VisualStyle[] = [
 
 export const DURATIONS: { id: ClipDuration }[] = [{ id: "4s" }, { id: "6s" }, { id: "8s" }];
 
-export const MODELS: ModelOption[] = [
-  { id: "auto", label: "Auto (recommended)", note: "Picks the best model for the mode" },
-  { id: "studio-motion", label: "Studio Motion · placeholder", note: "Video model slot" },
-  { id: "studio-still", label: "Studio Still · placeholder", note: "Image model slot" },
+/** What runs each mode. Only the image model is real; it is set by IMAGE_MODEL_ID on the backend. */
+export const MODELS: Record<"image" | "video", ModelOption> = {
+  image: { id: "sd-turbo", label: "SD-Turbo · local", note: "Open-weight Stable Diffusion, running on this machine's GPU" },
+  video: { id: "none", label: "Not connected", note: "Video models arrive in a later phase" },
+};
+
+/** Output sizes per tier; must match IMAGE_SIZES in backend/app/schemas/generation.py. */
+export const IMAGE_RESOLUTIONS: {
+  id: ImageResolution;
+  label: string;
+  note: string;
+  sizes: Record<AspectRatio, [number, number]>;
+}[] = [
+  {
+    id: 512,
+    label: "Standard",
+    note: "Fastest. SD-Turbo's native size.",
+    sizes: { "1:1": [512, 512], "16:9": [688, 384], "9:16": [384, 688] },
+  },
+  {
+    id: 768,
+    label: "High",
+    note: "Larger and slower; uses more GPU memory.",
+    sizes: { "1:1": [768, 768], "16:9": [1024, 576], "9:16": [576, 1024] },
+  },
 ];
+
+/** SD-Turbo is distilled for 1–4 steps. */
+export const IMAGE_STEPS: { id: number; label: string }[] = [
+  { id: 1, label: "Fast" },
+  { id: 2, label: "Balanced" },
+  { id: 4, label: "Detailed" },
+];
+
+export const SEED_MAX = 4_294_967_295;
 
 export const EXAMPLE_PROMPT =
   "A lone lighthouse on a basalt cliff at blue hour, waves crashing in slow motion, warm beam sweeping through drifting sea mist, anamorphic lens, shallow depth of field, gentle dolly-in.";

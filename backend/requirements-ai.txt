@@ -1,0 +1,7 @@
+# Local text-to-image inference with Hugging Face Diffusers.
+# Install PyTorch FIRST from the official index for your CUDA version (see README.md),
+# then:  python -m pip install -r requirements-ai.txt
+diffusers==0.42.0
+transformers==5.21.0
+accelerate==1.15.0
+safetensors==0.8.0

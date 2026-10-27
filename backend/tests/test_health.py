@@ -88,3 +88,14 @@ def test_openapi_available_by_default(client: TestClient) -> None:
     res = client.get("/api/v1/openapi.json")
     assert res.status_code == 200
     assert "/api/v1/generations/validate" in res.json()["paths"]
+
+
+def test_image_settings_read_plain_env_names(monkeypatch) -> None:
+    monkeypatch.setenv("IMAGE_MODEL_ID", "some/model")
+    monkeypatch.setenv("IMAGE_MAX_CONCURRENT_JOBS", "2")
+    monkeypatch.setenv("IMAGE_MODEL_CACHE_DIR", "")
+    settings = Settings(_env_file=None)
+    assert settings.image_model_id == "some/model"
+    assert settings.image_max_concurrent_jobs == 2
+    assert settings.image_model_cache_dir is None
+    assert settings.image_output_dir.is_absolute()

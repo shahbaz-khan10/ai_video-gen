@@ -11,6 +11,8 @@ export type ModeOption = {
   short: string;
   description: string;
   icon: LucideIcon;
+  /** False for modes with no model behind them yet; the UI marks them "Soon". */
+  connected: boolean;
 };
 
 export type AspectRatioOption = { id: AspectRatio; label: string; hint: string };

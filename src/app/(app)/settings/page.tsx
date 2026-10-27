@@ -25,8 +25,9 @@ export default function SettingsPage() {
 
         <SettingsSection title="Models" description="Connections to image and video models.">
           <p className="text-sm leading-relaxed text-fg-muted">
-            No models are connected, and no API keys are stored or required. Model configuration arrives in a later
-            phase.
+            Text to Image uses an open-weight model (SD-Turbo by default) running on the backend machine. No API
+            keys are stored or required. The model is configured with IMAGE_* settings in backend/.env. Video models
+            arrive in a later phase.
           </p>
         </SettingsSection>
 

@@ -4,26 +4,30 @@ import Link from "next/link";
 import { useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { FolderOpen } from "lucide-react";
-import { ASPECT_RATIOS, getMode, getStyle, isVideoMode, MODELS } from "@/lib/studio-options";
+import { ASPECT_RATIOS, getMode, getStyle, IMAGE_RESOLUTIONS, isVideoMode, MODELS } from "@/lib/studio-options";
 import { api } from "@/lib/api/client";
 import { prefersReducedMotion } from "@/lib/motion";
+import type { GenerationPayload, ImageResolution } from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
 import { AspectRatioSelector } from "./aspect-ratio-selector";
 import { DurationSelector } from "./duration-selector";
 import { GenerateButton } from "./generate-button";
 import { buildPayload, interpretError, type CheckOutcome, type FieldErrors } from "./generation-check";
+import { isBusy } from "./generation-state";
 import { ImageUploader } from "./image-uploader";
-import { ModelSelect } from "./model-select";
+import { ResolutionSelector, SeedInput, seedError, StepsSelector } from "./image-settings";
+import { ModelInfo } from "./model-select";
 import { ModeSelector } from "./mode-selector";
 import { PreviewPanel } from "./preview-panel";
 import { PromptEditor } from "./prompt-editor";
 import { StyleSelector } from "./style-selector";
+import { useGeneration } from "./use-generation";
 import { useImageSelection } from "./use-image-selection";
 
 const GENERATE_LABEL: Record<GenerationMode, string> = {
   "text-to-image": "Generate image",
-  "text-to-video": "Generate video",
-  "image-to-video": "Animate image",
+  "text-to-video": "Check video settings",
+  "image-to-video": "Check animation settings",
 };
 
 const collapse = {
@@ -45,26 +49,33 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(initial.aspectRatio);
   const [style, setStyle] = useState(initial.styleId);
   const [duration, setDuration] = useState<ClipDuration>(initial.duration);
-  const [model, setModel] = useState(MODELS[0].id);
+  const [resolution, setResolution] = useState<ImageResolution>(512);
+  const [steps, setSteps] = useState(1);
+  const [seed, setSeed] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [outcome, setOutcome] = useState<CheckOutcome | null>(null);
   const [checking, setChecking] = useState(false);
-  // Ignores responses for a draft the user has since edited.
+  // Ignores validation responses for a draft the user has since edited.
   const requestId = useRef(0);
+  // The exact request behind the current result, so "Try again" repeats it.
+  const lastPayload = useRef<GenerationPayload | null>(null);
   const upload = useImageSelection();
+  const generation = useGeneration();
 
   const isVideo = isVideoMode(mode);
   const needsImage = mode === "image-to-video";
+  const generating = isBusy(generation.state);
+  const [width, height] = IMAGE_RESOLUTIONS.find((r) => r.id === resolution)!.sizes[aspectRatio];
 
   const details = [
     getMode(mode).label,
     `${aspectRatio} ${ASPECT_RATIOS.find((r) => r.id === aspectRatio)!.label}`,
     getStyle(style).label,
-    ...(isVideo ? [duration] : []),
-    MODELS.find((m) => m.id === model)!.label.split(" · ")[0],
+    ...(isVideo ? [duration] : [`${width}×${height}`, `${steps} step${steps > 1 ? "s" : ""}`, seed ? `Seed ${seed}` : "Random seed"]),
+    (isVideo ? MODELS.video : MODELS.image).label,
   ];
 
-  /** Any edit makes the last check stale. */
+  /** Any edit makes the last video settings check stale. A generated image stays until the next one. */
   const invalidate = () => {
     requestId.current += 1;
     setOutcome(null);
@@ -85,26 +96,49 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     if (window.matchMedia("(max-width: 1023px)").matches) scrollTo("preview-panel", "start");
   };
 
+  const focusFieldError = (fieldErrors: FieldErrors) => {
+    const target = fieldErrors.image ? "source-image-field" : fieldErrors.prompt ? "prompt-field" : "seed-field";
+    scrollTo(target, "center");
+  };
+
+  const runImageGeneration = async (payload: GenerationPayload) => {
+    lastPayload.current = payload;
+    revealPreviewOnSmallScreens();
+    const rejected = await generation.submit(payload);
+    if (rejected) {
+      const { fieldErrors } = interpretError(rejected);
+      setErrors(fieldErrors);
+      focusFieldError(fieldErrors);
+    }
+  };
+
   const handleGenerate = async () => {
     // 1. Quick local checks, so obvious gaps don't need a round trip.
     const localErrors: FieldErrors = {};
     if (!prompt.trim()) localErrors.prompt = "Add a prompt to describe what you want to create.";
     if (needsImage && !upload.image) localErrors.image = "Add a source image to animate.";
+    if (mode === "text-to-image") localErrors.seed = seedError(seed) ?? undefined;
     setErrors(localErrors);
-    if (localErrors.image || localErrors.prompt) {
+    if (localErrors.image || localErrors.prompt || localErrors.seed) {
       setOutcome(null);
-      scrollTo(localErrors.image ? "source-image-field" : "prompt-field", "center");
+      focusFieldError(localErrors);
       return;
     }
 
-    // 2. Ask the backend to validate. No model is connected, so nothing is generated either way.
+    const payload = buildPayload({ mode, prompt, aspectRatio, style, duration, image: upload.image, resolution, steps, seed });
+
+    // 2a. Text-to-image: queue a real job on the local model and poll it.
+    if (mode === "text-to-image") {
+      await runImageGeneration(payload);
+      return;
+    }
+
+    // 2b. Video modes have no model yet: the backend only validates the settings.
     const id = ++requestId.current;
     setChecking(true);
     setOutcome(null);
     try {
-      const res = await api.validateGeneration(
-        buildPayload({ mode, prompt, aspectRatio, style, duration, image: upload.image }),
-      );
+      const res = await api.validateGeneration(payload);
       if (id !== requestId.current) return;
       setOutcome({ kind: "validated", settings: res.settings });
       revealPreviewOnSmallScreens();
@@ -114,7 +148,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       setErrors(fieldErrors);
       setOutcome(next);
       if (fieldErrors.image || fieldErrors.prompt) {
-        scrollTo(fieldErrors.image ? "source-image-field" : "prompt-field", "center");
+        focusFieldError(fieldErrors);
       } else {
         revealPreviewOnSmallScreens();
       }
@@ -197,7 +231,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
         />
 
         <AnimatePresence initial={false}>
-          {isVideo && (
+          {isVideo ? (
             <motion.div key="duration" {...collapse} className="overflow-hidden">
               <DurationSelector
                 value={duration}
@@ -207,13 +241,38 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                 }}
               />
             </motion.div>
+          ) : (
+            <motion.div key="image-settings" {...collapse} className="flex flex-col gap-6 overflow-hidden">
+              <ResolutionSelector value={resolution} aspectRatio={aspectRatio} onChange={setResolution} />
+              <StepsSelector value={steps} onChange={setSteps} />
+              <div id="seed-field">
+                <SeedInput
+                  value={seed}
+                  onChange={(v) => {
+                    setSeed(v);
+                    setErrors((e) => ({ ...e, seed: undefined }));
+                  }}
+                  error={errors.seed}
+                />
+              </div>
+            </motion.div>
           )}
         </AnimatePresence>
 
-        <ModelSelect value={model} onChange={setModel} />
+        <ModelInfo video={isVideo} />
 
         <div className="sticky bottom-0 -mx-4 border-t border-line bg-ink-950/85 px-4 pb-4 pt-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-          <GenerateButton onClick={handleGenerate} label={GENERATE_LABEL[mode]} busy={checking} />
+          <GenerateButton
+            onClick={handleGenerate}
+            label={GENERATE_LABEL[mode]}
+            busy={isVideo ? checking : generating}
+            busyLabel={isVideo ? "Checking settings…" : "Generating…"}
+            note={
+              isVideo
+                ? "Video generation is coming soon · settings are only validated"
+                : "Runs on the local model · one image at a time"
+            }
+          />
         </div>
       </form>
 
@@ -226,6 +285,18 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           outcome={outcome}
           checking={checking}
           onDismissOutcome={() => setOutcome(null)}
+          generation={{
+            state: generation.state,
+            onRetry: () => {
+              if (lastPayload.current) void runImageGeneration(lastPayload.current);
+            },
+            onResume: generation.resume,
+            onReuseSeed: (value) => {
+              setSeed(String(value));
+              setErrors((e) => ({ ...e, seed: undefined }));
+            },
+            onDismiss: generation.reset,
+          }}
         />
       </div>
     </div>

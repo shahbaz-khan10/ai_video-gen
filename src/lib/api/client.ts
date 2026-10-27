@@ -6,6 +6,7 @@
 import type {
   ApiErrorBody,
   ApiErrorDetail,
+  GenerationJob,
   GenerationPayload,
   HealthResponse,
   InfoResponse,
@@ -95,10 +96,23 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+/**
+ * Absolute URL for a file path the backend returned (a job's `output_url`). Only paths under the
+ * API's own image route are accepted, so a response can never point the page somewhere else.
+ */
+export function assetUrl(path: string, options: { download?: boolean } = {}): string | null {
+  const base = getApiBaseUrl();
+  if (!base || !/^\/api\/v1\/files\/images\/[0-9a-f]{32}\.png$/.test(path)) return null;
+  return `${base}${path}${options.download ? "?download=true" : ""}`;
+}
+
 export const api = {
   health: () => request<HealthResponse>("/health"),
   ready: () => request<ReadinessResponse>("/health/ready"),
   info: () => request<InfoResponse>("/info"),
   validateGeneration: (payload: GenerationPayload) =>
     request<ValidationResponse>("/generations/validate", { method: "POST", body: JSON.stringify(payload) }),
+  createGeneration: (payload: GenerationPayload) =>
+    request<GenerationJob>("/generations", { method: "POST", body: JSON.stringify(payload) }),
+  getGeneration: (id: string) => request<GenerationJob>(`/generations/${encodeURIComponent(id)}`),
 };

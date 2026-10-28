@@ -60,6 +60,32 @@ class Settings(BaseSettings):
     )
     image_cpu_offload: Literal["auto", "on", "off"] = Field("auto", validation_alias=_image_env("IMAGE_CPU_OFFLOAD"))
 
+    # --- Local text-to-video model --------------------------------------------------
+    video_engine: Literal["ltx", "none"] = Field("ltx", validation_alias=_image_env("VIDEO_ENGINE"))
+    video_model_id: str = Field("Lightricks/LTX-Video", validation_alias=_image_env("VIDEO_MODEL_ID"))
+    video_model_cache_dir: Path | None = Field(None, validation_alias=_image_env("VIDEO_MODEL_CACHE_DIR"))
+    video_output_dir: Path = Field(BACKEND_DIR / "outputs" / "videos", validation_alias=_image_env("VIDEO_OUTPUT_DIR"))
+    video_device: Literal["auto", "cuda", "cpu"] = Field("auto", validation_alias=_image_env("VIDEO_DEVICE"))
+    video_max_concurrent_jobs: int = Field(1, ge=1, le=1, validation_alias=_image_env("VIDEO_MAX_CONCURRENT_JOBS"))
+    video_max_queued_jobs: int = Field(2, ge=0, le=10, validation_alias=_image_env("VIDEO_MAX_QUEUED_JOBS"))
+    video_timeout_seconds: int = Field(1800, ge=60, le=3600, validation_alias=_image_env("VIDEO_TIMEOUT_SECONDS"))
+    video_allow_download: bool = Field(False, validation_alias=_image_env("VIDEO_ALLOW_DOWNLOAD"))
+    video_enable_cpu_offload: bool = Field(True, validation_alias=_image_env("VIDEO_ENABLE_CPU_OFFLOAD"))
+    video_enable_model_cpu_offload: bool = Field(False, validation_alias=_image_env("VIDEO_ENABLE_MODEL_CPU_OFFLOAD"))
+    video_enable_attention_slicing: bool = Field(True, validation_alias=_image_env("VIDEO_ENABLE_ATTENTION_SLICING"))
+    video_enable_vae_tiling: bool = Field(True, validation_alias=_image_env("VIDEO_ENABLE_VAE_TILING"))
+
+    @field_validator("video_model_cache_dir", mode="before")
+    @classmethod
+    def _empty_video_cache_is_unset(cls, value: object) -> object:
+        return None if isinstance(value, str) and not value.strip() else value
+
+    @field_validator("image_model_cache_dir", "image_output_dir", "video_output_dir")
+    @classmethod
+    def _absolute_from_backend(cls, value: Path) -> Path:
+        # Relative paths are resolved against backend/, not the shell's working directory.
+        return (value if value.is_absolute() else BACKEND_DIR / value).resolve()
+
     @field_validator("cors_origins", mode="before")
     @classmethod
     def _split_origins(cls, value: object) -> object:

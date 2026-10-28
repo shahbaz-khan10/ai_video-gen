@@ -12,6 +12,7 @@ from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimitMiddleware
 from app.services.generation_service import GenerationService
 from app.services.image_engine import DiffusersImageEngine, ImageEngine
+from app.services.video_engine import DisabledVideoEngine, build_video_engine
 
 API_PREFIX = "/api/v1"
 
@@ -26,7 +27,8 @@ def _default_engine(settings: Settings) -> ImageEngine | None:
 def create_app(settings: Settings | None = None, engine: ImageEngine | None | object = _DEFAULT) -> FastAPI:
     settings = settings or get_settings()
     image_engine = _default_engine(settings) if engine is _DEFAULT else engine
-    service = GenerationService(settings, image_engine)  # type: ignore[arg-type]
+    video_engine = build_video_engine(settings)
+    service = GenerationService(settings, image_engine, video_engine)  # type: ignore[arg-type]
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -36,10 +38,10 @@ def create_app(settings: Settings | None = None, engine: ImageEngine | None | ob
     app = FastAPI(
         title=settings.app_name,
         version=settings.version,
-        description=(
-            "Backend for AI Video Studio. Text-to-image runs on a local open-weight model; "
-            "video modes are not connected yet. Jobs are kept in memory and lost on restart."
-        ),
+    description=(
+        "Backend for AI Video Studio. Text-to-image runs on a local open-weight model; "
+        "text-to-video runs on a local open-weight model when available. Jobs are kept in memory and lost on restart."
+    ),
         docs_url="/docs" if settings.docs_enabled else None,
         redoc_url="/redoc" if settings.docs_enabled else None,
         openapi_url=f"{API_PREFIX}/openapi.json" if settings.docs_enabled else None,

@@ -1,4 +1,4 @@
-"""Generation endpoints. Text-to-image runs on the local model; video modes return 501."""
+"""Generation endpoints. Text-to-image and text-to-video run on local models where available."""
 
 import uuid
 
@@ -25,9 +25,19 @@ _validation_error = {422: {"model": ErrorResponse, "description": "Invalid gener
     summary="Validate and normalize a request without generating anything",
 )
 def validate_generation(request: GenerationRequest, service: GenerationServiceDep) -> ValidationResponse:
+    generation_available = False
+    if request.mode == GenerationMode.TEXT_TO_IMAGE:
+        generation_available = service.available
+    elif request.mode == GenerationMode.TEXT_TO_VIDEO:
+        try:
+            if service.video_engine is not None:
+                service.video_engine.ensure_can_accept()
+                generation_available = True
+        except Exception:
+            generation_available = False
     return ValidationResponse(
         settings=service.normalize(request),
-        generation_available=request.mode == GenerationMode.TEXT_TO_IMAGE and service.available,
+        generation_available=generation_available,
     )
 
 
@@ -38,10 +48,10 @@ def validate_generation(request: GenerationRequest, service: GenerationServiceDe
     responses={
         **_validation_error,
         429: {"model": ErrorResponse, "description": "Generation queue is full"},
-        501: {"model": ErrorResponse, "description": "Mode not available yet (video), or generation disabled"},
+        501: {"model": ErrorResponse, "description": "Mode not available (video not configured) or generation disabled"},
         503: {"model": ErrorResponse, "description": "Model libraries or weights are missing"},
     },
-    summary="Queue a text-to-image generation",
+    summary="Queue a generation",
 )
 def create_generation(request: GenerationRequest, service: GenerationServiceDep) -> GenerationJob:
     # Returns immediately with status "queued"; poll GET /generations/{id} for progress.

@@ -115,11 +115,18 @@ class TextToImageRequest(_GenerationBase):
 class TextToVideoRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_VIDEO]
     duration_seconds: DurationSeconds = DEFAULT_DURATION_SECONDS
+    resolution: ImageResolution = ImageResolution.STANDARD
+    steps: int | None = Field(None, ge=1, le=50, description="Inference steps (model dependent)")
+    seed: int | None = Field(None, ge=0, le=MAX_SEED, description="Omit for a random seed.")
+    num_frames: int | None = Field(None, ge=1, le=257, description="Optional explicit frame count if supported")
 
 
 class ImageToVideoRequest(_GenerationBase):
     mode: Literal[GenerationMode.IMAGE_TO_VIDEO]
     duration_seconds: DurationSeconds = DEFAULT_DURATION_SECONDS
+    resolution: ImageResolution = ImageResolution.STANDARD
+    steps: int | None = Field(None, ge=1, le=50)
+    seed: int | None = Field(None, ge=0, le=MAX_SEED)
     source_image: SourceImageInfo
 
 
@@ -139,12 +146,25 @@ class GenerationSettings(BaseModel):
     style: VisualStyle
     duration_seconds: int | None = Field(description="Null for still images.")
     source_image: SourceImageInfo | None = None
-    # Image-only settings; null for video modes.
+    # Image/video settings
     resolution: ImageResolution | None = None
     width: int | None = None
     height: int | None = None
     steps: int | None = None
     seed: int | None = Field(None, description="Null until the server picks one for a random-seed job.")
+    num_frames: int | None = None
+
+
+class GeneratedVideo(BaseModel):
+    """A real video file written by the engine."""
+    url: str = Field(description="Path on this API, e.g. /api/v1/files/videos/<id>.mp4")
+    download_url: str
+    content_type: Literal["video/mp4"] = "video/mp4"
+    width: int
+    height: int
+    size_bytes: int
+    num_frames: int | None = None
+    duration_seconds: float | None = None
 
 
 class ValidationResponse(BaseModel):
@@ -183,14 +203,16 @@ class GenerationJob(BaseModel):
     id: str
     status: GenerationStatus
     settings: GenerationSettings
-    model_id: str
+    model_id: str | None = None
     device: str | None = Field(None, description="Device the model ran on, once known.")
     created_at: datetime
     started_at: datetime | None = None
     finished_at: datetime | None = None
     queue_position: int | None = Field(None, description="Jobs ahead of this one while queued.")
     image: GeneratedImage | None = None
+    video: GeneratedVideo | None = None
     error: JobError | None = None
+    output_url: str | None = None
 
 
 class ErrorDetail(BaseModel):

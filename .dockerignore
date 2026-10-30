@@ -1,0 +1,9 @@
+.git
+.next
+node_modules
+backend/.venv
+backend/.pytest_cache
+backend/outputs
+backend/models
+**/__pycache__
+**/*.py[cod]

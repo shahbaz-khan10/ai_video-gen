@@ -1,3 +1,92 @@
+"""Local text-to-video engines (Phase 5 work).
+
+Restored header: these imports and definitions were missing from the committed file
+(the same definitions live in docker/backend/video_engine.py).
+"""
+
+from __future__ import annotations
+
+import gc
+import importlib.util
+import logging
+import shutil
+import threading
+import time
+from dataclasses import dataclass, field
+from typing import Any, Protocol
+
+from app.core.config import Settings
+
+logger = logging.getLogger(__name__)
+
+REQUIRED_MODULES = ("torch", "diffusers", "transformers", "huggingface_hub", "accelerate", "safetensors")
+
+
+class VideoEngineError(Exception):
+    """A failure that is safe to show to users."""
+
+    def __init__(self, code: str, message: str, *, retryable: bool = False) -> None:
+        super().__init__(message)
+        self.code = code
+        self.message = message
+        self.retryable = retryable
+
+
+@dataclass
+class VideoEngineStatus:
+    state: str
+    detail: str
+    model_id: str
+    device: str | None = None
+    optimizations: list[str] = field(default_factory=list)
+
+
+@dataclass(frozen=True)
+class VideoParams:
+    prompt: str
+    width: int
+    height: int
+    num_frames: int
+    num_inference_steps: int
+    seed: int
+
+
+class VideoEngine(Protocol):
+    name: str
+    model_id: str
+    _device: str | None
+
+    def status(self) -> VideoEngineStatus: ...
+
+    def ensure_can_accept(self) -> None: ...
+
+    def generate(self, params: VideoParams, deadline: float) -> tuple[bytes, dict[str, Any]]: ...
+
+
+class DisabledVideoEngine:
+    """Used when VIDEO_ENGINE=none: reports itself unavailable and refuses every job."""
+
+    name = "none"
+    _device = None
+
+    def __init__(self, model_id: str = "none") -> None:
+        self.model_id = model_id
+
+    def status(self) -> VideoEngineStatus:
+        return VideoEngineStatus("unavailable", "Video generation is turned off on this server.", self.model_id)
+
+    def ensure_can_accept(self) -> None:
+        raise VideoEngineError("engine_not_configured", "Video generation is turned off on this server.")
+
+    def generate(self, params: VideoParams, deadline: float) -> tuple[bytes, dict[str, Any]]:
+        self.ensure_can_accept()
+        raise AssertionError("unreachable")
+
+
+def _has_ffmpeg() -> bool:
+    return shutil.which("ffmpeg") is not None
+
+
 class DiffusersVideoEngine:
     name = "ltx"
 

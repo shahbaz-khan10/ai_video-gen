@@ -10,7 +10,7 @@ export function ModelSelect({ value, onChange }: { value: string; onChange: (v: 
   const current = MODELS.find((m) => m.id === value);
   return (
     <fieldset>
-      <FieldLegend hint="Model slots are placeholders. Real models will be connected in a later phase.">Model</FieldLegend>
+      <FieldLegend hint="Video model slots are placeholders. Video generation is coming soon.">Model</FieldLegend>
       <div className="relative">
         <select
           id={id}

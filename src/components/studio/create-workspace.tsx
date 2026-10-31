@@ -1,20 +1,28 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
 import { FolderOpen } from "lucide-react";
-import { ASPECT_RATIOS, getMode, getStyle, isVideoMode, MODELS } from "@/lib/studio-options";
-import { api } from "@/lib/api/client";
+import { api, assetUrl } from "@/lib/api/client";
+import { useBackendStatus } from "@/lib/api/use-backend-status";
+import { isBusy, parseSeed, progressMessage } from "@/lib/generation/job-view";
+import { useImageJob } from "@/lib/generation/use-image-job";
 import { prefersReducedMotion } from "@/lib/motion";
+import { ASPECT_RATIOS, getMode, getStyle, IMAGE_SIZES, isVideoMode, MODELS } from "@/lib/studio-options";
+import type { GenerationPayload, ImageResolution } from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
 import { AspectRatioSelector } from "./aspect-ratio-selector";
 import { DurationSelector } from "./duration-selector";
 import { GenerateButton } from "./generate-button";
 import { buildPayload, interpretError, type CheckOutcome, type FieldErrors } from "./generation-check";
+import { ImageModelCard } from "./image-model-card";
+import { ResolutionSelector, SeedInput, StepsSelector } from "./image-options";
 import { ImageUploader } from "./image-uploader";
+import { JobNotice } from "./job-notice";
 import { ModelSelect } from "./model-select";
 import { ModeSelector } from "./mode-selector";
+import { OutcomeNotice } from "./outcome-notice";
 import { PreviewPanel } from "./preview-panel";
 import { PromptEditor } from "./prompt-editor";
 import { StyleSelector } from "./style-selector";
@@ -22,8 +30,8 @@ import { useImageSelection } from "./use-image-selection";
 
 const GENERATE_LABEL: Record<GenerationMode, string> = {
   "text-to-image": "Generate image",
-  "text-to-video": "Generate video",
-  "image-to-video": "Animate image",
+  "text-to-video": "Check video settings",
+  "image-to-video": "Check animation settings",
 };
 
 const collapse = {
@@ -45,26 +53,59 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(initial.aspectRatio);
   const [style, setStyle] = useState(initial.styleId);
   const [duration, setDuration] = useState<ClipDuration>(initial.duration);
+  const [resolution, setResolution] = useState<ImageResolution>("standard");
+  const [steps, setSteps] = useState(1);
+  const [seedInput, setSeedInput] = useState("");
   const [model, setModel] = useState(MODELS[0].id);
   const [errors, setErrors] = useState<FieldErrors>({});
+  // Video modes: settings check only.
   const [outcome, setOutcome] = useState<CheckOutcome | null>(null);
   const [checking, setChecking] = useState(false);
-  // Ignores responses for a draft the user has since edited.
+  // Ignores validation responses for a draft the user has since edited.
   const requestId = useRef(0);
+  const lastImagePayload = useRef<GenerationPayload | null>(null);
   const upload = useImageSelection();
+  const imageJob = useImageJob();
+  const { status: backend } = useBackendStatus();
+  const [elapsed, setElapsed] = useState<{ jobId: string; seconds: number } | null>(null);
 
+  const isImage = mode === "text-to-image";
   const isVideo = isVideoMode(mode);
   const needsImage = mode === "image-to-video";
+  const view = imageJob.view;
+  const imageBusy = isBusy(view);
+  const viewJob = "job" in view ? view.job : null;
 
-  const details = [
-    getMode(mode).label,
-    `${aspectRatio} ${ASPECT_RATIOS.find((r) => r.id === aspectRatio)!.label}`,
-    getStyle(style).label,
-    ...(isVideo ? [duration] : []),
-    MODELS.find((m) => m.id === model)!.label.split(" · ")[0],
-  ];
+  // Wall-clock timer while the server reports "processing"; ticks only from the interval.
+  useEffect(() => {
+    if (view.phase !== "processing" || !view.job.started_at) return;
+    const { id, started_at } = view.job;
+    const started = Date.parse(started_at);
+    const timer = setInterval(() => setElapsed({ jobId: id, seconds: (Date.now() - started) / 1000 }), 1000);
+    return () => clearInterval(timer);
+  }, [view]);
 
-  /** Any edit makes the last check stale. */
+  const elapsedSeconds = viewJob && elapsed?.jobId === viewJob.id ? elapsed.seconds : 0;
+  const license = backend.state === "online" ? backend.info.generation.license : null;
+  const size = IMAGE_SIZES[resolution][aspectRatio];
+
+  const details = isImage
+    ? [
+        getMode(mode).label,
+        `${aspectRatio} · ${size.width}×${size.height}`,
+        getStyle(style).label,
+        `${steps} ${steps === 1 ? "step" : "steps"}`,
+        seedInput.trim() ? `Seed ${seedInput.trim()}` : "Random seed",
+      ]
+    : [
+        getMode(mode).label,
+        `${aspectRatio} ${ASPECT_RATIOS.find((r) => r.id === aspectRatio)!.label}`,
+        getStyle(style).label,
+        duration,
+        MODELS.find((m) => m.id === model)!.label.split(" · ")[0],
+      ];
+
+  /** Any edit makes the last settings check stale. A running image job keeps going. */
   const invalidate = () => {
     requestId.current += 1;
     setOutcome(null);
@@ -85,26 +126,50 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     if (window.matchMedia("(max-width: 1023px)").matches) scrollTo("preview-panel", "start");
   };
 
+  const submitImage = (payload: GenerationPayload) => {
+    lastImagePayload.current = payload;
+    void imageJob.submit(payload);
+    revealPreviewOnSmallScreens();
+  };
+
   const handleGenerate = async () => {
-    // 1. Quick local checks, so obvious gaps don't need a round trip.
+    // Quick local checks, so obvious gaps don't need a round trip.
     const localErrors: FieldErrors = {};
     if (!prompt.trim()) localErrors.prompt = "Add a prompt to describe what you want to create.";
     if (needsImage && !upload.image) localErrors.image = "Add a source image to animate.";
+    const seed = parseSeed(seedInput);
+    if (isImage && seed.error) localErrors.seed = seed.error;
     setErrors(localErrors);
-    if (localErrors.image || localErrors.prompt) {
+    if (localErrors.image || localErrors.prompt || localErrors.seed) {
       setOutcome(null);
-      scrollTo(localErrors.image ? "source-image-field" : "prompt-field", "center");
+      scrollTo(localErrors.image ? "source-image-field" : localErrors.prompt ? "prompt-field" : "seed-field", "center");
       return;
     }
 
-    // 2. Ask the backend to validate. No model is connected, so nothing is generated either way.
+    const payload = buildPayload({
+      mode,
+      prompt,
+      aspectRatio,
+      style,
+      duration,
+      image: upload.image,
+      resolution,
+      steps,
+      seed: seed.seed,
+    });
+
+    // Text to image: a real job on the local model.
+    if (isImage) {
+      submitImage(payload);
+      return;
+    }
+
+    // Video modes are not connected: only validate the settings with the backend.
     const id = ++requestId.current;
     setChecking(true);
     setOutcome(null);
     try {
-      const res = await api.validateGeneration(
-        buildPayload({ mode, prompt, aspectRatio, style, duration, image: upload.image }),
-      );
+      const res = await api.validateGeneration(payload);
       if (id !== requestId.current) return;
       setOutcome({ kind: "validated", settings: res.settings });
       revealPreviewOnSmallScreens();
@@ -123,13 +188,12 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     }
   };
 
+  const completedImage = isImage && view.phase === "completed" ? view.job.image : null;
+  const resultSrc = completedImage ? assetUrl(completedImage.url) : null;
+
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
-      <form
-        aria-label="Generation settings"
-        onSubmit={(e) => e.preventDefault()}
-        className="flex flex-col gap-6"
-      >
+      <form aria-label="Generation settings" onSubmit={(e) => e.preventDefault()} className="flex flex-col gap-6">
         {sourceProject && (
           <p className="flex items-center gap-2 rounded-lg border border-line bg-ink-900 px-3 py-2.5 text-xs text-fg-muted">
             <FolderOpen className="size-3.5 shrink-0 text-violet-soft" aria-hidden />
@@ -196,36 +260,75 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           }}
         />
 
-        <AnimatePresence initial={false}>
-          {isVideo && (
-            <motion.div key="duration" {...collapse} className="overflow-hidden">
-              <DurationSelector
-                value={duration}
-                onChange={(v) => {
-                  setDuration(v);
-                  invalidate();
-                }}
-              />
+        <AnimatePresence initial={false} mode="popLayout">
+          {isImage ? (
+            <motion.div key="image-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
+              <ResolutionSelector value={resolution} aspectRatio={aspectRatio} onChange={setResolution} />
+              <StepsSelector value={steps} onChange={setSteps} />
+              <div id="seed-field">
+                <SeedInput
+                  value={seedInput}
+                  onChange={(v) => {
+                    setSeedInput(v);
+                    setErrors((e) => ({ ...e, seed: undefined }));
+                  }}
+                  error={errors.seed}
+                />
+              </div>
+              <ImageModelCard refreshKey={viewJob ? `${viewJob.id}:${view.phase}` : view.phase} />
+            </motion.div>
+          ) : (
+            <motion.div key="video-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
+              {isVideo && (
+                <DurationSelector
+                  value={duration}
+                  onChange={(v) => {
+                    setDuration(v);
+                    invalidate();
+                  }}
+                />
+              )}
+              <ModelSelect value={model} onChange={setModel} />
             </motion.div>
           )}
         </AnimatePresence>
 
-        <ModelSelect value={model} onChange={setModel} />
-
         <div className="sticky bottom-0 -mx-4 border-t border-line bg-ink-950/85 px-4 pb-4 pt-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
-          <GenerateButton onClick={handleGenerate} label={GENERATE_LABEL[mode]} busy={checking} />
+          <GenerateButton
+            onClick={handleGenerate}
+            label={GENERATE_LABEL[mode]}
+            busy={isImage ? imageBusy : checking}
+            busyLabel={isImage ? "Generating…" : "Checking settings…"}
+            note={
+              isImage
+                ? "Runs on a local open-source model · one image at a time"
+                : "Video generation is coming soon · settings are validated only"
+            }
+          />
         </div>
       </form>
 
       <div id="preview-panel" className="scroll-mt-20 lg:sticky lg:top-6 lg:self-start">
         <PreviewPanel
           mode={mode}
-          aspectRatio={aspectRatio}
+          aspectRatio={completedImage && viewJob ? viewJob.settings.aspect_ratio : aspectRatio}
           details={details}
-          image={upload.image}
-          outcome={outcome}
-          checking={checking}
-          onDismissOutcome={() => setOutcome(null)}
+          sourceImage={upload.image}
+          result={resultSrc ? { src: resultSrc, alt: `Generated image: ${viewJob?.settings.prompt ?? ""}` } : null}
+          busyMessage={isImage && imageBusy ? progressMessage(view, elapsedSeconds, imageJob.modelState) : null}
+          notice={
+            isImage ? (
+              <JobNotice
+                view={view}
+                progress={progressMessage(view, elapsedSeconds, imageJob.modelState)}
+                attribution={license ? { text: license.attribution, url: license.url } : null}
+                onRetry={() => lastImagePayload.current && submitImage(lastImagePayload.current)}
+                onReconnect={imageJob.reconnect}
+              />
+            ) : (
+              <OutcomeNotice outcome={outcome} checking={checking} onDismiss={() => setOutcome(null)} />
+            )
+          }
         />
       </div>
     </div>

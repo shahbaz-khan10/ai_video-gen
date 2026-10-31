@@ -93,12 +93,6 @@ class Settings(BaseSettings):
             return [origin.strip().rstrip("/") for origin in value.split(",") if origin.strip()]
         return value
 
-    @field_validator("image_model_cache_dir", "image_output_dir")
-    @classmethod
-    def _absolute_from_backend(cls, value: Path) -> Path:
-        # Relative paths are resolved against backend/, not the shell's working directory.
-        return (value if value.is_absolute() else BACKEND_DIR / value).resolve()
-
     @model_validator(mode="after")
     def _no_wildcard_in_production(self) -> "Settings":
         if self.environment == "production" and "*" in self.cors_origins:

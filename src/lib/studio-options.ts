@@ -1,5 +1,7 @@
 import { Clapperboard, ImageIcon, ImagePlay } from "lucide-react";
+import type { ImageResolution } from "@/types/api";
 import type {
+  AspectRatio,
   AspectRatioOption,
   ClipDuration,
   GenerationMode,
@@ -73,3 +75,31 @@ export function getStyle(id: string) {
 export function isVideoMode(mode: GenerationMode) {
   return mode !== "text-to-image";
 }
+
+/** Mirrors backend IMAGE_SIZES: the server, not the client, decides exact pixels. */
+export const IMAGE_SIZES: Record<ImageResolution, Record<AspectRatio, { width: number; height: number }>> = {
+  standard: {
+    "1:1": { width: 512, height: 512 },
+    "16:9": { width: 680, height: 384 },
+    "9:16": { width: 384, height: 680 },
+  },
+  large: {
+    "1:1": { width: 768, height: 768 },
+    "16:9": { width: 1024, height: 576 },
+    "9:16": { width: 576, height: 1024 },
+  },
+};
+
+export const IMAGE_RESOLUTIONS: { id: ImageResolution; label: string; hint: string }[] = [
+  { id: "standard", label: "Standard", hint: "Native size for SD-Turbo. Fastest and most reliable." },
+  { id: "large", label: "Large", hint: "More pixels, slower, and needs more memory. Composition can repeat." },
+];
+
+export const IMAGE_STEPS: { id: "1" | "2" | "4"; label: string }[] = [
+  { id: "1", label: "Fast" },
+  { id: "2", label: "Balanced" },
+  { id: "4", label: "Detailed" },
+];
+
+/** Generation modes that actually run on a model today. */
+export const LIVE_MODES: GenerationMode[] = ["text-to-image"];

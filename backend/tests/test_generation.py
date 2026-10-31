@@ -197,13 +197,14 @@ def test_oversized_body_rejected_with_413(settings: Settings, video_request: dic
 # --- creation and lookup ------------------------------------------------------
 
 
-def test_create_video_mode_returns_501_mode_not_available(client: TestClient, video_request: dict) -> None:
+def test_create_video_without_video_engine_is_refused_honestly(client: TestClient, video_request: dict) -> None:
+    # Text-to-video is routed to the video engine (added after Phase 4). Without its
+    # libraries/weights it must refuse with a clear reason, never queue a fake job.
     res = client.post(CREATE, json=video_request)
-    assert res.status_code == 501
+    assert res.status_code in (501, 503)
     body = res.json()
-    assert body["error"]["code"] == "mode_not_available"
-    # No fabricated job or output.
-    assert "id" not in body and "image" not in body
+    assert body["error"]["code"] in ("engine_not_configured", "ai_libraries_missing", "model_not_downloaded")
+    assert "id" not in body and "image" not in body and "video" not in body
 
 
 def test_create_still_validates_before_501(client: TestClient, video_request: dict) -> None:

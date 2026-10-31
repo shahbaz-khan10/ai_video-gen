@@ -2,7 +2,7 @@
 
 import { useId } from "react";
 import { motion } from "motion/react";
-import { MODES } from "@/lib/studio-options";
+import { LIVE_MODES, MODES } from "@/lib/studio-options";
 import type { GenerationMode } from "@/types/studio";
 import { cn } from "@/lib/cn";
 
@@ -21,6 +21,7 @@ export function ModeSelector({ value, onChange }: ModeSelectorProps) {
         {MODES.map((mode) => {
           const Icon = mode.icon;
           const checked = mode.id === value;
+          const live = LIVE_MODES.includes(mode.id);
           return (
             <label
               key={mode.id}
@@ -48,6 +49,12 @@ export function ModeSelector({ value, onChange }: ModeSelectorProps) {
               )}
               <Icon className={cn("relative size-4 shrink-0", checked && "text-violet-soft")} aria-hidden />
               <span className="relative">{mode.label}</span>
+              {!live && (
+                <span className="absolute -top-2 right-1 rounded-full border border-line-strong bg-ink-800 px-1.5 py-px font-mono text-[9px] uppercase tracking-wider text-fg-subtle">
+                  Soon
+                  <span className="sr-only">: coming soon, not connected yet</span>
+                </span>
+              )}
             </label>
           );
         })}

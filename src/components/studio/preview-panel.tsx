@@ -1,12 +1,11 @@
 "use client";
 
+import type { ReactNode } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Film, ImageIcon } from "lucide-react";
+import { Film, ImageIcon, LoaderCircle } from "lucide-react";
 import { BackendStatusPill } from "@/components/system/backend-status";
 import type { AspectRatio, GenerationMode } from "@/types/studio";
 import { cn } from "@/lib/cn";
-import type { CheckOutcome } from "./generation-check";
-import { OutcomeNotice } from "./outcome-notice";
 import type { SelectedImage } from "./use-image-selection";
 
 const RESULT_NOUN: Record<GenerationMode, string> = {
@@ -23,12 +22,16 @@ const FRAME_SIZE: Record<AspectRatio, string> = {
 
 type PreviewPanelProps = {
   mode: GenerationMode;
+  /** Shape of the frame. A finished result keeps its own ratio even if the selector changes. */
   aspectRatio: AspectRatio;
   details: string[];
-  image: SelectedImage | null;
-  outcome: CheckOutcome | null;
-  checking: boolean;
-  onDismissOutcome: () => void;
+  sourceImage: SelectedImage | null;
+  /** A real generated image from the backend. */
+  result: { src: string; alt: string } | null;
+  /** Shown over the frame while a job is in progress. */
+  busyMessage: string | null;
+  /** Status, errors and actions below the preview. */
+  notice: ReactNode;
 };
 
 function Corners() {
@@ -47,13 +50,13 @@ export function PreviewPanel({
   mode,
   aspectRatio,
   details,
-  image,
-  outcome,
-  checking,
-  onDismissOutcome,
+  sourceImage,
+  result,
+  busyMessage,
+  notice,
 }: PreviewPanelProps) {
   const EmptyIcon = mode === "text-to-image" ? ImageIcon : Film;
-  const showSource = mode === "image-to-video" && image;
+  const showSource = mode === "image-to-video" && sourceImage;
 
   return (
     <section aria-labelledby="preview-heading" className="flex flex-col rounded-2xl border border-line bg-ink-900/60">
@@ -77,7 +80,19 @@ export function PreviewPanel({
           <Corners />
 
           <AnimatePresence mode="wait" initial={false}>
-            {showSource ? (
+            {result ? (
+              <motion.figure
+                key={result.src}
+                initial={{ opacity: 0, scale: 1.02 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0 }}
+                transition={{ duration: 0.45 }}
+                className="absolute inset-0"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element -- image served by our own API */}
+                <img src={result.src} alt={result.alt} className="size-full object-cover" />
+              </motion.figure>
+            ) : showSource ? (
               <motion.figure
                 key="source"
                 initial={{ opacity: 0 }}
@@ -86,7 +101,7 @@ export function PreviewPanel({
                 className="absolute inset-0"
               >
                 {/* eslint-disable-next-line @next/next/no-img-element -- local object URL preview */}
-                <img src={image.url} alt="Source image for animation" className="size-full object-cover" />
+                <img src={sourceImage.url} alt="Source image for animation" className="size-full object-cover" />
                 <figcaption className="absolute left-3 top-3 rounded-md bg-black/50 px-2 py-1 font-mono text-[10px] uppercase tracking-wider text-white/85 backdrop-blur">
                   Source frame · not animated
                 </figcaption>
@@ -105,10 +120,28 @@ export function PreviewPanel({
                 </span>
                 <p className="mt-4 text-sm font-medium text-fg">Your {RESULT_NOUN[mode]} will appear here</p>
                 <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-fg-muted">
-                  {mode === "image-to-video"
-                    ? "Add a source image and describe the motion to set up the shot."
-                    : "Set up your shot. Results will render in this frame once a model is connected."}
+                  {mode === "text-to-image"
+                    ? "Describe your shot and press Generate. The image renders here on your local model."
+                    : "Video generation is coming soon. You can set up the shot and check its settings."}
                 </p>
+              </motion.div>
+            )}
+          </AnimatePresence>
+
+          <AnimatePresence>
+            {busyMessage && (
+              <motion.div
+                key="busy"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 flex flex-col items-center justify-center gap-3 bg-ink-950/75 p-6 text-center backdrop-blur-sm"
+              >
+                <span aria-hidden className="absolute inset-0 overflow-hidden">
+                  <span className="animate-scan absolute inset-y-0 left-0 w-1/3 bg-linear-to-r from-transparent via-violet/15 to-transparent" />
+                </span>
+                <LoaderCircle className="relative size-6 animate-spin text-violet-soft" aria-hidden />
+                <p className="relative max-w-xs text-sm text-fg">{busyMessage}</p>
               </motion.div>
             )}
           </AnimatePresence>
@@ -125,7 +158,7 @@ export function PreviewPanel({
         </ul>
       </div>
 
-      <OutcomeNotice outcome={outcome} checking={checking} onDismiss={onDismissOutcome} />
+      {notice}
     </section>
   );
 }

@@ -1,10 +1,13 @@
 # AI Video Studio API
 
-FastAPI backend for AI Video Studio. It validates generation requests and reports its own health. **No AI model is connected**: `POST /api/v1/generations` returns `501 engine_not_configured`, and no media is ever generated or faked.
+FastAPI backend for AI Video Studio. **Text to image runs on a real, local, open-weight model** (default `stabilityai/sd-turbo`, via Hugging Face Diffusers). No paid or remote inference API is used, and nothing is ever faked: a job is only `completed` once a real PNG is saved and verified.
 
 - Python 3.12
-- FastAPI, Uvicorn, Pydantic v2, pydantic-settings
-- Pytest + HTTPX for tests (no GPU or internet needed)
+- FastAPI, Uvicorn, Pydantic v2, pydantic-settings, Pillow
+- Optional AI stack: PyTorch + Diffusers (`requirements-ai.txt`)
+- Pytest + HTTPX for tests (mocked model: no GPU, weights or internet needed)
+
+> **Jobs live in memory.** Restarting the backend loses the job list (generated PNGs stay on disk in `outputs/images/`).
 
 ## Setup (Windows PowerShell)
 
@@ -51,11 +54,14 @@ All routes are under `/api/v1`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/health` | Liveness: the API process is running |
-| GET | `/health/ready` | Readiness of the API itself. The AI engine is reported as `not_configured`, never assumed ready |
-| GET | `/info` | Safe metadata: version, modes, aspect ratios, styles, limits, generation availability |
+| GET | `/health/ready` | API readiness, plus the image model's state reported separately (`model_ready`). Never loads the model |
+| GET | `/info` | Safe metadata: modes, sizes, steps, limits, model ID and license, what is available now |
 | POST | `/generations/validate` | Validates and normalizes a request without generating anything |
-| POST | `/generations` | Validates, then returns `501 engine_not_configured` |
-| GET | `/generations/{id}` | Status of a stored job. No jobs exist yet, so a valid UUID returns `404 generation_not_found` |
+| POST | `/generations` | Queues a text-to-image job: `202` with `status: queued`. `503` if libraries/weights are missing, `429` if the queue is full |
+| GET | `/generations/{id}` | Real status: `queued` → `processing` → `completed` (with image URL) or `failed` (with a safe error). `404` for unknown IDs |
+| GET | `/models/image` | Model state: `unavailable`, `not_downloaded`, `not_loaded`, `loading`, `loaded`, `error`. Never loads the model |
+| POST | `/models/image/load` | Starts loading the model in the background (optional; the first job also loads it) |
+| GET | `/files/images/{uuid}.png` | Serves a generated image. Add `?download=true` for an attachment. Only `<uuid>.png` names from the output folder are reachable |
 
 ### Request shape
 
@@ -126,6 +132,59 @@ app/
 tests/                        pytest suite
 ```
 
-## Adding a real model later
+## Text to image: installing the model (Phase 4)
 
-Routes only talk to `GenerationService`. To connect a model, implement the `GenerationEngine` protocol in `app/services/generation_service.py` (a `name`, a `configured` property and `submit(settings) -> GenerationJob`). Then pass it to `create_app(engine=...)`. `tests/test_generation.py::FakeEngine` shows the shape.
+The API runs without any of this. It then reports the model as `unavailable` and refuses jobs with `503`. To generate real images:
+
+**1. Install PyTorch for your machine** (pick one, inside the activated venv):
+
+```powershell
+# NVIDIA GPU (check with `nvidia-smi`; needs a recent driver):
+python -m pip install torch --index-url https://download.pytorch.org/whl/cu126
+# No NVIDIA GPU (CPU only; much slower, about 5 GB RAM for sd-turbo):
+python -m pip install torch
+```
+
+Verify: `python -c "import torch; print(torch.__version__, torch.cuda.is_available())"`
+
+**2. Install the Diffusers stack:** `python -m pip install -r requirements-ai.txt`
+
+**3. Download the weights once (needs internet):** `python scripts/download_model.py`
+
+It shows the size first (about **2.6 GB** for sd-turbo's FP16 files), checks free disk space, and asks before downloading. Weights go to `backend/models/` (git-ignored). The API never downloads at request time; it only reads this folder (`local_files_only`).
+
+**4. Start the API** as usual. The first image also loads the model (slower). Later images reuse it.
+
+**Real inference smoke test** (not mocked; runs the actual model):
+
+```powershell
+$env:AVS_RUN_REAL_INFERENCE = "1"; python -m pytest tests/test_real_inference.py -s
+```
+
+### Hardware notes
+
+- GPU: FP16. On GPUs with ≤6 GB VRAM, attention slicing and VAE tiling are enabled automatically; below 4 GB, model CPU offload. Override with `IMAGE_ATTENTION_SLICING` / `IMAGE_CPU_OFFLOAD`.
+- CPU: FP32 (FP16 is slow or unsupported on CPUs). Expect tens of seconds per 512×512 image.
+- One job runs at a time (`IMAGE_MAX_CONCURRENT_JOBS=1`); others wait in a queue (`IMAGE_MAX_QUEUED_JOBS`).
+- GPU out-of-memory, timeouts and load failures mark the job `failed` with a readable message; the browser never sees stack traces or local paths.
+
+### Model and license
+
+`stabilityai/sd-turbo` is released under the **Stability AI Community License** (July 2024). It is free for research and non-commercial use, and for commercial use by organizations with under US $1M annual revenue. Commercial users must register with Stability AI. You must follow Stability's Acceptable Use Policy and show "Powered by Stability AI" (the Create page shows it under each image). Read the full text at https://huggingface.co/stabilityai/sd-turbo/blob/main/LICENSE.md.
+
+### Image settings
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `IMAGE_ENGINE` | `diffusers` | `none` turns generation off |
+| `IMAGE_MODEL_ID` | `stabilityai/sd-turbo` | Any Diffusers text-to-image repo with cached weights |
+| `IMAGE_MODEL_CACHE_DIR` | `models` | Relative to `backend/` |
+| `IMAGE_OUTPUT_DIR` | `outputs/images` | Relative to `backend/` |
+| `IMAGE_DEVICE` | `auto` | `auto`, `cuda` or `cpu` |
+| `IMAGE_MAX_CONCURRENT_JOBS` | `1` | 1–4 |
+| `IMAGE_MAX_QUEUED_JOBS` | `8` | Beyond this, `429 queue_full` |
+| `IMAGE_TIMEOUT_SECONDS` | `600` | Checked between denoising steps |
+
+## Adding another engine
+
+Routes only talk to `GenerationService`. A new image engine implements the `ImageEngine` protocol in `app/services/image_engine.py` (`status`, `ensure_can_accept`, `load`, `generate`) and is passed to `create_app(engine=...)`. `tests/fakes.py::FakeImageEngine` shows the shape.

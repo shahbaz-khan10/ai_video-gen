@@ -125,8 +125,32 @@ class DiffusersImageEngine:
             return False
         from huggingface_hub import try_to_load_from_cache
 
-        found = try_to_load_from_cache(self.model_id, "model_index.json", cache_dir=str(self._cache_dir))
-        return isinstance(found, str)
+        cache_dir = str(self._cache_dir)
+        index_path = try_to_load_from_cache(self.model_id, "model_index.json", cache_dir=cache_dir)
+        if not isinstance(index_path, str):
+            return False
+        # model_index.json arrives first, so also require every model component's weights.
+        # Otherwise a half-finished download would be reported as ready.
+        import json
+
+        try:
+            with open(index_path, encoding="utf-8") as fh:
+                index = json.load(fh)
+        except (OSError, ValueError):
+            return False
+        weight_files = {
+            "diffusers": ("diffusion_pytorch_model.fp16.safetensors", "diffusion_pytorch_model.safetensors"),
+            "transformers": ("model.fp16.safetensors", "model.safetensors"),
+        }
+        for component, spec in index.items():
+            if not (isinstance(spec, list) and len(spec) == 2 and spec[0] in weight_files):
+                continue  # config-only parts (scheduler, tokenizer) or absent components (null)
+            if any(kind in str(spec[1]) for kind in ("Tokenizer", "Scheduler", "Processor", "FeatureExtractor")):
+                continue  # no weight files
+            candidates = (f"{component}/{name}" for name in weight_files[spec[0]])
+            if not any(isinstance(try_to_load_from_cache(self.model_id, c, cache_dir=cache_dir), str) for c in candidates):
+                return False
+        return True
 
     def status(self) -> EngineStatus:
         base = {"model_id": self.model_id, "device": self._device, "optimizations": list(self._optimizations)}

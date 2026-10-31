@@ -23,8 +23,8 @@ function summarize(status: BackendStatus): { tone: Tone; label: string } {
   if (status.state === "loading") return { tone: "pending", label: "Checking backend" };
   if (status.state === "offline") return { tone: "off", label: "Backend offline" };
   return status.info.generation.available
-    ? { tone: "ok", label: "Engine ready" }
-    : { tone: "warn", label: "Engine not connected" };
+    ? { tone: "ok", label: "Image model ready" }
+    : { tone: "warn", label: "Image model not ready" };
 }
 
 /** Compact status pill, e.g. in the Create preview header. */
@@ -83,7 +83,7 @@ export function BackendStatusCard() {
         {status.state === "loading" && (
           <dl className="divide-y divide-line">
             <Row label="API" value="Checking…" tone="pending" />
-            <Row label="AI engine" value="Checking…" tone="pending" />
+            <Row label="Image model" value="Checking…" tone="pending" />
           </dl>
         )}
 
@@ -93,8 +93,8 @@ export function BackendStatusCard() {
               <Row label="API" value={`Online · v${status.health.version}`} tone="ok" />
               <Row label="Ready" value={status.ready.ready ? "Yes" : "No"} tone={status.ready.ready ? "ok" : "off"} />
               <Row
-                label="AI engine"
-                value={status.info.generation.available ? status.info.generation.engine : "Not connected"}
+                label="Image model"
+                value={status.info.generation.available ? (status.info.generation.model_id ?? "Ready") : "Not ready"}
                 tone={status.info.generation.available ? "ok" : "warn"}
               />
             </dl>

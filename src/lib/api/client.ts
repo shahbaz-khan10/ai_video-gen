@@ -6,8 +6,10 @@
 import type {
   ApiErrorBody,
   ApiErrorDetail,
+  GenerationJob,
   GenerationPayload,
   HealthResponse,
+  ImageModelStatus,
   InfoResponse,
   ReadinessResponse,
   ValidationResponse,
@@ -95,10 +97,25 @@ async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
   return body as T;
 }
 
+/**
+ * Absolute URL for a path the API returned (e.g. a generated image).
+ * Only same-API paths are accepted, so the UI never renders an arbitrary URL.
+ */
+export function assetUrl(path: string): string | null {
+  const base = getApiBaseUrl();
+  if (!base || !path.startsWith(`${API_PREFIX}/files/`)) return null;
+  return `${base}${path}`;
+}
+
 export const api = {
   health: () => request<HealthResponse>("/health"),
   ready: () => request<ReadinessResponse>("/health/ready"),
   info: () => request<InfoResponse>("/info"),
+  imageModel: () => request<ImageModelStatus>("/models/image"),
   validateGeneration: (payload: GenerationPayload) =>
     request<ValidationResponse>("/generations/validate", { method: "POST", body: JSON.stringify(payload) }),
+  /** Queues a text-to-image job. Resolves with the job in "queued" (or later) status. */
+  createGeneration: (payload: GenerationPayload) =>
+    request<GenerationJob>("/generations", { method: "POST", body: JSON.stringify(payload) }),
+  getGeneration: (id: string) => request<GenerationJob>(`/generations/${encodeURIComponent(id)}`),
 };

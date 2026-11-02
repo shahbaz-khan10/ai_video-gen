@@ -21,7 +21,7 @@ export type ReadinessResponse = {
   checks: Record<string, ReadinessCheck>;
 };
 
-export type ImageResolution = "standard" | "large";
+export type ImageResolution = "standard" | "large" | "high";
 
 export type ImageModelState = "disabled" | "unavailable" | "not_downloaded" | "not_loaded" | "loading" | "loaded" | "error";
 
@@ -71,9 +71,33 @@ export type SourceImageInfo = {
 type GenerationBase = { prompt: string; aspect_ratio: AspectRatio; style: string };
 
 export type GenerationPayload =
-  | (GenerationBase & { mode: "text-to-image"; resolution: ImageResolution; steps: number; seed?: number })
+  | (GenerationBase & {
+      mode: "text-to-image";
+      resolution: ImageResolution;
+      steps: number;
+      seed?: number;
+      negative_prompt?: string;
+      guidance_scale?: number;
+      model_id?: string;
+    })
   | (GenerationBase & { mode: "text-to-video"; duration_seconds: number })
   | (GenerationBase & { mode: "image-to-video"; duration_seconds: number; source_image: SourceImageInfo });
+
+export type ScenePlan = {
+  scene: { category: string; environment: string; weather?: string; time_of_day?: string; lighting: string };
+  people: {
+    count: number;
+    individuals: Array<{
+      person_id: number;
+      description: string;
+      clothing?: string;
+      activity?: string;
+      position?: string;
+    }>;
+  };
+  composition: { shot_type: string; camera: string; spatial_arrangement: string; objects: string[] };
+  prompts: { positive: string; negative: string };
+};
 
 export type NormalizedSettings = {
   mode: GenerationMode;
@@ -88,6 +112,9 @@ export type NormalizedSettings = {
   height: number | null;
   steps: number | null;
   seed: number | null;
+  negative_prompt?: string | null;
+  guidance_scale?: number | null;
+  model_id?: string | null;
 };
 
 export type GenerationStatus = "queued" | "processing" | "completed" | "failed";
@@ -122,6 +149,7 @@ export type ValidationResponse = {
   valid: true;
   settings: NormalizedSettings;
   generation_available: boolean;
+  scene_plan?: ScenePlan;
 };
 
 export type ApiErrorDetail = { field: string; message: string };

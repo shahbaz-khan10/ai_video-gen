@@ -1,4 +1,4 @@
-import { Clapperboard, ImageIcon, ImagePlay } from "lucide-react";
+import { Camera, Clapperboard, Film, ImageIcon, ImagePlay, Sparkles, Users, Eye } from "lucide-react";
 import type { ImageResolution } from "@/types/api";
 import type {
   AspectRatio,
@@ -15,7 +15,7 @@ export const MODES: ModeOption[] = [
     id: "text-to-image",
     label: "Text to Image",
     short: "Image",
-    description: "Describe a frame and render a high-resolution still.",
+    description: "Describe a frame and render a photorealistic raw photograph.",
     icon: ImageIcon,
   },
   {
@@ -41,24 +41,29 @@ export const ASPECT_RATIOS: AspectRatioOption[] = [
 ];
 
 export const VISUAL_STYLES: VisualStyle[] = [
+  { id: "photorealistic", label: "Photorealistic", tone: "dusk", note: "Raw 35mm photograph, authentic skin pores, lifelike lighting." },
+  { id: "portrait", label: "Portrait Photography", tone: "ember", note: "85mm lens, soft bokeh, studio catchlights, natural facial beauty." },
+  { id: "group-photo", label: "Group Photography", tone: "tide", note: "Wide 35mm lens, sharp multi-subject focus, natural spacing." },
+  { id: "street", label: "Street Documentary", tone: "noir", note: "35mm candid photojournalism, authentic urban environment." },
   { id: "cinematic", label: "Cinematic", tone: "dusk", note: "Anamorphic framing, motivated light, filmic contrast." },
-  { id: "dreamlike", label: "Dreamlike", tone: "bloom", note: "Soft bloom, pastel haze and floating, weightless motion." },
+  { id: "golden-hour", label: "Golden Hour", tone: "ember", note: "Low warm sun, long shadows and rich amber tones." },
+  { id: "dreamlike", label: "Dreamlike", tone: "bloom", note: "Soft bloom, pastel haze and floating, weightless atmosphere." },
   { id: "neon-noir", label: "Neon Noir", tone: "noir", note: "Wet streets, magenta practicals, deep shadow." },
   { id: "documentary", label: "Documentary", tone: "tide", note: "Natural light, honest colour, handheld intimacy." },
   { id: "anime", label: "Anime", tone: "aurora", note: "Clean linework, luminous skies and expressive colour." },
-  { id: "golden-hour", label: "Golden Hour", tone: "ember", note: "Low warm sun, long shadows and rich amber tones." },
 ];
 
 export const DURATIONS: { id: ClipDuration }[] = [{ id: "4s" }, { id: "6s" }, { id: "8s" }];
 
 export const MODELS: ModelOption[] = [
-  { id: "auto", label: "Auto (recommended)", note: "Picks the best model for the mode" },
-  { id: "studio-motion", label: "Studio Motion · placeholder", note: "Video model slot" },
-  { id: "studio-still", label: "Studio Still · placeholder", note: "Image model slot" },
+  { id: "auto", label: "Auto (Realistic Vision V5.1)", note: "Best photorealism, human faces & anatomy" },
+  { id: "realistic-vision", label: "Realistic Vision V5.1", note: "Exceptional skin pores, eyes and hands" },
+  { id: "sdxl", label: "SDXL Base 1.0", note: "Native 1024x1024 photographic detail" },
+  { id: "sd-turbo", label: "SD-Turbo (Fast Draft)", note: "1-4 steps rapid preview" },
 ];
 
 export const EXAMPLE_PROMPT =
-  "A lone lighthouse on a basalt cliff at blue hour, waves crashing in slow motion, warm beam sweeping through drifting sea mist, anamorphic lens, shallow depth of field, gentle dolly-in.";
+  "A realistic photograph of five people in a modern office with large windows, natural daylight, professional clothes, sharp eye-level 35mm shot.";
 
 export function isMode(value: string | null | undefined): value is GenerationMode {
   return MODES.some((m) => m.id === value);
@@ -88,17 +93,24 @@ export const IMAGE_SIZES: Record<ImageResolution, Record<AspectRatio, { width: n
     "16:9": { width: 1024, height: 576 },
     "9:16": { width: 576, height: 1024 },
   },
+  high: {
+    "1:1": { width: 1024, height: 1024 },
+    "16:9": { width: 1024, height: 576 },
+    "9:16": { width: 576, height: 1024 },
+  },
 };
 
 export const IMAGE_RESOLUTIONS: { id: ImageResolution; label: string; hint: string }[] = [
-  { id: "standard", label: "Standard", hint: "Native size for SD-Turbo. Fastest and most reliable." },
-  { id: "large", label: "Large", hint: "More pixels, slower, and needs more memory. Composition can repeat." },
+  { id: "standard", label: "Standard (512px)", hint: "Fastest generation, balanced memory usage." },
+  { id: "large", label: "Large (768px)", hint: "Crisp detail for portraits and full body photography." },
+  { id: "high", label: "Ultra High (1024px)", hint: "Maximum resolution for wide scenes and group shots." },
 ];
 
-export const IMAGE_STEPS: { id: "1" | "2" | "4"; label: string }[] = [
-  { id: "1", label: "Fast" },
-  { id: "2", label: "Balanced" },
-  { id: "4", label: "Detailed" },
+export const IMAGE_STEPS: { id: string; steps: number; label: string; hint: string }[] = [
+  { id: "turbo", steps: 4, label: "Draft (4 steps)", hint: "Rapid low-step check" },
+  { id: "standard", steps: 20, label: "Fast Photo (20 steps)", hint: "Balanced speed and detail" },
+  { id: "photoreal", steps: 25, label: "Photorealistic (25 steps)", hint: "Recommended for realistic humans" },
+  { id: "ultra", steps: 35, label: "Deep Denoise (35 steps)", hint: "Maximum anatomical clarity" },
 ];
 
 /** Generation modes that actually run on a model today. */

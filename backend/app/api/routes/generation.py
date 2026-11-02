@@ -1,6 +1,9 @@
 """Generation endpoints. Text-to-image and text-to-video run on local models where available."""
 
+from __future__ import annotations
+
 import uuid
+from typing import Any
 
 from fastapi import APIRouter, Path
 
@@ -12,6 +15,7 @@ from app.schemas.generation import (
     GenerationRequest,
     ValidationResponse,
 )
+from app.services.prompt_understanding import PromptUnderstandingEngine
 
 router = APIRouter(prefix="/generations", tags=["generations"])
 
@@ -35,10 +39,29 @@ def validate_generation(request: GenerationRequest, service: GenerationServiceDe
                 generation_available = True
         except Exception:
             generation_available = False
+
+    scene_plan_dict = None
+    if request.mode == GenerationMode.TEXT_TO_IMAGE:
+        try:
+            plan = PromptUnderstandingEngine.plan_scene(request.prompt, request.style)
+            scene_plan_dict = plan.to_dict()
+        except Exception:
+            scene_plan_dict = None
+
     return ValidationResponse(
         settings=service.normalize(request),
         generation_available=generation_available,
+        scene_plan=scene_plan_dict,
     )
+
+
+@router.post(
+    "/plan",
+    summary="Generate a structured scene plan and optimized prompt breakdown",
+)
+def plan_scene_endpoint(request: GenerationRequest) -> dict[str, Any]:
+    plan = PromptUnderstandingEngine.plan_scene(request.prompt, request.style)
+    return plan.to_dict()
 
 
 @router.post(
@@ -48,13 +71,12 @@ def validate_generation(request: GenerationRequest, service: GenerationServiceDe
     responses={
         **_validation_error,
         429: {"model": ErrorResponse, "description": "Generation queue is full"},
-        501: {"model": ErrorResponse, "description": "Mode not available (video not configured) or generation disabled"},
+        501: {"model": ErrorResponse, "description": "Mode not available or generation disabled"},
         503: {"model": ErrorResponse, "description": "Model libraries or weights are missing"},
     },
     summary="Queue a generation",
 )
 def create_generation(request: GenerationRequest, service: GenerationServiceDep) -> GenerationJob:
-    # Returns immediately with status "queued"; poll GET /generations/{id} for progress.
     return service.create(request)
 
 

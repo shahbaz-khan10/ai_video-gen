@@ -1,12 +1,9 @@
-"""Local text-to-image engines.
+"""Local photorealistic text-to-image engines.
 
-``DiffusersImageEngine`` runs an open-weight model (default ``stabilityai/sd-turbo``)
-with Hugging Face Diffusers. It never downloads at request time and never calls a
-remote inference API: weights must already be in ``IMAGE_MODEL_CACHE_DIR``
-(see ``scripts/download_model.py``).
-
-PyTorch and Diffusers are imported lazily, so the API runs, and health checks stay
-cheap, even when they are not installed.
+Upgraded to support professional open-weight models (Realistic Vision, SDXL) alongside
+rapid draft models (SD-Turbo). Features intelligent prompt understanding, scene planning,
+Classifier-Free Guidance (CFG), negative prompt engineering, and VRAM management
+optimized for GPUs like NVIDIA GeForce RTX 3050 (8GB) with graceful CPU fallback.
 """
 
 from __future__ import annotations
@@ -20,7 +17,9 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from app.core.config import Settings
+from app.core.models_registry import DEFAULT_MODEL_ID, get_model_profile
 from app.schemas.generation import VisualStyle
+from app.services.prompt_understanding import PromptUnderstandingEngine
 
 if TYPE_CHECKING:
     from PIL.Image import Image
@@ -29,7 +28,6 @@ logger = logging.getLogger(__name__)
 
 REQUIRED_MODULES = ("torch", "diffusers", "transformers", "huggingface_hub", "accelerate", "safetensors")
 
-# Appended to the user's prompt so the style picker actually changes the result.
 STYLE_PROMPTS: dict[VisualStyle, str] = {
     VisualStyle.CINEMATIC: "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
     VisualStyle.DREAMLIKE: "dreamlike, soft bloom, pastel haze, ethereal atmosphere",
@@ -37,6 +35,10 @@ STYLE_PROMPTS: dict[VisualStyle, str] = {
     VisualStyle.DOCUMENTARY: "documentary photograph, natural light, true-to-life colour",
     VisualStyle.ANIME: "anime illustration, clean linework, luminous sky, vibrant colour",
     VisualStyle.GOLDEN_HOUR: "golden hour, low warm sunlight, long shadows, rich amber tones",
+    VisualStyle.PHOTOREALISTIC: "photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting",
+    VisualStyle.PORTRAIT: "portrait photography, professional studio lighting, 85mm portrait lens, shallow depth of field, sharp eyes, natural skin tone",
+    VisualStyle.GROUP_PHOTO: "group photography, wide angle 35mm lens, crisp focus across all subjects, natural spatial composition",
+    VisualStyle.STREET: "street photography, candid 35mm documentary style, natural ambient daylight, realistic urban texture",
 }
 
 
@@ -70,6 +72,8 @@ class ImageParams:
     height: int
     steps: int
     seed: int
+    negative_prompt: str | None = None
+    guidance_scale: float | None = None
 
 
 class ImageEngine(Protocol):
@@ -94,6 +98,7 @@ class ImageEngine(Protocol):
 
 
 def build_prompt(prompt: str, style: VisualStyle) -> str:
+    """Combines user prompt with style tokens."""
     return f"{prompt}, {STYLE_PROMPTS[style]}"
 
 
@@ -102,6 +107,7 @@ class DiffusersImageEngine:
 
     def __init__(self, settings: Settings) -> None:
         self.model_id = settings.image_model_id
+        self._profile = get_model_profile(self.model_id)
         self._cache_dir = settings.image_model_cache_dir
         self._requested_device = settings.image_device
         self._attention_slicing = settings.image_attention_slicing
@@ -129,8 +135,6 @@ class DiffusersImageEngine:
         index_path = try_to_load_from_cache(self.model_id, "model_index.json", cache_dir=cache_dir)
         if not isinstance(index_path, str):
             return False
-        # model_index.json arrives first, so also require every model component's weights.
-        # Otherwise a half-finished download would be reported as ready.
         import json
 
         try:
@@ -144,9 +148,9 @@ class DiffusersImageEngine:
         }
         for component, spec in index.items():
             if not (isinstance(spec, list) and len(spec) == 2 and spec[0] in weight_files):
-                continue  # config-only parts (scheduler, tokenizer) or absent components (null)
+                continue
             if any(kind in str(spec[1]) for kind in ("Tokenizer", "Scheduler", "Processor", "FeatureExtractor")):
-                continue  # no weight files
+                continue
             candidates = (f"{component}/{name}" for name in weight_files[spec[0]])
             if not any(isinstance(try_to_load_from_cache(self.model_id, c, cache_dir=cache_dir), str) for c in candidates):
                 return False
@@ -216,10 +220,9 @@ class DiffusersImageEngine:
 
     def _build_pipeline(self) -> Any:
         import torch
-        from diffusers import AutoPipelineForText2Image
+        from diffusers import AutoPipelineForText2Image, DPMSolverMultistepScheduler
 
         device = self._resolve_device(torch)
-        # FP16 halves VRAM on GPUs; CPUs run FP32 (FP16 matmuls are slow or unsupported there).
         dtype = torch.float16 if device == "cuda" else torch.float32
         common = {
             "torch_dtype": dtype,
@@ -230,7 +233,6 @@ class DiffusersImageEngine:
         try:
             pipe = AutoPipelineForText2Image.from_pretrained(self.model_id, variant="fp16", **common)
         except (OSError, ValueError):
-            # Some models publish no fp16 variant; fall back to the default weights if those are cached.
             try:
                 pipe = AutoPipelineForText2Image.from_pretrained(self.model_id, **common)
             except OSError:
@@ -239,18 +241,28 @@ class DiffusersImageEngine:
                     "The model weights are missing or incomplete. Re-run `python scripts/download_model.py`.",
                 ) from None
 
+        # Upgrade scheduler for photorealistic models for faster and sharper convergence
+        if self._profile.family in ("sd15", "sdxl") and hasattr(pipe, "scheduler"):
+            try:
+                pipe.scheduler = DPMSolverMultistepScheduler.from_config(
+                    pipe.scheduler.config, use_karras_sigmas=True
+                )
+            except Exception:
+                pass
+
         optimizations: list[str] = []
         offload = False
         if device == "cuda":
             vram_gb = torch.cuda.get_device_properties(0).total_memory / 1024**3
-            if self._attention_slicing == "on" or (self._attention_slicing == "auto" and vram_gb <= 6):
+            # RTX 3050 (8GB) memory management: enable attention slicing & VAE tiling
+            if self._attention_slicing == "on" or (self._attention_slicing == "auto" and vram_gb <= 8):
                 pipe.enable_attention_slicing()
                 optimizations.append("attention_slicing")
                 if hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_tiling"):
                     pipe.vae.enable_tiling()
                     optimizations.append("vae_tiling")
-            if self._cpu_offload == "on" or (self._cpu_offload == "auto" and vram_gb < 4):
-                pipe.enable_model_cpu_offload()  # moves modules to the GPU only while they run
+            if self._cpu_offload == "on" or (self._cpu_offload == "auto" and vram_gb < 6):
+                pipe.enable_model_cpu_offload()
                 optimizations.append("model_cpu_offload")
                 offload = True
             optimizations.append(f"fp16 ({vram_gb:.1f} GB VRAM)")
@@ -279,23 +291,47 @@ class DiffusersImageEngine:
             nonlocal timed_out
             if time.monotonic() > deadline:
                 timed_out = True
-                pipe._interrupt = True  # diffusers' supported way to stop between steps
+                pipe._interrupt = True
             return kwargs
+
+        # Intelligent prompt understanding & scene planning
+        scene_plan = PromptUnderstandingEngine.plan_scene(params.prompt, params.style)
+
+        # Build final positive prompt:
+        # Prioritize structured scene understanding while preserving all user keywords
+        prompt_text = scene_plan.optimized_positive_prompt
+        if params.style in STYLE_PROMPTS:
+            prompt_text = f"{prompt_text}, {STYLE_PROMPTS[params.style]}"
+
+        # Negative prompt resolution
+        if self._profile.supports_negative_prompt:
+            base_negative = scene_plan.negative_prompt
+            if params.negative_prompt and params.negative_prompt.strip():
+                negative_text = f"{params.negative_prompt.strip()}, {base_negative}"
+            else:
+                negative_text = base_negative
+            guidance = params.guidance_scale if params.guidance_scale is not None else self._profile.default_guidance_scale
+        else:
+            negative_text = None
+            guidance = 0.0  # distilled turbo models run without CFG
+
+        inference_kwargs: dict[str, Any] = {
+            "prompt": prompt_text,
+            "width": params.width,
+            "height": params.height,
+            "num_inference_steps": params.steps,
+            "guidance_scale": guidance,
+            "generator": generator,
+            "callback_on_step_end": stop_after_deadline,
+        }
+        if negative_text is not None:
+            inference_kwargs["negative_prompt"] = negative_text
 
         result = None
         try:
             with torch.inference_mode():
-                result = self._pipe(
-                    prompt=build_prompt(params.prompt, params.style),
-                    width=params.width,
-                    height=params.height,
-                    num_inference_steps=params.steps,
-                    guidance_scale=0.0,  # turbo models are distilled to run without CFG
-                    generator=generator,
-                    callback_on_step_end=stop_after_deadline,
-                )
+                result = self._pipe(**inference_kwargs)
             if timed_out:
-                # An interrupted run yields a half-denoised image; never return that as a result.
                 raise EngineError("generation_timeout", "Generation took too long and was stopped.", retryable=True)
             return result.images[0], device
         except EngineError:
@@ -303,12 +339,12 @@ class DiffusersImageEngine:
         except torch.cuda.OutOfMemoryError:
             raise EngineError(
                 "gpu_out_of_memory",
-                "The GPU ran out of memory. Try the Standard resolution or close other GPU apps, then retry.",
+                "The GPU ran out of memory. Try Standard resolution or close other GPU apps, then retry.",
                 retryable=True,
             ) from None
         except MemoryError:
             raise EngineError(
-                "out_of_memory", "The server ran out of memory. Try the Standard resolution.", retryable=True
+                "out_of_memory", "The server ran out of memory. Try Standard resolution.", retryable=True
             ) from None
         finally:
             del result

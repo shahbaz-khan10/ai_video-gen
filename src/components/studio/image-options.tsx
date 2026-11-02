@@ -20,21 +20,20 @@ export function ResolutionSelector({
   return (
     <OptionGroup
       legend="Resolution"
-      hint="Exact pixel size depends on the aspect ratio. SD-Turbo is trained at 512×512."
+      hint="Pixel dimensions adjusted for aspect ratio. Large and Ultra High offer superior multi-person detail."
       options={IMAGE_RESOLUTIONS}
       value={value}
       onChange={onChange}
-      className="grid-cols-2"
+      className="grid-cols-3"
       renderOption={(id) => {
-        const option = IMAGE_RESOLUTIONS.find((r) => r.id === id)!;
-        const { width, height } = IMAGE_SIZES[id][aspectRatio];
+        const option = IMAGE_RESOLUTIONS.find((r) => r.id === id) || IMAGE_RESOLUTIONS[0];
+        const { width, height } = (IMAGE_SIZES[id] || IMAGE_SIZES.standard)[aspectRatio];
         return (
-          <span className="block px-3 py-2.5" title={option.hint}>
-            <span className="block text-[13px] font-medium">{option.label}</span>
-            <span className="mt-0.5 block font-mono text-[11px] text-fg-subtle">
+          <span className="block px-2.5 py-2 text-center" title={option.hint}>
+            <span className="block text-xs font-medium">{option.label}</span>
+            <span className="mt-0.5 block font-mono text-[10px] text-fg-subtle">
               {width} × {height}
             </span>
-            <span className="sr-only">{option.hint}</span>
           </span>
         );
       }}
@@ -43,22 +42,35 @@ export function ResolutionSelector({
 }
 
 export function StepsSelector({ value, onChange }: { value: number; onChange: (value: number) => void }) {
+  const currentStepId = IMAGE_STEPS.some((s) => s.steps === value)
+    ? String(value)
+    : value <= 4
+    ? "4"
+    : value <= 20
+    ? "20"
+    : value <= 25
+    ? "25"
+    : "35";
+
+  const stepOptions = IMAGE_STEPS.map((s) => ({ id: String(s.steps), label: s.label }));
+
   return (
     <OptionGroup
-      legend="Steps"
-      hint="Denoising steps. SD-Turbo is built for 1 step; more steps add detail but take longer."
-      options={IMAGE_STEPS}
-      value={String(value) as "1" | "2" | "4"}
+      legend="Denoising Steps"
+      hint="Higher step counts (20-35) produce sharp facial features, lifelike skin textures, and clean hands."
+      options={stepOptions}
+      value={currentStepId}
       onChange={(v) => onChange(Number(v))}
-      className="grid-cols-3"
-      renderOption={(id) => (
-        <span className="block px-2 py-2 text-center">
-          <span className="block text-xs font-medium">{IMAGE_STEPS.find((s) => s.id === id)!.label}</span>
-          <span className="block font-mono text-[10px] text-fg-subtle">
-            {id} {id === "1" ? "step" : "steps"}
+      className="grid-cols-4"
+      renderOption={(id) => {
+        const found = IMAGE_STEPS.find((s) => String(s.steps) === id);
+        return (
+          <span className="block px-1.5 py-2 text-center" title={found?.hint}>
+            <span className="block text-xs font-medium">{id}</span>
+            <span className="block font-mono text-[9px] text-fg-subtle">steps</span>
           </span>
-        </span>
-      )}
+        );
+      }}
     />
   );
 }
@@ -75,7 +87,7 @@ export function SeedInput({
   const id = useId();
   return (
     <fieldset>
-      <FieldLegend hint="The same prompt, settings and seed recreate the same image. Leave empty for a random seed.">
+      <FieldLegend hint="Lock the seed to preserve subject identity and composition across prompt edits.">
         Seed <span className="font-normal text-fg-subtle">(optional)</span>
       </FieldLegend>
       <div className="flex gap-2">
@@ -84,7 +96,7 @@ export function SeedInput({
           aria-label="Seed"
           inputMode="numeric"
           autoComplete="off"
-          placeholder="Random"
+          placeholder="Random seed"
           value={value}
           onChange={(e) => onChange(e.target.value)}
           aria-invalid={Boolean(error)}
@@ -98,13 +110,14 @@ export function SeedInput({
           type="button"
           onClick={() => onChange(String(Math.floor(Math.random() * 2 ** 32)))}
           className="flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-line bg-ink-900 px-3 text-xs text-fg-muted transition-colors hover:border-line-strong hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/70"
+          title="Pick a random seed"
         >
-          <Dices className="size-4" aria-hidden />
-          Pick
+          <Dices className="size-3.5" aria-hidden />
+          Random
         </button>
       </div>
       {error && (
-        <p id={`${id}-error`} className="mt-2 text-xs text-red-300">
+        <p id={`${id}-error`} className="mt-1.5 text-xs text-red-300">
           {error}
         </p>
       )}

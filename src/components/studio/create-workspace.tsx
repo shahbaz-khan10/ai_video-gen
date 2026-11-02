@@ -29,7 +29,7 @@ import { StyleSelector } from "./style-selector";
 import { useImageSelection } from "./use-image-selection";
 
 const GENERATE_LABEL: Record<GenerationMode, string> = {
-  "text-to-image": "Generate image",
+  "text-to-image": "Generate photograph",
   "text-to-video": "Check video settings",
   "image-to-video": "Check animation settings",
 };
@@ -50,11 +50,12 @@ type CreateWorkspaceProps = {
 export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps) {
   const [mode, setMode] = useState<GenerationMode>(initial.mode);
   const [prompt, setPrompt] = useState(initial.prompt);
+  const [negativePrompt, setNegativePrompt] = useState("");
   const [aspectRatio, setAspectRatio] = useState<AspectRatio>(initial.aspectRatio);
-  const [style, setStyle] = useState(initial.styleId);
+  const [style, setStyle] = useState(initial.styleId || "photorealistic");
   const [duration, setDuration] = useState<ClipDuration>(initial.duration);
   const [resolution, setResolution] = useState<ImageResolution>("standard");
-  const [steps, setSteps] = useState(1);
+  const [steps, setSteps] = useState(25);
   const [seedInput, setSeedInput] = useState("");
   const [model, setModel] = useState(MODELS[0].id);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -87,14 +88,14 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
 
   const elapsedSeconds = viewJob && elapsed?.jobId === viewJob.id ? elapsed.seconds : 0;
   const license = backend.state === "online" ? backend.info.generation.license : null;
-  const size = IMAGE_SIZES[resolution][aspectRatio];
+  const size = (IMAGE_SIZES[resolution] || IMAGE_SIZES.standard)[aspectRatio];
 
   const details = isImage
     ? [
         getMode(mode).label,
         `${aspectRatio} · ${size.width}×${size.height}`,
         getStyle(style).label,
-        `${steps} ${steps === 1 ? "step" : "steps"}`,
+        `${steps} steps`,
         seedInput.trim() ? `Seed ${seedInput.trim()}` : "Random seed",
       ]
     : [
@@ -122,7 +123,6 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     document.getElementById(id)?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block });
 
   const revealPreviewOnSmallScreens = () => {
-    // On stacked layouts the preview sits below the form; bring the result into view.
     if (window.matchMedia("(max-width: 1023px)").matches) scrollTo("preview-panel", "start");
   };
 
@@ -133,7 +133,6 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   };
 
   const handleGenerate = async () => {
-    // Quick local checks, so obvious gaps don't need a round trip.
     const localErrors: FieldErrors = {};
     if (!prompt.trim()) localErrors.prompt = "Add a prompt to describe what you want to create.";
     if (needsImage && !upload.image) localErrors.image = "Add a source image to animate.";
@@ -149,6 +148,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     const payload = buildPayload({
       mode,
       prompt,
+      negativePrompt,
       aspectRatio,
       style,
       duration,
@@ -156,15 +156,14 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       resolution,
       steps,
       seed: seed.seed,
+      modelId: model,
     });
 
-    // Text to image: a real job on the local model.
     if (isImage) {
       submitImage(payload);
       return;
     }
 
-    // Video modes are not connected: only validate the settings with the backend.
     const id = ++requestId.current;
     setChecking(true);
     setOutcome(null);
@@ -241,6 +240,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
               if (value.trim()) setErrors((e) => ({ ...e, prompt: undefined }));
               invalidate();
             }}
+            negativePrompt={negativePrompt}
+            onNegativePromptChange={setNegativePrompt}
             error={errors.prompt}
           />
         </div>
@@ -263,6 +264,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
         <AnimatePresence initial={false} mode="popLayout">
           {isImage ? (
             <motion.div key="image-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
+              <ModelSelect value={model} onChange={setModel} />
               <ResolutionSelector value={resolution} aspectRatio={aspectRatio} onChange={setResolution} />
               <StepsSelector value={steps} onChange={setSteps} />
               <div id="seed-field">
@@ -298,10 +300,10 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
             onClick={handleGenerate}
             label={GENERATE_LABEL[mode]}
             busy={isImage ? imageBusy : checking}
-            busyLabel={isImage ? "Generating…" : "Checking settings…"}
+            busyLabel={isImage ? "Generating photograph…" : "Checking settings…"}
             note={
               isImage
-                ? "Runs on a local open-source model · one image at a time"
+                ? "Photorealistic engine · Scene understanding and anatomical preservation active"
                 : "Video generation is coming soon · settings are validated only"
             }
           />

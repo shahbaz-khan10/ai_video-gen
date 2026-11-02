@@ -105,7 +105,7 @@ class GenerationService:
             max_workers=max(settings.image_max_concurrent_jobs, settings.video_max_concurrent_jobs),
             thread_name_prefix="generation",
         )
-        self._video_lock = threading.Lock()  # ensure one video job at a time
+        self._video_lock = threading.Lock()
 
     def engine_status(self) -> EngineStatus | None:
         return self.engine.status() if self.engine else None
@@ -139,10 +139,12 @@ class GenerationService:
                     "height": height,
                     "steps": request.steps,
                     "seed": request.seed,
+                    "negative_prompt": request.negative_prompt,
+                    "guidance_scale": request.guidance_scale,
+                    "model_id": request.model_id or getattr(self.engine, "model_id", None),
                 }
             )
         elif isinstance(request, (TextToVideoRequest, ImageToVideoRequest)):
-            # Use reasonable defaults for LTX-Video - prefer small sizes for 8GB
             width, height = IMAGE_SIZES[ImageResolution.STANDARD][request.aspect_ratio]
             steps = getattr(request, "steps", None) or 30
             if steps > 50:
@@ -178,11 +180,11 @@ class GenerationService:
                 id=str(uuid.uuid4()),
                 status=GenerationStatus.QUEUED,
                 settings=settings,
-                model_id=self.engine.model_id,
+                model_id=settings.model_id or getattr(self.engine, "model_id", None),
                 created_at=_now(),
             )
             self.store.add(job)
-            logger.info("job %s queued mode=%s size=%sx%s", job.id, settings.mode, settings.width, settings.height)
+            logger.info("job %s queued mode=%s size=%sx%s steps=%s", job.id, settings.mode, settings.width, settings.height, settings.steps)
             self._executor.submit(self._run_image, job.id)
             return self.store.get(job.id) or job
         elif request.mode == GenerationMode.TEXT_TO_VIDEO:
@@ -245,7 +247,16 @@ class GenerationService:
         assert self.engine is not None and s.width and s.height and s.steps and s.seed is not None
         try:
             image, device = self.engine.generate(
-                ImageParams(prompt=s.prompt, style=s.style, width=s.width, height=s.height, steps=s.steps, seed=s.seed),
+                ImageParams(
+                    prompt=s.prompt,
+                    style=s.style,
+                    width=s.width,
+                    height=s.height,
+                    steps=s.steps,
+                    seed=s.seed,
+                    negative_prompt=s.negative_prompt,
+                    guidance_scale=s.guidance_scale,
+                ),
                 deadline=time.monotonic() + self.settings.image_timeout_seconds,
             )
             self.store.update(job_id, device=device)

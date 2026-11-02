@@ -3,7 +3,7 @@ import type { GenerationPayload, ImageResolution, NormalizedSettings, SourceImag
 import type { AspectRatio, ClipDuration, GenerationMode } from "@/types/studio";
 import type { SelectedImage } from "./use-image-selection";
 
-/** What happened when the user pressed Generate. Generation itself is never attempted. */
+/** What happened when the user pressed Generate. */
 export type CheckOutcome =
   | { kind: "validated"; settings: NormalizedSettings }
   | { kind: "offline"; message: string }
@@ -11,9 +11,10 @@ export type CheckOutcome =
 
 export type FieldErrors = { prompt?: string; image?: string; seed?: string };
 
-type Draft = {
+export type Draft = {
   mode: GenerationMode;
   prompt: string;
+  negativePrompt?: string;
   aspectRatio: AspectRatio;
   style: string;
   duration: ClipDuration;
@@ -22,6 +23,8 @@ type Draft = {
   steps: number;
   /** Null for a random seed. */
   seed: number | null;
+  guidanceScale?: number;
+  modelId?: string;
 };
 
 export function buildPayload(draft: Draft): GenerationPayload {
@@ -34,10 +37,12 @@ export function buildPayload(draft: Draft): GenerationPayload {
       resolution: draft.resolution,
       steps: draft.steps,
       ...(draft.seed === null ? {} : { seed: draft.seed }),
+      ...(draft.negativePrompt ? { negative_prompt: draft.negativePrompt } : {}),
+      ...(draft.guidanceScale ? { guidance_scale: draft.guidanceScale } : {}),
+      ...(draft.modelId && draft.modelId !== "auto" ? { model_id: draft.modelId } : {}),
     };
   }
   if (draft.mode === "text-to-video") return { ...base, mode: draft.mode, duration_seconds };
-  // Callers check for the image first. Only metadata is sent; the image itself stays in the browser.
   if (!draft.image) throw new Error("An image-to-video request needs a source image.");
   const source_image: SourceImageInfo = { content_type: draft.image.type, size_bytes: draft.image.size };
   return { ...base, mode: draft.mode, duration_seconds, source_image };

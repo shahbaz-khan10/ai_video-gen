@@ -3,10 +3,12 @@
 Options mirror the Next.js frontend (``src/lib/studio-options.ts``).
 """
 
+from __future__ import annotations
+
 import re
 from datetime import datetime
 from enum import StrEnum
-from typing import Annotated, Literal, Union
+from typing import Annotated, Any, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
@@ -15,7 +17,7 @@ MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024
 DURATION_OPTIONS_SECONDS = (4, 6, 8)
 DEFAULT_DURATION_SECONDS = 6
 MAX_SEED = 2**32 - 1
-IMAGE_STEP_OPTIONS = (1, 2, 4)
+IMAGE_STEP_OPTIONS = (1, 2, 4, 15, 20, 25, 30, 35, 50)
 
 # Control characters other than tab/newline have no place in a prompt.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -41,10 +43,14 @@ class VisualStyle(StrEnum):
     DOCUMENTARY = "documentary"
     ANIME = "anime"
     GOLDEN_HOUR = "golden-hour"
+    PHOTOREALISTIC = "photorealistic"
+    PORTRAIT = "portrait"
+    GROUP_PHOTO = "group-photo"
+    STREET = "street"
 
 
 DurationSeconds = Literal[4, 6, 8]
-ImageSteps = Literal[1, 2, 4]
+ImageSteps = int
 
 
 class ImageResolution(StrEnum):
@@ -52,10 +58,10 @@ class ImageResolution(StrEnum):
 
     STANDARD = "standard"
     LARGE = "large"
+    HIGH = "high"
 
 
 # All sides are multiples of 8, as Stable Diffusion's latent space requires.
-# "standard" stays near sd-turbo's native 512x512 pixel budget.
 IMAGE_SIZES: dict[ImageResolution, dict[AspectRatio, tuple[int, int]]] = {
     ImageResolution.STANDARD: {
         AspectRatio.SQUARE: (512, 512),
@@ -67,6 +73,11 @@ IMAGE_SIZES: dict[ImageResolution, dict[AspectRatio, tuple[int, int]]] = {
         AspectRatio.LANDSCAPE: (1024, 576),
         AspectRatio.PORTRAIT: (576, 1024),
     },
+    ImageResolution.HIGH: {
+        AspectRatio.SQUARE: (1024, 1024),
+        AspectRatio.LANDSCAPE: (1024, 576),
+        AspectRatio.PORTRAIT: (576, 1024),
+    },
 }
 
 
@@ -75,8 +86,7 @@ class StrictModel(BaseModel):
 
 
 class SourceImageInfo(StrictModel):
-    """Metadata about the image the user picked. Image bytes are not uploaded in this phase,
-    and no file names or paths are accepted."""
+    """Metadata about the image the user picked."""
 
     content_type: Literal["image/png", "image/jpeg", "image/webp"]
     size_bytes: int = Field(gt=0, le=MAX_SOURCE_IMAGE_BYTES)
@@ -99,7 +109,6 @@ class _GenerationBase(StrictModel):
     @field_validator("prompt")
     @classmethod
     def _require_prompt(cls, value: str) -> str:
-        # Checked after normalization, so whitespace- or control-only prompts are rejected too.
         if not value:
             raise ValueError("Prompt is empty. Describe what you want to create.")
         return value
@@ -108,8 +117,11 @@ class _GenerationBase(StrictModel):
 class TextToImageRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_IMAGE]
     resolution: ImageResolution = ImageResolution.STANDARD
-    steps: ImageSteps = Field(1, description="Denoising steps. sd-turbo is distilled for 1-4.")
+    steps: int = Field(25, ge=1, le=50, description="Denoising steps (1-50).")
     seed: int | None = Field(None, ge=0, le=MAX_SEED, description="Omit for a random seed.")
+    negative_prompt: str | None = Field(None, max_length=2000, description="Negative prompt instructions.")
+    guidance_scale: float | None = Field(None, ge=0.0, le=20.0, description="CFG scale.")
+    model_id: str | None = Field(None, description="Optional model ID override.")
 
 
 class TextToVideoRequest(_GenerationBase):
@@ -153,10 +165,14 @@ class GenerationSettings(BaseModel):
     steps: int | None = None
     seed: int | None = Field(None, description="Null until the server picks one for a random-seed job.")
     num_frames: int | None = None
+    negative_prompt: str | None = None
+    guidance_scale: float | None = None
+    model_id: str | None = None
 
 
 class GeneratedVideo(BaseModel):
     """A real video file written by the engine."""
+
     url: str = Field(description="Path on this API, e.g. /api/v1/files/videos/<id>.mp4")
     download_url: str
     content_type: Literal["video/mp4"] = "video/mp4"
@@ -171,6 +187,7 @@ class ValidationResponse(BaseModel):
     valid: Literal[True] = True
     settings: GenerationSettings
     generation_available: bool = Field(description="Whether an AI engine could run this request now.")
+    scene_plan: dict[str, Any] | None = None
 
 
 class GenerationStatus(StrEnum):

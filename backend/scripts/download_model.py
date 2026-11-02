@@ -1,13 +1,6 @@
 """Download image-model weights into IMAGE_MODEL_CACHE_DIR, once.
 
-Usage (from backend/, with the venv active):
-
-    python scripts/download_model.py          # shows size, asks before downloading
-    python scripts/download_model.py --yes    # no prompt
-
-Only the files the FP16 Diffusers pipeline needs are fetched (about 2.6 GB for
-stabilityai/sd-turbo). The single-file checkpoint and full-precision duplicates are
-skipped. Needs internet access once. The API itself never downloads weights.
+Supports photorealistic models (e.g. Realistic Vision, SDXL) and rapid draft models (SD-Turbo).
 """
 
 from __future__ import annotations
@@ -15,25 +8,18 @@ from __future__ import annotations
 import argparse
 import shutil
 import sys
+from fnmatch import fnmatch
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.core.config import get_settings  # noqa: E402
 
-ALLOW_PATTERNS = [
-    "model_index.json",
-    "LICENSE*",
-    "scheduler/*",
-    "tokenizer/*",
-    "*/config.json",
-    "*.fp16.safetensors",
-]
-
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument("--yes", action="store_true", help="download without asking")
+    parser.add_argument("--model", type=str, default=None, help="override model id to download")
     args = parser.parse_args()
 
     try:
@@ -43,21 +29,37 @@ def main() -> int:
         return 1
 
     settings = get_settings()
-    model_id = settings.image_model_id
+    model_id = args.model or settings.image_model_id
     cache_dir = settings.image_model_cache_dir
 
-    from fnmatch import fnmatch
-
-    info = HfApi().model_info(model_id, files_metadata=True)
-    files = [s for s in info.siblings if any(fnmatch(s.rfilename, p) for p in ALLOW_PATTERNS)]
-    if not any(s.rfilename.endswith(".fp16.safetensors") for s in files):
-        print(f"{model_id} has no fp16 safetensors variant; this script only supports Diffusers fp16 repos.")
+    try:
+        info = HfApi().model_info(model_id, files_metadata=True)
+    except Exception as err:
+        print(f"Failed to query model {model_id}: {err}")
         return 1
+
+    # Check whether fp16 variant exists in repo
+    has_fp16 = any(s.rfilename.endswith(".fp16.safetensors") for s in info.siblings)
+
+    allow_patterns = [
+        "model_index.json",
+        "LICENSE*",
+        "scheduler/*",
+        "tokenizer/*",
+        "*/config.json",
+    ]
+    if has_fp16:
+        allow_patterns.append("*.fp16.safetensors")
+    else:
+        allow_patterns.append("*.safetensors")
+
+    files = [s for s in info.siblings if any(fnmatch(s.rfilename, p) for p in allow_patterns)]
     total = sum(s.size or 0 for s in files)
     free = shutil.disk_usage(cache_dir.anchor or ".").free
 
     print(f"Model:       {model_id}")
     print(f"Destination: {cache_dir}")
+    print(f"Format:      {'FP16' if has_fp16 else 'Standard Safetensors'}")
     print(f"Files:       {len(files)}  ({total / 1e9:.2f} GB)")
     print(f"Free disk:   {free / 1e9:.1f} GB")
     print("License:     read it at https://huggingface.co/" + model_id)
@@ -70,12 +72,12 @@ def main() -> int:
 
     cache_dir.mkdir(parents=True, exist_ok=True)
     try:
-        snapshot_download(model_id, cache_dir=str(cache_dir), allow_patterns=ALLOW_PATTERNS)
-    except Exception as err:  # network errors, interrupted downloads, gated repos
+        snapshot_download(model_id, cache_dir=str(cache_dir), allow_patterns=allow_patterns)
+    except Exception as err:
         print(f"Download failed: {type(err).__name__}: {err}")
         print("Re-run the script to resume; completed files are not downloaded again.")
         return 1
-    print("Done. The backend will load the model on the first text-to-image request.")
+    print(f"Done. {model_id} downloaded successfully.")
     return 0
 
 

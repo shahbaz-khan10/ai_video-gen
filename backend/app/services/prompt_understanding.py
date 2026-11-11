@@ -147,17 +147,25 @@ class PromptUnderstandingEngine:
         """Extracts the number of requested people and any specific individual fragments."""
         lower = prompt.lower()
 
+        earliest_pos = len(lower) + 1
+        earliest_val = 0
+
         # Check explicit digit numbers (e.g. "5 people", "10 persons", "3 women")
         digit_match = re.search(r"\b(\d+)\s*(?:people|persons|individuals|men|women|friends|colleagues|workers|children|family members)\b", lower)
         if digit_match:
-            count = int(digit_match.group(1))
-            return count, []
+            earliest_pos = digit_match.start()
+            earliest_val = int(digit_match.group(1))
 
         # Check number words (e.g. "five people", "two men", "a family of four")
         for word, val in NUMBER_WORDS.items():
             pattern = rf"\b{word}\s+(?:people|persons|individuals|men|women|friends|colleagues|workers|children|family members|subjects)\b"
-            if re.search(pattern, lower):
-                return val, []
+            m = re.search(pattern, lower)
+            if m and m.start() < earliest_pos:
+                earliest_pos = m.start()
+                earliest_val = val
+
+        if earliest_val > 0:
+            return earliest_val, []
 
         # Family check
         family_match = re.search(r"\bfamily of (\w+|\d+)\b", lower)

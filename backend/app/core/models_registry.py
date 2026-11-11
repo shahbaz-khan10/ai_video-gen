@@ -108,3 +108,4 @@ def get_model_profile(model_id: str) -> ModelProfile:
     if "turbo" in model_id.lower():
         return SUPPORTED_MODELS["stabilityai/sd-turbo"]
     return SUPPORTED_MODELS[DEFAULT_MODEL_ID]
+

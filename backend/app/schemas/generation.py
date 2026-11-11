@@ -17,7 +17,7 @@ MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024
 DURATION_OPTIONS_SECONDS = (4, 6, 8)
 DEFAULT_DURATION_SECONDS = 6
 MAX_SEED = 2**32 - 1
-IMAGE_STEP_OPTIONS = (1, 2, 4, 15, 20, 25, 30, 35, 50)
+IMAGE_STEP_OPTIONS = (1, 2, 4)
 
 # Control characters other than tab/newline have no place in a prompt.
 _CONTROL_CHARS = re.compile(r"[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]")
@@ -50,7 +50,7 @@ class VisualStyle(StrEnum):
 
 
 DurationSeconds = Literal[4, 6, 8]
-ImageSteps = int
+ImageSteps = Literal[1, 2, 4, 15, 20, 25, 30, 35]
 
 
 class ImageResolution(StrEnum):
@@ -117,7 +117,7 @@ class _GenerationBase(StrictModel):
 class TextToImageRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_IMAGE]
     resolution: ImageResolution = ImageResolution.STANDARD
-    steps: int = Field(25, ge=1, le=50, description="Denoising steps (1-50).")
+    steps: ImageSteps = Field(1, description="Denoising steps (1, 2, 4 for draft; 20, 25, 35 for photorealism).")
     seed: int | None = Field(None, ge=0, le=MAX_SEED, description="Omit for a random seed.")
     negative_prompt: str | None = Field(None, max_length=2000, description="Negative prompt instructions.")
     guidance_scale: float | None = Field(None, ge=0.0, le=20.0, description="CFG scale.")

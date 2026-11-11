@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Any, Literal, Protocol
 
 from app.core.config import Settings
-from app.core.models_registry import DEFAULT_MODEL_ID, get_model_profile
+from app.core.models_registry import DEFAULT_MODEL_ID, get_model_profile, is_known_model
 from app.schemas.generation import VisualStyle
 from app.services.prompt_understanding import PromptUnderstandingEngine
 
@@ -241,14 +241,15 @@ class DiffusersImageEngine:
                     "The model weights are missing or incomplete. Re-run `python scripts/download_model.py`.",
                 ) from None
 
-        # Upgrade scheduler for photorealistic models for faster and sharper convergence
-        if self._profile.family in ("sd15", "sdxl") and hasattr(pipe, "scheduler"):
+        # Use the sampler each model is tuned for (DPM++ 2M Karras, or DPM++ SDE Karras for Lightning models).
+        if self._profile.scheduler != "default" and hasattr(pipe, "scheduler"):
+            extra = {"algorithm_type": "sde-dpmsolver++"} if self._profile.scheduler == "sde-karras" else {}
             try:
                 pipe.scheduler = DPMSolverMultistepScheduler.from_config(
-                    pipe.scheduler.config, use_karras_sigmas=True
+                    pipe.scheduler.config, use_karras_sigmas=True, **extra
                 )
             except Exception:
-                pass
+                logger.warning("Could not switch scheduler for %s; keeping the model's own", self.model_id)
 
         optimizations: list[str] = []
         offload = False
@@ -261,7 +262,10 @@ class DiffusersImageEngine:
                 if hasattr(pipe, "vae") and hasattr(pipe.vae, "enable_tiling"):
                     pipe.vae.enable_tiling()
                     optimizations.append("vae_tiling")
-            if self._cpu_offload == "on" or (self._cpu_offload == "auto" and vram_gb < 6):
+            # Offload when the model's weights would leave too little VRAM for activations (SDXL on 8 GB,
+            # which also drives the desktop). Only the sub-model in use then sits on the GPU.
+            needs_offload = self._profile.vram_gb_fp16 > vram_gb - 2.0
+            if self._cpu_offload == "on" or (self._cpu_offload == "auto" and (vram_gb < 6 or needs_offload)):
                 pipe.enable_model_cpu_offload()
                 optimizations.append("model_cpu_offload")
                 offload = True
@@ -277,6 +281,20 @@ class DiffusersImageEngine:
         return pipe
 
     # --- inference ----------------------------------------------------------------
+
+    def _fit_prompt(self, parts: list[str]) -> str:
+        """Joins prompt parts in priority order, dropping later parts that would exceed CLIP's token limit."""
+        tokenizer = getattr(self._pipe, "tokenizer", None)
+        if tokenizer is None:
+            return ", ".join(parts)
+        budget = tokenizer.model_max_length - 2  # start and end tokens
+        kept: list[str] = []
+        for part in parts:
+            candidate = ", ".join([*kept, part])
+            # The first part (the user's prompt) is always kept, even if CLIP has to trim its tail.
+            if not kept or len(tokenizer(candidate, add_special_tokens=False).input_ids) <= budget:
+                kept.append(part)
+        return ", ".join(kept)
 
     def generate(self, params: ImageParams, deadline: float) -> tuple[Image, str]:
         self.load()
@@ -297,11 +315,15 @@ class DiffusersImageEngine:
         # Intelligent prompt understanding & scene planning
         scene_plan = PromptUnderstandingEngine.plan_scene(params.prompt, params.style)
 
-        # Build final positive prompt:
-        # Prioritize structured scene understanding while preserving all user keywords
-        prompt_text = scene_plan.optimized_positive_prompt
+        # The text encoder reads only 77 tokens, so the model gets the user's own words first and extras
+        # only while they fit. The full plan (environment, camera, lighting) stays available via /plan, but
+        # sending it all pushed the user's details and the style past the cut-off.
+        parts = [params.prompt]
+        if scene_plan.people_count >= 2:
+            parts.append(f"{scene_plan.people_count} different people with distinct faces")
         if params.style in STYLE_PROMPTS:
-            prompt_text = f"{prompt_text}, {STYLE_PROMPTS[params.style]}"
+            parts.append(STYLE_PROMPTS[params.style])
+        prompt_text = self._fit_prompt(parts)
 
         # Negative prompt resolution
         if self._profile.supports_negative_prompt:
@@ -319,7 +341,9 @@ class DiffusersImageEngine:
             "prompt": prompt_text,
             "width": params.width,
             "height": params.height,
-            "num_inference_steps": params.steps,
+            "num_inference_steps": self._profile.clamp_steps(params.steps)
+            if is_known_model(self.model_id)
+            else params.steps,
             "guidance_scale": guidance,
             "generator": generator,
             "callback_on_step_end": stop_after_deadline,

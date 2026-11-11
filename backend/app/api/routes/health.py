@@ -5,6 +5,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter
 
 from app.api.deps import GenerationServiceDep, SettingsDep
+from app.core.models_registry import get_model_profile, is_known_model
 from app.schemas.generation import (
     DURATION_OPTIONS_SECONDS,
     IMAGE_SIZES,
@@ -32,12 +33,25 @@ from app.services.generation_service import GenerationService
 
 router = APIRouter(tags=["system"])
 
+def _step_presets(model_id: str | None) -> list[int]:
+    """Fast / balanced / best step counts for the current model, so the UI never offers unusable values."""
+    if not model_id or not is_known_model(model_id):
+        return list(IMAGE_STEP_OPTIONS)
+    p = get_model_profile(model_id)
+    return sorted({p.min_steps, p.default_steps, p.max_steps})
+
+
 # Licenses of models we document. Unknown models report no license rather than a guessed one.
 KNOWN_LICENSES = {
     "stabilityai/sd-turbo": ModelLicense(
         name="Stability AI Community License",
         url="https://huggingface.co/stabilityai/sd-turbo/blob/main/LICENSE.md",
         attribution="Powered by Stability AI",
+    ),
+    "SG161222/RealVisXL_V5.0_Lightning": ModelLicense(
+        name="CreativeML Open RAIL++-M",
+        url="https://huggingface.co/SG161222/RealVisXL_V5.0_Lightning",
+        attribution="RealVisXL V5.0 Lightning by SG161222",
     ),
 }
 
@@ -119,7 +133,7 @@ def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
                 for res, by_ratio in IMAGE_SIZES.items()
                 for ratio, (w, h) in by_ratio.items()
             ],
-            image_steps=list(IMAGE_STEP_OPTIONS),
+            image_steps=_step_presets(model.model_id),
             max_seed=MAX_SEED,
         ),
         generation=GenerationAvailability(

@@ -95,8 +95,8 @@ export const IMAGE_SIZES: Record<ImageResolution, Record<AspectRatio, { width: n
   },
   high: {
     "1:1": { width: 1024, height: 1024 },
-    "16:9": { width: 1024, height: 576 },
-    "9:16": { width: 576, height: 1024 },
+    "16:9": { width: 1344, height: 768 },
+    "9:16": { width: 768, height: 1344 },
   },
 };
 
@@ -106,12 +106,8 @@ export const IMAGE_RESOLUTIONS: { id: ImageResolution; label: string; hint: stri
   { id: "high", label: "Ultra High (1024px)", hint: "Maximum resolution for wide scenes and group shots." },
 ];
 
-export const IMAGE_STEPS: { id: string; steps: number; label: string; hint: string }[] = [
-  { id: "turbo", steps: 4, label: "Draft (4 steps)", hint: "Rapid low-step check" },
-  { id: "standard", steps: 20, label: "Fast Photo (20 steps)", hint: "Balanced speed and detail" },
-  { id: "photoreal", steps: 25, label: "Photorealistic (25 steps)", hint: "Recommended for realistic humans" },
-  { id: "ultra", steps: 35, label: "Deep Denoise (35 steps)", hint: "Maximum anatomical clarity" },
-];
+/** Step presets used until /info answers; match the backend's default model (RealVisXL Lightning, 4-8 steps). */
+export const DEFAULT_IMAGE_STEPS = [4, 6, 8];
 
 /** Generation modes that actually run on a model today. */
 export const LIVE_MODES: GenerationMode[] = ["text-to-image"];

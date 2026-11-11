@@ -309,3 +309,9 @@ def test_preload_without_weights_returns_503(client: TestClient, engine: FakeIma
     res = client.post("/api/v1/models/image/load")
     assert res.status_code == 503
     assert res.json()["error"]["code"] == "model_not_downloaded"
+
+
+def test_job_records_the_model_that_actually_runs(client: TestClient, engine: FakeImageEngine) -> None:
+    payload = {"mode": "text-to-image", "prompt": "a red fox in snow", "model_id": "stabilityai/sd-turbo"}
+    job = client.post(CREATE, json=payload).json()
+    assert job["settings"]["model_id"] == engine.model_id

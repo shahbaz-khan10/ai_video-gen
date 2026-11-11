@@ -128,6 +128,8 @@ NUMBER_WORDS = {
     "twelve": 12,
 }
 
+_PERSON_WORD = re.compile(r"\b(?:person|man|woman|girl|boy|individual|colleague)\b", re.IGNORECASE)
+
 BASE_PHOTOREALISTIC_NEGATIVE = (
     "bad anatomy, deformed face, distorted eyes, cross-eyed, malformed iris, unnatural pupils, "
     "disfigured body, extra limbs, missing arms, missing legs, extra fingers, mutated hands, "
@@ -182,8 +184,8 @@ class PromptUnderstandingEngine:
         fragments = []
         sentences = [s.strip() for s in re.split(r"[,.;]+", prompt) if s.strip()]
         for sentence in sentences:
-            s_lower = sentence.lower()
-            if any(term in s_lower for term in ("person", "man", "woman", "girl", "boy", "individual", "colleague")):
+            # Whole words only: "many", "human" or "germany" must not count as a person.
+            if _PERSON_WORD.search(sentence):
                 person_count += 1
                 fragments.append(sentence)
 
@@ -191,7 +193,7 @@ class PromptUnderstandingEngine:
             return min(person_count, 12), fragments
 
         # Check singular terms
-        if any(w in lower for w in ("portrait", "a person", "a man", "a woman", "a girl", "a boy", "a professional", "a model")):
+        if re.search(r"\bportrait\b|\ban? (?:person|man|woman|girl|boy|professional|model)\b", lower):
             return 1, []
 
         return 0, []

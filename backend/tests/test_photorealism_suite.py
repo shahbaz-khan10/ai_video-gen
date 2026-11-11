@@ -218,3 +218,56 @@ def test_api_full_generation_with_photorealism_payload(settings: Settings) -> No
         assert job_data["settings"]["guidance_scale"] == 7.0
         assert job_data["settings"]["seed"] == 42
 
+
+
+@pytest.mark.parametrize(
+    "prompt",
+    [
+        "many birds flying over a lake at sunset",
+        "a human hand holding a phone",
+        "a mango tree in a garden",
+        "a street in germany at night",
+    ],
+)
+def test_person_count_ignores_words_that_only_contain_man(prompt: str) -> None:
+    assert PromptUnderstandingEngine.plan_scene(prompt, VisualStyle.PHOTOREALISTIC).people_count == 0
+
+
+@pytest.mark.parametrize(
+    ("requested", "expected"),
+    [(None, 6), (1, 4), (4, 4), (6, 6), (25, 8), (35, 8)],
+)
+def test_lightning_steps_are_clamped_to_model_range(requested: int | None, expected: int) -> None:
+    from app.core.models_registry import get_model_profile
+
+    assert get_model_profile("SG161222/RealVisXL_V5.0_Lightning").clamp_steps(requested) == expected
+
+
+def test_turbo_never_runs_photo_step_counts() -> None:
+    from app.core.models_registry import get_model_profile
+
+    assert get_model_profile("stabilityai/sd-turbo").clamp_steps(25) == 4
+
+
+def test_fit_prompt_keeps_user_words_and_drops_extras_past_77_tokens() -> None:
+    from app.services.image_engine import DiffusersImageEngine
+
+    class FakeTokenizer:
+        model_max_length = 77
+
+        def __call__(self, text: str, add_special_tokens: bool = False):
+            class Out:
+                input_ids = text.split()
+
+            return Out()
+
+    class FakePipe:
+        tokenizer = FakeTokenizer()
+
+    engine = DiffusersImageEngine(Settings(_env_file=None))
+    engine._pipe = FakePipe()
+    user = " ".join(["word"] * 70)
+    fitted = engine._fit_prompt([user, "five different people", "cinematic film still with grain"])
+    assert fitted.startswith(user)
+    assert "five different people" in fitted  # still fits (73 words)
+    assert "cinematic" not in fitted  # would exceed 75

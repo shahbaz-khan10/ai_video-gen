@@ -9,7 +9,7 @@ import { useBackendStatus } from "@/lib/api/use-backend-status";
 import { isBusy, parseSeed, progressMessage } from "@/lib/generation/job-view";
 import { useImageJob } from "@/lib/generation/use-image-job";
 import { prefersReducedMotion } from "@/lib/motion";
-import { ASPECT_RATIOS, getMode, getStyle, IMAGE_SIZES, isVideoMode, MODELS } from "@/lib/studio-options";
+import { ASPECT_RATIOS, DEFAULT_IMAGE_STEPS, getMode, getStyle, IMAGE_SIZES, isVideoMode, MODELS } from "@/lib/studio-options";
 import type { GenerationPayload, ImageResolution } from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
 import { AspectRatioSelector } from "./aspect-ratio-selector";
@@ -55,7 +55,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [style, setStyle] = useState(initial.styleId || "photorealistic");
   const [duration, setDuration] = useState<ClipDuration>(initial.duration);
   const [resolution, setResolution] = useState<ImageResolution>("standard");
-  const [steps, setSteps] = useState(25);
+  // null = the model's middle preset; the presets come from the backend once it answers.
+  const [pickedSteps, setSteps] = useState<number | null>(null);
   const [seedInput, setSeedInput] = useState("");
   const [model, setModel] = useState(MODELS[0].id);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -89,6 +90,14 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const elapsedSeconds = viewJob && elapsed?.jobId === viewJob.id ? elapsed.seconds : 0;
   const license = backend.state === "online" ? backend.info.generation.license : null;
   const size = (IMAGE_SIZES[resolution] || IMAGE_SIZES.standard)[aspectRatio];
+  const stepOptions =
+    backend.state === "online" && backend.info.limits.image_steps.length > 0
+      ? backend.info.limits.image_steps
+      : DEFAULT_IMAGE_STEPS;
+  const steps =
+    pickedSteps !== null && stepOptions.includes(pickedSteps)
+      ? pickedSteps
+      : stepOptions[Math.floor((stepOptions.length - 1) / 2)];
 
   const details = isImage
     ? [
@@ -156,7 +165,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       resolution,
       steps,
       seed: seed.seed,
-      modelId: model,
+      // Image jobs run on the backend's configured model (shown in the model card); only video has a picker.
+      modelId: isImage ? undefined : model,
     });
 
     if (isImage) {
@@ -264,9 +274,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
         <AnimatePresence initial={false} mode="popLayout">
           {isImage ? (
             <motion.div key="image-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
-              <ModelSelect value={model} onChange={setModel} />
               <ResolutionSelector value={resolution} aspectRatio={aspectRatio} onChange={setResolution} />
-              <StepsSelector value={steps} onChange={setSteps} />
+              <StepsSelector options={stepOptions} value={steps} onChange={setSteps} />
               <div id="seed-field">
                 <SeedInput
                   value={seedInput}

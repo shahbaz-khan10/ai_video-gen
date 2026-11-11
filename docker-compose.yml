@@ -5,6 +5,8 @@ services:
       dockerfile: docker/backend.Dockerfile
     environment:
       AVS_IMAGE_ENGINE: diffusers
+      # Photoreal SDXL (4-8 steps). For the fast low-quality draft model use stabilityai/sd-turbo.
+      AVS_IMAGE_MODEL_ID: SG161222/RealVisXL_V5.0_Lightning
       AVS_IMAGE_DEVICE: auto
       AVS_IMAGE_MODEL_CACHE_DIR: /app/models
       AVS_VIDEO_ENGINE: none
@@ -21,7 +23,8 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
-    command: sh -c "python scripts/download_model.py --yes && exec uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    # Fetches missing weights on start; if that fails (e.g. offline) the API still starts with what is cached.
+    command: sh -c "python scripts/download_model.py --yes || echo 'Model download skipped; using cached weights.'; exec uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
   frontend:
     image: node:22-bookworm-slim

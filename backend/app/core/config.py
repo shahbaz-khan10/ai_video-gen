@@ -43,7 +43,8 @@ class Settings(BaseSettings):
     # --- Local text-to-image model --------------------------------------------------
     # "diffusers" runs a local open-weight model; "none" disables generation entirely.
     image_engine: Literal["diffusers", "none"] = Field("diffusers", validation_alias=_image_env("IMAGE_ENGINE"))
-    image_model_id: str = Field("stabilityai/sd-turbo", validation_alias=_image_env("IMAGE_MODEL_ID"))
+    # RealVisXL Lightning: photoreal SDXL, 4-8 steps. SD-Turbo is faster but merges faces and bodies.
+    image_model_id: str = Field("SG161222/RealVisXL_V5.0_Lightning", validation_alias=_image_env("IMAGE_MODEL_ID"))
     # Weights are only read from here (never fetched at request time). See scripts/download_model.py.
     image_model_cache_dir: Path = Field(BACKEND_DIR / "models", validation_alias=_image_env("IMAGE_MODEL_CACHE_DIR"))
     image_output_dir: Path = Field(BACKEND_DIR / "outputs" / "images", validation_alias=_image_env("IMAGE_OUTPUT_DIR"))

@@ -50,7 +50,8 @@ class VisualStyle(StrEnum):
 
 
 DurationSeconds = Literal[4, 6, 8]
-ImageSteps = Literal[1, 2, 4, 15, 20, 25, 30, 35]
+# Values the UI may send; the engine clamps them to what the chosen model supports.
+ImageSteps = Literal[1, 2, 4, 5, 6, 8, 15, 20, 25, 30, 35]
 
 
 class ImageResolution(StrEnum):
@@ -73,10 +74,11 @@ IMAGE_SIZES: dict[ImageResolution, dict[AspectRatio, tuple[int, int]]] = {
         AspectRatio.LANDSCAPE: (1024, 576),
         AspectRatio.PORTRAIT: (576, 1024),
     },
+    # 1344x768 / 768x1344 are SDXL native buckets; 1024x576 left SDXL models below their trained size.
     ImageResolution.HIGH: {
         AspectRatio.SQUARE: (1024, 1024),
-        AspectRatio.LANDSCAPE: (1024, 576),
-        AspectRatio.PORTRAIT: (576, 1024),
+        AspectRatio.LANDSCAPE: (1344, 768),
+        AspectRatio.PORTRAIT: (768, 1344),
     },
 }
 
@@ -117,7 +119,7 @@ class _GenerationBase(StrictModel):
 class TextToImageRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_IMAGE]
     resolution: ImageResolution = ImageResolution.STANDARD
-    steps: ImageSteps = Field(1, description="Denoising steps (1, 2, 4 for draft; 20, 25, 35 for photorealism).")
+    steps: ImageSteps = Field(1, description="Denoising steps. Offered values for the current model are listed in /info (image_steps).")
     seed: int | None = Field(None, ge=0, le=MAX_SEED, description="Omit for a random seed.")
     negative_prompt: str | None = Field(None, max_length=2000, description="Negative prompt instructions.")
     guidance_scale: float | None = Field(None, ge=0.0, le=20.0, description="CFG scale.")

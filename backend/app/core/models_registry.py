@@ -28,9 +28,35 @@ class ModelProfile:
     recommended_device: str
     license_name: str
     license_url: str
+    # "karras": DPM++ 2M Karras; "sde-karras": DPM++ SDE Karras; "default": keep the model's own scheduler.
+    scheduler: Literal["karras", "sde-karras", "default"] = "karras"
+
+    def clamp_steps(self, requested: int | None) -> int:
+        """Steps the model can actually use. Turbo/Lightning models break with too many steps."""
+        if requested is None:
+            return self.default_steps
+        return max(self.min_steps, min(self.max_steps, requested))
 
 
 SUPPORTED_MODELS: dict[str, ModelProfile] = {
+    "SG161222/RealVisXL_V5.0_Lightning": ModelProfile(
+        model_id="SG161222/RealVisXL_V5.0_Lightning",
+        name="RealVisXL V5.0 Lightning",
+        family="sdxl",
+        description="Photorealistic SDXL fine-tune distilled for 4-8 steps. Natural faces, hands and skin at "
+        "1024-class sizes in ~10-20 s on an 8 GB GPU (with CPU offload).",
+        default_steps=6,
+        min_steps=4,
+        max_steps=8,
+        default_guidance_scale=1.5,
+        supports_negative_prompt=True,
+        native_resolution=(1024, 1024),
+        vram_gb_fp16=7.0,
+        recommended_device="cuda",
+        license_name="CreativeML Open RAIL++-M",
+        license_url="https://huggingface.co/SG161222/RealVisXL_V5.0_Lightning",
+        scheduler="sde-karras",
+    ),
     "SG161222/Realistic_Vision_V5.1_noVAE": ModelProfile(
         model_id="SG161222/Realistic_Vision_V5.1_noVAE",
         name="Realistic Vision V5.1",
@@ -78,16 +104,26 @@ SUPPORTED_MODELS: dict[str, ModelProfile] = {
         recommended_device="cpu",
         license_name="Stability AI Community License",
         license_url="https://huggingface.co/stabilityai/sd-turbo/blob/main/LICENSE.md",
+        scheduler="default",
     ),
 }
 
 DEFAULT_MODEL_ID = "SG161222/Realistic_Vision_V5.1_noVAE"
 
 
+def is_known_model(model_id: str) -> bool:
+    """True for models whose step range we know (listed, or a recognisable Turbo/Lightning variant)."""
+    lower = model_id.lower()
+    return model_id in SUPPORTED_MODELS or "turbo" in lower or ("lightning" in lower and "xl" in lower)
+
+
 def get_model_profile(model_id: str) -> ModelProfile:
     """Returns profile for known model or a safe default based on model ID."""
     if model_id in SUPPORTED_MODELS:
         return SUPPORTED_MODELS[model_id]
+    if "lightning" in model_id.lower() and "xl" in model_id.lower():
+        lightning = SUPPORTED_MODELS["SG161222/RealVisXL_V5.0_Lightning"]
+        return ModelProfile(**{**lightning.__dict__, "model_id": model_id, "name": model_id.split("/")[-1]})
     if "xl" in model_id.lower():
         return ModelProfile(
             model_id=model_id,

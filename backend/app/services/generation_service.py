@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 
 from app.core.config import Settings
 from app.core.errors import AppError
+from app.core.models_registry import get_model_profile, is_known_model
 from app.schemas.generation import (
     DURATION_OPTIONS_SECONDS,
     IMAGE_SIZES,
@@ -132,16 +133,26 @@ class GenerationService:
         )
         if isinstance(request, TextToImageRequest):
             width, height = IMAGE_SIZES[request.resolution][request.aspect_ratio]
+            # The server runs one configured model (IMAGE_MODEL_ID). A request's model_id cannot switch it, so
+            # the job records the model that actually runs rather than the one the client asked for.
+            model_id = getattr(self.engine, "model_id", None)
+            # Distilled models (Turbo, Lightning) produce broken images outside their step range, so the
+            # effective count is clamped and recorded on the job.
+            steps = (
+                get_model_profile(model_id).clamp_steps(request.steps)
+                if model_id and is_known_model(model_id)
+                else request.steps
+            )
             settings = settings.model_copy(
                 update={
                     "resolution": request.resolution,
                     "width": width,
                     "height": height,
-                    "steps": request.steps,
+                    "steps": steps,
                     "seed": request.seed,
                     "negative_prompt": request.negative_prompt,
                     "guidance_scale": request.guidance_scale,
-                    "model_id": request.model_id or getattr(self.engine, "model_id", None),
+                    "model_id": model_id,
                 }
             )
         elif isinstance(request, (TextToVideoRequest, ImageToVideoRequest)):

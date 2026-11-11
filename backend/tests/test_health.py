@@ -66,11 +66,21 @@ def test_info_lists_modes_and_text_to_image_availability(client: TestClient) -> 
 def test_info_reports_sd_turbo_license(settings: Settings) -> None:
     from app.services.image_engine import DiffusersImageEngine
 
-    with TestClient(create_app(settings, engine=DiffusersImageEngine(settings))) as client:
+    turbo = settings.model_copy(update={"image_model_id": "stabilityai/sd-turbo"})
+    with TestClient(create_app(turbo, engine=DiffusersImageEngine(turbo))) as client:
         gen = client.get("/api/v1/info").json()["generation"]
     assert gen["model_id"] == "stabilityai/sd-turbo"
     assert gen["license"]["name"] == "Stability AI Community License"
     assert gen["license"]["attribution"] == "Powered by Stability AI"
+
+
+def test_default_model_is_realvisxl_with_license(settings: Settings) -> None:
+    from app.services.image_engine import DiffusersImageEngine
+
+    with TestClient(create_app(settings, engine=DiffusersImageEngine(settings))) as client:
+        gen = client.get("/api/v1/info").json()["generation"]
+    assert gen["model_id"] == "SG161222/RealVisXL_V5.0_Lightning"
+    assert gen["license"]["name"] == "CreativeML Open RAIL++-M"
 
 
 def test_info_when_generation_unavailable(client: TestClient, engine) -> None:
@@ -131,3 +141,12 @@ def test_openapi_available_by_default(client: TestClient) -> None:
     res = client.get("/api/v1/openapi.json")
     assert res.status_code == 200
     assert "/api/v1/generations/validate" in res.json()["paths"]
+
+
+def test_info_offers_steps_the_model_can_use(settings: Settings) -> None:
+    from app.services.image_engine import DiffusersImageEngine
+
+    with TestClient(create_app(settings, engine=DiffusersImageEngine(settings))) as client:
+        limits = client.get("/api/v1/info").json()["limits"]
+    assert limits["image_steps"] == [4, 6, 8]  # RealVisXL Lightning
+    assert {"resolution": "high", "aspect_ratio": "16:9", "width": 1344, "height": 768} in limits["image_sizes"]

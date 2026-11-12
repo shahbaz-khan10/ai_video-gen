@@ -10,7 +10,9 @@ from datetime import datetime
 from enum import StrEnum
 from typing import Annotated, Any, Literal, Union
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
+
+from app.schemas.scene_plan import ScenePlan
 
 PROMPT_MAX_CHARS = 1000
 MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024
@@ -55,9 +57,12 @@ ImageSteps = Literal[1, 2, 4, 5, 6, 8, 15, 20, 25, 30, 35]
 
 # --- Text-to-video (Wan2.1 T2V 1.3B) -------------------------------------------------
 # Wan generates 4k+1 frames, up to 81 (about 5 s at its native 16 fps). Longer clips are not supported.
-VIDEO_DURATION_OPTIONS_SECONDS = (2, 3, 5)
+# 2-5 s is one clip. Longer videos (15-120 s) are assembled from several real clips, scene by scene.
+VIDEO_DURATION_OPTIONS_SECONDS = (2, 3, 5, 15, 30, 60, 90, 120)
 DEFAULT_VIDEO_DURATION_SECONDS = 2
-VideoDurationSeconds = Literal[2, 3, 5]
+VideoDurationSeconds = Literal[2, 3, 5, 15, 30, 60, 90, 120]
+SINGLE_CLIP_MAX_SECONDS = 5
+MAX_SCENES = 24
 VIDEO_MAX_FRAMES = 81
 VIDEO_STEP_OPTIONS = (15, 25, 40)
 VIDEO_MIN_STEPS, VIDEO_MAX_STEPS = 10, 50
@@ -158,10 +163,16 @@ class TextToImageRequest(_GenerationBase):
     model_id: str | None = Field(None, description="Optional model ID override.")
 
 
+class SceneInput(StrictModel):
+    description: str = Field(min_length=1, max_length=600)
+    duration_seconds: float | None = Field(None, ge=2, le=120)
+
+
 class TextToVideoRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_VIDEO]
     duration_seconds: VideoDurationSeconds = Field(
-        DEFAULT_VIDEO_DURATION_SECONDS, description="Clip length. The model generates at most 81 frames (~5 s)."
+        DEFAULT_VIDEO_DURATION_SECONDS,
+        description="Up to 5 s is one clip (the model's limit, 81 frames). 15-120 s is assembled from scene clips.",
     )
     resolution: Literal[ImageResolution.STANDARD, ImageResolution.LARGE] = Field(
         ImageResolution.STANDARD, description="standard ≈ 320p draft, large = 480p. 720p is not supported."
@@ -173,6 +184,23 @@ class TextToVideoRequest(_GenerationBase):
     num_frames: int | None = Field(
         None, ge=5, le=VIDEO_MAX_FRAMES, description="Optional explicit frame count; must be 4k+1 (e.g. 33, 49, 81)."
     )
+    scenes: list[SceneInput] | None = Field(
+        None, max_length=MAX_SCENES, description="Long videos only: the (edited) scene list, in order."
+    )
+    continuity: Literal["prompt", "last_frame"] = Field(
+        "prompt",
+        description="Long videos only. prompt: every clip repeats the same character/place description (fast). "
+        "last_frame: each clip starts from the previous clip's last frame (Wan VACE; much slower).",
+    )
+
+    @model_validator(mode="after")
+    def _long_video_fields(self) -> "TextToVideoRequest":
+        long = self.duration_seconds > SINGLE_CLIP_MAX_SECONDS
+        if not long and (self.scenes or self.continuity != "prompt"):
+            raise ValueError("Scenes and continuity apply only to videos longer than 5 seconds.")
+        if long and self.num_frames is not None:
+            raise ValueError("num_frames applies only to single clips (5 seconds or less).")
+        return self
 
     @field_validator("num_frames")
     @classmethod
@@ -280,6 +308,26 @@ class GenerationJob(BaseModel):
     video: GeneratedVideo | None = None
     error: JobError | None = None
     output_url: str | None = None
+    plan: ScenePlan | None = Field(None, description="How the prompt was understood and what the model received.")
+    scenes: list[SceneJob] = Field(default_factory=list, description="Long videos: per-scene status.")
+    clips_total: int | None = None
+    clips_completed: int | None = None
+
+
+class SceneJob(BaseModel):
+    """One scene of a long video. Clips are real model outputs; nothing is looped or repeated."""
+
+    index: int
+    description: str
+    prompt: str = Field(description="Exact prompt sent to the video model for this scene.")
+    duration_seconds: float
+    clips: list[int] = Field(description="Frame count of each clip in this scene.")
+    clips_completed: int = 0
+    status: GenerationStatus = GenerationStatus.QUEUED
+    error: JobError | None = None
+
+
+GenerationJob.model_rebuild()
 
 
 class ErrorDetail(BaseModel):

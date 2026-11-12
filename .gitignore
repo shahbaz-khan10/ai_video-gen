@@ -45,3 +45,6 @@ next-env.d.ts
 
 # safe example env files are committed (root and backend/)
 !.env.example
+
+# 41 MB benchmark video: kept locally, too large for git
+docs/benchmarks/phase_h/long120.mp4

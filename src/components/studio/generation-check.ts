@@ -1,5 +1,12 @@
 import { ApiError } from "@/lib/api/client";
-import type { GenerationPayload, ImageResolution, NormalizedSettings, SourceImageInfo, VideoResolution } from "@/types/api";
+import type {
+  GenerationPayload,
+  ImageResolution,
+  NormalizedSettings,
+  SceneInput,
+  SourceImageInfo,
+  VideoResolution,
+} from "@/types/api";
 import type { AspectRatio, ClipDuration, GenerationMode } from "@/types/studio";
 import type { SelectedImage } from "./use-image-selection";
 
@@ -26,7 +33,14 @@ export type Draft = {
   guidanceScale?: number;
   modelId?: string;
   /** Text-to-video only: seconds, size tier and steps the video model supports. */
-  video?: { durationSeconds: number; resolution: VideoResolution; steps: number };
+  video?: {
+    durationSeconds: number;
+    resolution: VideoResolution;
+    /** Null when the backend's sampler has a fixed step count (FastWan). */
+    steps: number | null;
+    /** Long videos: the reviewed scene list. */
+    scenes?: SceneInput[];
+  };
 };
 
 export function buildPayload(draft: Draft): GenerationPayload {
@@ -51,7 +65,8 @@ export function buildPayload(draft: Draft): GenerationPayload {
       mode: draft.mode,
       duration_seconds: draft.video.durationSeconds,
       resolution: draft.video.resolution,
-      steps: draft.video.steps,
+      ...(draft.video.steps === null ? {} : { steps: draft.video.steps }),
+      ...(draft.video.scenes?.length ? { scenes: draft.video.scenes } : {}),
       ...(draft.seed === null ? {} : { seed: draft.seed }),
     };
   }

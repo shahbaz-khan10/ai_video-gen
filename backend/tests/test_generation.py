@@ -126,8 +126,8 @@ def test_unknown_style_rejected(client: TestClient, video_request: dict) -> None
     assert "style" in error_fields(res)
 
 
-# Text-to-video allows 2, 3 or 5 s: Wan generates at most 81 frames (~5 s at 16 fps).
-@pytest.mark.parametrize("duration", [0, 4, 6, 8, 10, 60, -6, "six"])
+# Text-to-video allows 2, 3, 5 s (one clip) and 15, 30, 60, 90, 120 s (assembled from scene clips).
+@pytest.mark.parametrize("duration", [0, 4, 6, 8, 10, 45, 150, -6, "six"])
 def test_unsupported_duration_rejected(client: TestClient, video_request: dict, duration) -> None:
     video_request["duration_seconds"] = duration
     res = client.post(VALIDATE, json=video_request)

@@ -29,6 +29,7 @@ export function nextPollDelay(consecutiveFailures: number): number | null {
 
 const ERROR_TITLES: Record<string, string> = {
   gpu_out_of_memory: "GPU out of memory",
+  gpu_error: "GPU driver error",
   out_of_memory: "Server out of memory",
   cuda_unavailable: "GPU not available",
   model_not_downloaded: "Model not downloaded",
@@ -112,6 +113,7 @@ export function progressMessage(view: JobView, elapsedSeconds: number, modelStat
         ? `Waiting in the queue: ${view.position} ${view.position === 1 ? "job" : "jobs"} ahead.`
         : "Queued. Starting shortly…";
     case "processing": {
+      if (view.job.scenes && view.job.scenes.length > 0) return longVideoProgress(view.job, elapsedSeconds);
       if (isVideoJob(view.job)) {
         // Video on an 8 GB GPU takes minutes; the server reports no per-step progress, so none is shown.
         const base = "Generating your video on the local model. This usually takes several minutes.";
@@ -126,6 +128,24 @@ export function progressMessage(view: JobView, elapsedSeconds: number, modelStat
     default:
       return "";
   }
+}
+
+/**
+ * Long videos: real counts reported by the server (scene k of n, clips finished) and an estimate of the time
+ * left from this job's own measured pace. No estimate is shown before the first clip has finished.
+ */
+export function longVideoProgress(job: GenerationJob, elapsedSeconds: number): string {
+  const scenes = job.scenes ?? [];
+  const total = job.clips_total ?? scenes.reduce((n, s) => n + s.clips.length, 0);
+  const done = job.clips_completed ?? 0;
+  const current = scenes.find((s) => s.status === "processing") ?? scenes.find((s) => s.status === "queued");
+  const where = current ? `Scene ${current.index} of ${scenes.length}` : "Joining scenes";
+  let text = `${where} · ${done} of ${total} clips finished.`;
+  if (done > 0 && done < total && elapsedSeconds > 0) {
+    const left = (elapsedSeconds / done) * (total - done);
+    text += ` About ${formatElapsed(left)} left at the current pace.`;
+  }
+  return elapsedSeconds >= 5 ? `${text} ${formatElapsed(elapsedSeconds)} elapsed.` : text;
 }
 
 export function formatElapsed(seconds: number): string {

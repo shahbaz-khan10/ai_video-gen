@@ -135,5 +135,5 @@ export const VIDEO_SIZES: Record<VideoResolution, Record<AspectRatio, { width: n
 
 export const VIDEO_RESOLUTIONS: { id: VideoResolution; label: string; hint: string }[] = [
   { id: "standard", label: "Draft", hint: "About 320p. Much faster; good for checking motion and framing." },
-  { id: "large", label: "480p", hint: "The model's trained size. Sharper, but takes roughly twice as long." },
+  { id: "large", label: "Quality", hint: "480p, the model's trained size. Sharper, but takes roughly 3x as long." },
 ];

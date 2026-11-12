@@ -119,6 +119,8 @@ class DiffusersImageEngine:
         self._optimizations: list[str] = []
         self._loading = False
         self._load_error: EngineError | None = None
+        # Exact prompt sent to the model by the last generate() call (for benchmarks and reporting).
+        self.last_prompt: str | None = None
 
     # --- cheap checks -------------------------------------------------------------
 
@@ -333,19 +335,22 @@ class DiffusersImageEngine:
         # Intelligent prompt understanding & scene planning
         scene_plan = PromptUnderstandingEngine.plan_scene(params.prompt, params.style)
 
-        # The text encoder reads only 77 tokens, so the model gets the user's own words first and extras
-        # only while they fit. The full plan (environment, camera, lighting) stays available via /plan, but
-        # sending it all pushed the user's details and the style past the cut-off.
-        parts = [params.prompt]
-        if scene_plan.people_count >= 2:
-            parts.append(f"{scene_plan.people_count} different people with distinct faces")
-        if params.style in STYLE_PROMPTS:
-            parts.append(STYLE_PROMPTS[params.style])
-        prompt_text = self._fit_prompt(parts)
+        # The text encoder reads only 77 tokens, so the model gets the user's own words first, then the
+        # explicit counts ("one male teacher, 10 students"), then the style, each only while it fits.
+        from app.services.scene_planner import RulePlanner, build_image_prompt_parts, negative_terms
+
+        plan = RulePlanner.plan(params.prompt)
+        prompt_text = self._fit_prompt(build_image_prompt_parts(plan, STYLE_PROMPTS.get(params.style)))
+        self.last_prompt = prompt_text
 
         # Negative prompt resolution
         if self._profile.supports_negative_prompt:
             base_negative = scene_plan.negative_prompt
+            # "no glasses" / "without people" in the prompt: diffusion models draw named things, so they
+            # also go to the negative prompt.
+            unwanted = negative_terms(params.prompt)
+            if unwanted:
+                base_negative = f"{', '.join(unwanted)}, {base_negative}"
             if params.negative_prompt and params.negative_prompt.strip():
                 negative_text = f"{params.negative_prompt.strip()}, {base_negative}"
             else:

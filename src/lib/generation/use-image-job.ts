@@ -101,11 +101,21 @@ export function useImageJob() {
     setPollRun((n) => n + 1);
   }, []);
 
+  /** Follow a job the server re-queued (e.g. a retried scene), polling it like a fresh submit. */
+  const adopt = useCallback((job: GenerationJob) => {
+    submitId.current += 1;
+    lastJob.current = job;
+    const next = viewFromJob(job);
+    setView(next);
+    setJobId(job.id);
+    setPollRun((n) => n + 1);
+  }, []);
+
   const reset = useCallback(() => {
     submitId.current += 1;
     setJobId(null);
     setView({ phase: "idle" });
   }, []);
 
-  return { view, modelState, submit, reconnect, reset };
+  return { view, modelState, submit, reconnect, adopt, reset };
 }

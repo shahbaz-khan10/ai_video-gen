@@ -59,6 +59,11 @@ KNOWN_LICENSES = {
         url="https://huggingface.co/SG161222/RealVisXL_V5.0_Lightning",
         attribution="RealVisXL V5.0 Lightning by SG161222",
     ),
+    "FastVideo/FastWan2.1-T2V-1.3B-Diffusers": ModelLicense(
+        name="Apache License 2.0",
+        url="https://huggingface.co/FastVideo/FastWan2.1-T2V-1.3B-Diffusers",
+        attribution="FastWan2.1 by FastVideo (Hao AI Lab), distilled from Wan2.1",
+    ),
     "Wan-AI/Wan2.1-T2V-1.3B-Diffusers": ModelLicense(
         name="Apache License 2.0",
         url="https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
@@ -186,7 +191,8 @@ def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
                 for res, by_ratio in VIDEO_SIZES.items()
                 for ratio, (w, h) in by_ratio.items()
             ],
-            video_steps=list(VIDEO_STEP_OPTIONS),
+            video_steps=[3] if getattr(service.video_engine, "sampler", None) == "fastwan" else list(VIDEO_STEP_OPTIONS),
+            video_sampler=getattr(service.video_engine, "sampler", "none"),
             video_max_frames=VIDEO_MAX_FRAMES,
             video_fps=settings.video_fps,
         ),

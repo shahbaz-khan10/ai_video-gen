@@ -73,7 +73,21 @@ class Settings(BaseSettings):
     video_max_queued_jobs: int = Field(2, ge=0, le=10, validation_alias=_image_env("VIDEO_MAX_QUEUED_JOBS"))
     # Wan 1.3B on an 8 GB RTX 3050 needs minutes per clip; this stops runaway jobs.
     video_timeout_seconds: int = Field(3600, ge=60, le=7200, validation_alias=_image_env("VIDEO_TIMEOUT_SECONDS"))
+    # "fastwan": FastWan2.1 T2V 1.3B (Apache-2.0), DMD-distilled to 3 steps without guidance. Measured on an
+    # RTX 3050: 5 s at 480p in 2.7 min vs 17.3 min for "wan" (25 steps + guidance), with equal or better
+    # prompt adherence on the benchmark prompts. "wan" keeps the original sampler.
+    video_sampler: Literal["fastwan", "wan"] = Field("fastwan", validation_alias=_image_env("VIDEO_SAMPLER"))
+    video_fast_model_id: str = Field(
+        "FastVideo/FastWan2.1-T2V-1.3B-Diffusers", validation_alias=_image_env("VIDEO_FAST_MODEL_ID")
+    )
+    # Scene-to-scene continuity for long videos: VACE starts each clip from the previous clip's last frame.
+    video_continuity_model_id: str = Field(
+        "Wan-AI/Wan2.1-VACE-1.3B-diffusers", validation_alias=_image_env("VIDEO_CONTINUITY_MODEL_ID")
+    )
     video_fps: int = Field(16, ge=8, le=30, validation_alias=_image_env("VIDEO_FPS"))
+    # A language-model scene planner (Qwen3-1.7B, app/services/llm_planner.py) was evaluated and is NOT wired
+    # in: on this CPU it took 77-174 s per prompt and was no better than the rule planner on the benchmark
+    # prompts. It is only used by scripts/benchmark_vace_planner.py.
     video_default_steps: int = Field(25, ge=10, le=50, validation_alias=_image_env("VIDEO_DEFAULT_STEPS"))
     # Wan's recommended classifier-free guidance and flow shift (3.0 suits 480p and below).
     video_guidance_scale: float = Field(5.0, ge=1.0, le=10.0, validation_alias=_image_env("VIDEO_GUIDANCE_SCALE"))

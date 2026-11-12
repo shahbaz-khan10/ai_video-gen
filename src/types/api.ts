@@ -70,6 +70,7 @@ export type InfoResponse = {
     video_duration_options_seconds: number[];
     video_sizes: { resolution: VideoResolution; aspect_ratio: AspectRatio; width: number; height: number }[];
     video_steps: number[];
+    video_sampler?: string;
     video_max_frames: number;
     video_fps: number;
   };
@@ -107,8 +108,58 @@ export type GenerationPayload =
       resolution?: VideoResolution;
       steps?: number;
       seed?: number;
+      /** Long videos (over 5 s) only: the reviewed/edited scene list. */
+      scenes?: SceneInput[];
+      continuity?: "prompt" | "last_frame";
     })
   | (GenerationBase & { mode: "image-to-video"; duration_seconds: number; source_image: SourceImageInfo });
+
+export type SceneInput = { description: string; duration_seconds?: number };
+
+/** How the backend understood a prompt (POST /generations/scene-plan, and `plan` on every job). */
+export type GenerationPlan = {
+  original_prompt: string;
+  planner: string;
+  main_subject: string | null;
+  people_count: number | null;
+  characters: {
+    id: string;
+    kind: "person" | "group" | "animal" | "creature";
+    count: number | null;
+    description: string;
+    age: string | null;
+    clothing: string | null;
+    position: string | null;
+    action: string | null;
+  }[];
+  objects: { name: string; position: string | null }[];
+  environment: {
+    location: string | null;
+    setting: "indoor" | "outdoor" | null;
+    background: string[];
+    weather: string | null;
+    time_of_day: string | null;
+    lighting: string | null;
+  };
+  camera: { shot_type: string | null; angle: string | null; movement: string | null };
+  style: string | null;
+  scenes: { index: number; description: string; duration_seconds: number | null }[];
+  instructions: { text: string; covered_by: string[]; reaches_model: boolean; status: "planned" | "partial" | "unplanned" }[];
+  limitations: string[];
+  model_prompt: string | null;
+};
+
+export type SceneJob = {
+  index: number;
+  description: string;
+  prompt: string;
+  duration_seconds: number;
+  /** Frame count of each clip in this scene. */
+  clips: number[];
+  clips_completed: number;
+  status: GenerationStatus;
+  error: JobError | null;
+};
 
 export type ScenePlan = {
   scene: { category: string; environment: string; weather?: string; time_of_day?: string; lighting: string };
@@ -185,6 +236,10 @@ export type GenerationJob = {
   image: GeneratedImage | null;
   video?: GeneratedVideo | null;
   error: JobError | null;
+  plan?: GenerationPlan | null;
+  scenes?: SceneJob[];
+  clips_total?: number | null;
+  clips_completed?: number | null;
 };
 
 export type ValidationResponse = {

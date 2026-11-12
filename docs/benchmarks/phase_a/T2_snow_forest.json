@@ -1,0 +1,58 @@
+{
+  "test": "T2_snow_forest",
+  "kind": "video",
+  "original_prompt": "A cinematic scene of a man wearing a blue jacket walking through a snowy forest at night. Snow is falling. Tall pine trees surround the path. The camera slowly follows him from behind.",
+  "scene_plan": {
+    "scene": {
+      "category": "outdoor",
+      "environment": "natural forest setting with tall trees, natural underbrush, and dappled sun",
+      "weather": null,
+      "time_of_day": null,
+      "lighting": "nighttime ambient lighting with practical light sources, subtle color contrast, and deep shadows"
+    },
+    "people": {
+      "count": 1,
+      "individuals": [
+        {
+          "person_id": 1,
+          "description": "person walking",
+          "clothing": null,
+          "activity": null,
+          "position": "walking"
+        }
+      ]
+    },
+    "composition": {
+      "shot_type": "medium shot from waist up",
+      "camera": "35mm prime lens, f/2.8 aperture, natural eye-level perspective, authentic photography framing",
+      "spatial_arrangement": "single subject centered, balanced rule of thirds, natural body posture, sharp focus",
+      "objects": [
+        "camera"
+      ]
+    },
+    "prompts": {
+      "positive": "authentic raw 35mm color photograph, A cinematic scene of a man wearing a blue jacket walking through a snowy forest at night. Snow is falling. Tall pine trees surround the path. The camera slowly follows him from behind., detailed human anatomy, natural skin texture with visible pores, lifelike eyes with realistic reflections, anatomically correct hands, natural forest setting with tall trees, natural underbrush, and dappled sun, nighttime ambient lighting with practical light sources, subtle color contrast, and deep shadows, 35mm prime lens, f/2.8 aperture, natural eye-level perspective, authentic photography framing, shot on professional camera, sharp focus, natural color grading, no airbrushing",
+      "negative": "bad anatomy, deformed face, distorted eyes, cross-eyed, malformed iris, unnatural pupils, disfigured body, extra limbs, missing arms, missing legs, extra fingers, mutated hands, fused fingers, too many fingers, missing fingers, poorly drawn hands, poorly drawn face, cloned face, identical faces on different people, merged bodies, conjoined twins, plastic skin, porcelain skin, airbrushed, cartoon, 3d render, anime, cgi, illustration, painting, oversaturated, blurry, out of focus, low quality, watermark, signature, bad proportions, unnatural poses, floating limbs"
+    }
+  },
+  "result": {
+    "model": "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
+    "model_prompt": "A cinematic scene of a man wearing a blue jacket walking through a snowy forest at night. Snow is falling. Tall pine trees surround the path. The camera slowly follows him from behind.",
+    "negative_prompt": "bright tones, overexposed, static, blurred details, subtitles, style, works, paintings, images, static, overall gray, worst quality, low quality, JPEG compression residue, ugly, incomplete, extra fingers, poorly drawn hands, poorly drawn faces, deformed, disfigured, misshapen limbs, fused fingers, still picture, messy background, three legs, many people in the background, walking backwards",
+    "output": "T2_snow_forest.mp4",
+    "resolution": "576x320",
+    "frames": 33,
+    "duration_seconds": 2.06,
+    "steps": 25,
+    "guidance_scale": 5.0,
+    "load_seconds": 82.9,
+    "text_encode_seconds_cpu": 118.0,
+    "denoise_seconds": 98.8,
+    "seconds_per_step": 3.95,
+    "vae_decode_seconds": 16.7,
+    "mp4_encode_seconds": 1.45,
+    "total_seconds_excluding_load": 235.0,
+    "peak_vram_gb": 4.5
+  },
+  "peak_process_ram_gb": 18.97
+}

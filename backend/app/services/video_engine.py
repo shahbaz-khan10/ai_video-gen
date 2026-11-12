@@ -117,7 +117,12 @@ class WanVideoEngine:
     name = "wan"
 
     def __init__(self, settings: Settings) -> None:
-        self.model_id = settings.video_model_id
+        # Text encoder, tokenizer and VAE always come from the base Wan2.1 repo; the transformer from FastWan
+        # when that sampler is selected. ``model_id`` names the transformer that actually generates.
+        self._base_id = settings.video_model_id
+        self._fast = settings.video_sampler == "fastwan"
+        self.model_id = settings.video_fast_model_id if self._fast else settings.video_model_id
+        self.sampler = settings.video_sampler
         self._settings = settings
         self._cache_dir = settings.video_model_cache_dir or settings.image_model_cache_dir
         self._lock = threading.Lock()
@@ -139,26 +144,30 @@ class WanVideoEngine:
         from huggingface_hub import try_to_load_from_cache
 
         cache_dir = str(self._cache_dir)
-        index = try_to_load_from_cache(self.model_id, "model_index.json", cache_dir=cache_dir)
-        if not isinstance(index, str):
-            return False
-        # The sharded components must be complete, not just started.
-        for component, index_name in (
-            ("transformer", "diffusion_pytorch_model.safetensors.index.json"),
-            ("text_encoder", "model.safetensors.index.json"),
-        ):
-            shard_index = try_to_load_from_cache(self.model_id, f"{component}/{index_name}", cache_dir=cache_dir)
-            if not isinstance(shard_index, str):
-                return False
+
+        def cached(repo: str, path: str) -> bool:
+            return isinstance(try_to_load_from_cache(repo, path, cache_dir=cache_dir), str)
+
+        def complete(repo: str, component: str, index_name: str) -> bool:
+            """A sharded component counts only when every shard is there, not just started."""
             import json
 
+            shard_index = try_to_load_from_cache(repo, f"{component}/{index_name}", cache_dir=cache_dir)
+            if not isinstance(shard_index, str):
+                return False
             with open(shard_index, encoding="utf-8") as fh:
                 shards = set(json.load(fh)["weight_map"].values())
-            for shard in shards:
-                if not isinstance(try_to_load_from_cache(self.model_id, f"{component}/{shard}", cache_dir=cache_dir), str):
-                    return False
-        vae = try_to_load_from_cache(self.model_id, "vae/diffusion_pytorch_model.safetensors", cache_dir=cache_dir)
-        return isinstance(vae, str)
+            return all(cached(repo, f"{component}/{shard}") for shard in shards)
+
+        base = self._base_id
+        if not cached(base, "model_index.json") or not complete(base, "text_encoder", "model.safetensors.index.json"):
+            return False
+        if not cached(base, "vae/diffusion_pytorch_model.safetensors"):
+            return False
+        if self._fast:
+            # FastWan ships its transformer as one file.
+            return cached(self.model_id, "transformer/diffusion_pytorch_model.safetensors")
+        return complete(base, "transformer", "diffusion_pytorch_model.safetensors.index.json")
 
     def status(self) -> VideoEngineStatus:
         base = {"model_id": self.model_id, "device": self._device, "optimizations": list(self._optimizations)}
@@ -233,8 +242,16 @@ class WanVideoEngine:
 
         try:
             # Wan's reference code keeps the VAE in float32; bf16 VAEs produce colour artefacts.
-            vae = AutoencoderKLWan.from_pretrained(self.model_id, subfolder="vae", dtype=torch.float32, **hub)
-            pipe = WanPipeline.from_pretrained(self.model_id, vae=vae, dtype=compute_dtype, **hub)
+            vae = AutoencoderKLWan.from_pretrained(self._base_id, subfolder="vae", dtype=torch.float32, **hub)
+            extra: dict[str, Any] = {}
+            if self._fast:
+                from diffusers import WanTransformer3DModel
+
+                # Same architecture as Wan2.1 T2V 1.3B; only the (distilled) weights differ.
+                extra["transformer"] = WanTransformer3DModel.from_pretrained(
+                    self.model_id, subfolder="transformer", dtype=compute_dtype, **hub
+                )
+            pipe = WanPipeline.from_pretrained(self._base_id, vae=vae, dtype=compute_dtype, **extra, **hub)
         except OSError:
             raise VideoEngineError(
                 "model_not_downloaded", "The video model weights are missing or incomplete. Re-run the download."
@@ -244,6 +261,8 @@ class WanVideoEngine:
         )
 
         optimizations = [f"{str(compute_dtype).removeprefix('torch.')} transformer", "fp32 VAE"]
+        if self._fast:
+            optimizations.insert(0, "3-step DMD sampling, no CFG")
         if device == "cuda":
             try:
                 pipe.transformer.to("cuda")
@@ -287,6 +306,9 @@ class WanVideoEngine:
                 torch.cuda.empty_cache()
         except ImportError:
             pass
+        except RuntimeError as exc:
+            # After a CUDA driver error even freeing the cache fails; don't let that hide the real error.
+            logger.warning("Could not free GPU memory: %s", exc)
 
     # --- inference ----------------------------------------------------------------
 
@@ -309,31 +331,39 @@ class WanVideoEngine:
         try:
             with torch.inference_mode():
                 # Encode on the text encoder's own device (CPU by default), then move the embeddings to the GPU.
+                # 512 tokens is Wan's training length; the Diffusers default (226) would cut long scene prompts.
                 text_device = pipe.text_encoder.device
                 prompt_embeds, negative_embeds = pipe.encode_prompt(
                     prompt=params.prompt,
-                    negative_prompt=WAN_NEGATIVE_PROMPT,
-                    do_classifier_free_guidance=True,
+                    negative_prompt=None if self._fast else WAN_NEGATIVE_PROMPT,
+                    do_classifier_free_guidance=not self._fast,
                     num_videos_per_prompt=1,
+                    max_sequence_length=MAX_TEXT_TOKENS,
                     device=text_device,
                     dtype=pipe.transformer.dtype,
                 )
                 generator = torch.Generator(device="cpu").manual_seed(params.seed)
-                output = pipe(
-                    prompt_embeds=prompt_embeds.to(device),
-                    negative_prompt_embeds=negative_embeds.to(device),
-                    width=params.width,
-                    height=params.height,
-                    num_frames=params.num_frames,
-                    num_inference_steps=params.num_inference_steps,
-                    guidance_scale=self._settings.video_guidance_scale,
-                    generator=generator,
-                    output_type="np",
-                    callback_on_step_end=stop_after_deadline,
-                )
-            if timed_out:
-                raise VideoEngineError("generation_timeout", "Video generation took too long and was stopped.", retryable=True)
-            frames = output.frames[0]
+                if self._fast:
+                    frames = _dmd_sample(pipe, prompt_embeds.to(device), params, generator, deadline, device)
+                else:
+                    output = pipe(
+                        prompt_embeds=prompt_embeds.to(device),
+                        negative_prompt_embeds=negative_embeds.to(device),
+                        width=params.width,
+                        height=params.height,
+                        num_frames=params.num_frames,
+                        num_inference_steps=params.num_inference_steps,
+                        guidance_scale=self._settings.video_guidance_scale,
+                        generator=generator,
+                        output_type="np",
+                        callback_on_step_end=stop_after_deadline,
+                        max_sequence_length=MAX_TEXT_TOKENS,
+                    )
+                    if timed_out:
+                        raise VideoEngineError(
+                            "generation_timeout", "Video generation took too long and was stopped.", retryable=True
+                        )
+                    frames = output.frames[0]
             if frames is None or len(frames) == 0:
                 raise VideoEngineError("generation_failed", "The video model returned no frames.", retryable=True)
             write_mp4(frames, output_path, fps=params.fps)
@@ -350,9 +380,64 @@ class WanVideoEngine:
             raise VideoEngineError(
                 "out_of_memory", "The server ran out of RAM. Try a shorter clip or the Draft size.", retryable=True
             ) from None
+        except RuntimeError as exc:
+            if "CUDA error" not in str(exc):
+                raise
+            # Seen on Windows/WSL with VRAM nearly full ("CUDA error: unknown error"). The loaded weights may be
+            # unusable afterwards, so the pipeline is dropped and reloaded by the next job.
+            logger.error("CUDA error during video generation: %s", exc)
+            self._pipe = None
+            self._optimizations = []
+            raise VideoEngineError(
+                "gpu_error",
+                "The GPU driver reported an error (on Windows this is often a GPU reset when video memory is nearly "
+                "full). Close other GPU apps and retry; finished clips are kept.",
+                retryable=True,
+            ) from None
         finally:
             del frames
             self._release()
+
+
+MAX_TEXT_TOKENS = 512
+# FastWan's distillation timesteps (FastVideo's ``--dmd-denoising-steps``).
+DMD_TIMESTEPS = (1000, 757, 522)
+
+
+def _dmd_sample(pipe: Any, prompt_embeds: Any, params: VideoParams, generator: Any, deadline: float, device: str) -> Any:
+    """Three-step DMD sampling: predict the clean video, re-noise to the next timestep, repeat; then decode.
+
+    Flow matching: x_t = (1 - s)·x0 + s·noise and the model predicts v = noise - x0, so x0 = x_t - s·v.
+    """
+    import torch
+
+    latents = pipe.prepare_latents(
+        1, pipe.transformer.config.in_channels, params.height, params.width, params.num_frames,
+        torch.float32, torch.device(device), generator,
+    )
+    for i, t in enumerate(DMD_TIMESTEPS):
+        if time.monotonic() > deadline:
+            raise VideoEngineError("generation_timeout", "Video generation took too long and was stopped.", retryable=True)
+        sigma = t / 1000
+        velocity = pipe.transformer(
+            hidden_states=latents.to(pipe.transformer.dtype),
+            timestep=torch.tensor([t], device=device),
+            encoder_hidden_states=prompt_embeds,
+            return_dict=False,
+        )[0].float()
+        clean = latents - sigma * velocity
+        if i + 1 < len(DMD_TIMESTEPS):
+            next_sigma = DMD_TIMESTEPS[i + 1] / 1000
+            noise = torch.randn(latents.shape, generator=generator, dtype=torch.float32).to(device)
+            latents = (1 - next_sigma) * clean + next_sigma * noise
+        else:
+            latents = clean
+    vae = pipe.vae
+    z_dim = vae.config.z_dim
+    mean = torch.tensor(vae.config.latents_mean).view(1, z_dim, 1, 1, 1).to(device, torch.float32)
+    std = torch.tensor(vae.config.latents_std).view(1, z_dim, 1, 1, 1).to(device, torch.float32)
+    video = vae.decode((latents * std + mean).to(vae.dtype), return_dict=False)[0]
+    return pipe.video_processor.postprocess_video(video, output_type="np")[0]
 
 
 def write_mp4(frames: Any, path: Path, fps: int) -> None:

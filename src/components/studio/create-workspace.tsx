@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { FolderOpen } from "lucide-react";
-import { api, assetUrl } from "@/lib/api/client";
+import { FolderOpen, ScanSearch } from "lucide-react";
+import { api, ApiError, assetUrl } from "@/lib/api/client";
 import { useBackendStatus } from "@/lib/api/use-backend-status";
 import { isBusy, parseSeed, progressMessage } from "@/lib/generation/job-view";
 import { useImageJob } from "@/lib/generation/use-image-job";
@@ -21,7 +21,7 @@ import {
   MODELS,
   VIDEO_SIZES,
 } from "@/lib/studio-options";
-import type { GenerationPayload, ImageResolution, VideoResolution } from "@/types/api";
+import type { GenerationPayload, GenerationPlan, ImageResolution, SceneInput, VideoResolution } from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
 import { AspectRatioSelector } from "./aspect-ratio-selector";
 import { DurationSelector } from "./duration-selector";
@@ -36,6 +36,8 @@ import { ModeSelector } from "./mode-selector";
 import { OutcomeNotice } from "./outcome-notice";
 import { PreviewPanel } from "./preview-panel";
 import { PromptEditor } from "./prompt-editor";
+import { ScenePlanPanel } from "./scene-plan-panel";
+import { SceneProgress } from "./scene-progress";
 import { StyleSelector } from "./style-selector";
 import { useImageSelection } from "./use-image-selection";
 import { VideoDurationSelector, VideoSizeSelector } from "./video-options";
@@ -85,6 +87,12 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const upload = useImageSelection();
   const imageJob = useImageJob();
   const { status: backend } = useBackendStatus();
+  // How the backend understood the current draft (Plan scenes); cleared on any edit that changes it.
+  const [plan, setPlan] = useState<GenerationPlan | null>(null);
+  const [planScenes, setPlanScenes] = useState<SceneInput[] | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const planRequest = useRef(0);
   const [elapsed, setElapsed] = useState<{ jobId: string; seconds: number } | null>(null);
 
   const isImage = mode === "text-to-image";
@@ -137,6 +145,10 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       ? pickedVideoSteps
       : videoStepOptions[Math.floor((videoStepOptions.length - 1) / 2)];
   const videoSize = VIDEO_SIZES[videoResolution][aspectRatio];
+  // FastWan runs a fixed 3-step schedule; the API rejects a steps value then.
+  const fixedVideoSteps = online?.info.limits.video_sampler === "fastwan";
+  // Up to 5 s is one clip; longer videos are planned as scenes.
+  const isLongVideo = isTextToVideo && videoSeconds > 5;
 
   const details = isTextToVideo
     ? [
@@ -144,7 +156,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
         `${aspectRatio} · ${videoSize.width}×${videoSize.height}`,
         getStyle(style).label,
         `${videoSeconds}s @ ${videoFps} fps`,
-        `${videoSteps} steps`,
+        fixedVideoSteps ? "FastWan · 3 steps" : `${videoSteps} steps`,
+        ...(isLongVideo && planScenes ? [`${planScenes.length} scenes`] : []),
         seedInput.trim() ? `Seed ${seedInput.trim()}` : "Random seed",
       ]
     : isImage
@@ -168,6 +181,20 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     requestId.current += 1;
     setOutcome(null);
     setChecking(false);
+    clearPlan();
+  };
+
+  function clearPlan() {
+    planRequest.current += 1;
+    setPlan(null);
+    setPlanScenes(null);
+    setPlanning(false);
+    setPlanError(null);
+  }
+
+  const changeVideoSeconds = (value: number) => {
+    setVideoSeconds(value);
+    clearPlan();
   };
 
   const changeMode = (next: GenerationMode) => {
@@ -189,6 +216,64 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     revealPreviewOnSmallScreens();
   };
 
+  const draftPayload = (seed: number | null, scenes?: SceneInput[]) =>
+    buildPayload({
+      mode,
+      prompt,
+      negativePrompt,
+      aspectRatio,
+      style,
+      duration,
+      image: upload.image,
+      resolution,
+      steps,
+      seed,
+      // Image and text-to-video jobs run on the backend's configured models; no client-side model switch.
+      modelId: runsJob ? undefined : model,
+      video: {
+        durationSeconds: videoSeconds,
+        resolution: videoResolution,
+        steps: fixedVideoSteps ? null : videoSteps,
+        scenes,
+      },
+    });
+
+  /** Asks the backend how it understood the prompt; long videos also get an editable scene list. */
+  const handlePlan = async () => {
+    if (!prompt.trim()) {
+      setErrors((e) => ({ ...e, prompt: "Add a prompt to describe what you want to create." }));
+      scrollTo("prompt-field", "center");
+      return;
+    }
+    const id = ++planRequest.current;
+    setPlanning(true);
+    setPlanError(null);
+    try {
+      const result = await api.scenePlan(draftPayload(null));
+      if (id !== planRequest.current) return;
+      setPlan(result);
+      setPlanScenes(
+        isLongVideo
+          ? result.scenes.map((s) => ({ description: s.description, duration_seconds: s.duration_seconds ?? undefined }))
+          : null,
+      );
+    } catch (err) {
+      if (id !== planRequest.current) return;
+      setPlanError(err instanceof ApiError ? err.message : "Couldn't plan the scenes.");
+    } finally {
+      if (id === planRequest.current) setPlanning(false);
+    }
+  };
+
+  const handleRetryScene = async (index: number) => {
+    if (!viewJob) return;
+    try {
+      imageJob.adopt(await api.retryScene(viewJob.id, index));
+    } catch (err) {
+      setPlanError(err instanceof ApiError ? err.message : "Couldn't retry the scene.");
+    }
+  };
+
   const handleGenerate = async () => {
     const localErrors: FieldErrors = {};
     if (!prompt.trim()) localErrors.prompt = "Add a prompt to describe what you want to create.";
@@ -202,21 +287,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       return;
     }
 
-    const payload = buildPayload({
-      mode,
-      prompt,
-      negativePrompt,
-      aspectRatio,
-      style,
-      duration,
-      image: upload.image,
-      resolution,
-      steps,
-      seed: seed.seed,
-      // Image and text-to-video jobs run on the backend's configured models; no client-side model switch.
-      modelId: runsJob ? undefined : model,
-      video: { durationSeconds: videoSeconds, resolution: videoResolution, steps: videoSteps },
-    });
+    const scenes = isLongVideo && planScenes ? planScenes.filter((s) => s.description.trim()) : undefined;
+    const payload = draftPayload(seed.seed, scenes);
 
     if (runsJob) {
       submitImage(payload);
@@ -348,10 +420,10 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                 options={videoDurations}
                 fps={videoFps}
                 value={videoSeconds}
-                onChange={setVideoSeconds}
+                onChange={changeVideoSeconds}
               />
               <VideoSizeSelector value={videoResolution} aspectRatio={aspectRatio} onChange={setVideoResolution} />
-              <StepsSelector options={videoStepOptions} value={videoSteps} onChange={setVideoSteps} />
+              {!fixedVideoSteps && <StepsSelector options={videoStepOptions} value={videoSteps} onChange={setVideoSteps} />}
               <div id="seed-field">
                 <SeedInput
                   value={seedInput}
@@ -384,6 +456,33 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           )}
         </AnimatePresence>
 
+        {(isImage || isTextToVideo) && (
+          <div className="flex flex-col gap-3">
+            <button
+              type="button"
+              onClick={handlePlan}
+              disabled={planning}
+              className="flex items-center justify-center gap-2 rounded-lg border border-line bg-ink-900 px-3 py-2.5 text-xs font-medium text-fg-muted hover:border-violet-soft/40 hover:text-fg focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/40 disabled:opacity-60"
+            >
+              <ScanSearch className="size-3.5" aria-hidden />
+              {planning ? "Reading your prompt…" : isLongVideo ? "Plan scenes" : "Check how the prompt is understood"}
+            </button>
+            {planError && (
+              <p role="alert" className="text-xs text-red-300">
+                {planError}
+              </p>
+            )}
+            {plan && (
+              <ScenePlanPanel
+                plan={plan}
+                scenes={isLongVideo ? planScenes : null}
+                totalSeconds={isLongVideo ? videoSeconds : null}
+                onScenesChange={setPlanScenes}
+              />
+            )}
+          </div>
+        )}
+
         <div className="sticky bottom-0 -mx-4 border-t border-line bg-ink-950/85 px-4 pb-4 pt-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
           <GenerateButton
             onClick={handleGenerate}
@@ -402,7 +501,9 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
               isImage
                 ? "Photorealistic engine · Scene understanding and anatomical preservation active"
                 : isTextToVideo
-                ? "Runs on your GPU · several minutes per clip · one job at a time"
+                ? isLongVideo
+                  ? `Runs on your GPU · ${videoSeconds}s is built from many clips and takes a long time · one job at a time`
+                  : "Runs on your GPU · about a minute or more per clip · one job at a time"
                 : "Image-to-video is coming soon · settings are validated only"
             }
           />
@@ -427,13 +528,22 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           busyMessage={runsJob && jobBusy ? progressMessage(view, elapsedSeconds, imageJob.modelState) : null}
           notice={
             runsJob && jobInThisMode ? (
-              <JobNotice
-                view={view}
-                progress={progressMessage(view, elapsedSeconds, imageJob.modelState)}
-                attribution={license ? { text: license.attribution, url: license.url } : null}
-                onRetry={() => lastImagePayload.current && submitImage(lastImagePayload.current)}
-                onReconnect={imageJob.reconnect}
-              />
+              <>
+                <JobNotice
+                  view={view}
+                  progress={progressMessage(view, elapsedSeconds, imageJob.modelState)}
+                  attribution={license ? { text: license.attribution, url: license.url } : null}
+                  onRetry={() => lastImagePayload.current && submitImage(lastImagePayload.current)}
+                  onReconnect={imageJob.reconnect}
+                />
+                {viewJob?.scenes && viewJob.scenes.length > 0 && (
+                  <SceneProgress
+                    scenes={viewJob.scenes}
+                    canRetry={view.phase === "failed"}
+                    onRetry={(index) => void handleRetryScene(index)}
+                  />
+                )}
+              </>
             ) : (
               <OutcomeNotice outcome={outcome} checking={checking} onDismiss={() => setOutcome(null)} />
             )

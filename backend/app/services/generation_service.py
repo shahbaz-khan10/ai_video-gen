@@ -11,11 +11,13 @@ import logging
 import math
 import secrets
 import threading
+import os
 import time
 import uuid
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
+from pathlib import Path
 
 from app.core.config import Settings
 from app.core.errors import AppError
@@ -36,8 +38,13 @@ from app.schemas.generation import (
     TextToImageRequest,
     TextToVideoRequest,
     video_frames_for,
+    SINGLE_CLIP_MAX_SECONDS,
+    SceneJob,
 )
-from app.services.image_engine import EngineError, EngineStatus, ImageEngine, ImageParams
+from app.schemas.scene_plan import SceneBeat, ScenePlan
+from app.services.image_engine import STYLE_PROMPTS, EngineError, EngineStatus, ImageEngine, ImageParams
+from app.services.long_video import CROSSFADE_FRAMES, SCENE_CUT_FRAMES, join_clips, plan_clips, scene_durations
+from app.services.scene_planner import RulePlanner, build_video_prompt, validate
 from app.services.image_storage import ImageStorage
 from app.services.video_engine import VideoEngine, VideoEngineError, VideoParams
 from app.services.video_storage import VideoStorage
@@ -158,19 +165,26 @@ class GenerationService:
         elif isinstance(request, TextToVideoRequest):
             fps = self.settings.video_fps
             width, height = VIDEO_SIZES[request.resolution][request.aspect_ratio]
+            fast = getattr(self.video_engine, "sampler", None) == "fastwan"
+            if fast and request.steps is not None:
+                raise AppError(
+                    422, "validation_error", "The request is invalid.",
+                    [{"field": "steps", "message": "This server uses the 3-step distilled FastWan model; steps are fixed."}],
+                )
+            long = request.duration_seconds > SINGLE_CLIP_MAX_SECONDS
             # An explicit frame count wins; otherwise the duration decides (Wan needs 4k+1 frames, max 81).
-            num_frames = request.num_frames or video_frames_for(request.duration_seconds, fps)
+            num_frames = None if long else request.num_frames or video_frames_for(request.duration_seconds, fps)
             settings = settings.model_copy(
                 update={
                     "duration_seconds": request.duration_seconds,
                     "resolution": request.resolution,
                     "width": width,
                     "height": height,
-                    "steps": request.steps or self.settings.video_default_steps,
+                    "steps": 3 if fast else request.steps or self.settings.video_default_steps,
                     "seed": request.seed,
                     "num_frames": num_frames,
                     "fps": fps,
-                    "guidance_scale": self.settings.video_guidance_scale,
+                    "guidance_scale": None if fast else self.settings.video_guidance_scale,
                     "model_id": getattr(self.video_engine, "model_id", None),
                 }
             )
@@ -195,6 +209,7 @@ class GenerationService:
                 status=GenerationStatus.QUEUED,
                 settings=settings,
                 model_id=settings.model_id or getattr(self.engine, "model_id", None),
+                plan=self.plan(request),
                 created_at=_now(),
             )
             self.store.add(job)
@@ -214,16 +229,21 @@ class GenerationService:
             settings = self.normalize(request)
             if settings.seed is None:
                 settings = settings.model_copy(update={"seed": secrets.randbelow(MAX_SEED + 1)})
+            plan, scenes = self._plan_video(request, settings)
             job = GenerationJob(
                 id=str(uuid.uuid4()),
                 status=GenerationStatus.QUEUED,
                 settings=settings,
                 model_id=getattr(self.video_engine, "model_id", None),
                 created_at=_now(),
+                plan=plan,
+                scenes=scenes,
+                clips_total=sum(len(s.clips) for s in scenes) or None,
+                clips_completed=0 if scenes else None,
             )
             self.store.add(job)
-            logger.info("job %s queued mode=%s", job.id, settings.mode)
-            self._executor.submit(self._run_video, job.id)
+            logger.info("job %s queued mode=%s scenes=%d", job.id, settings.mode, len(scenes))
+            self._executor.submit(self._run_long_video if scenes else self._run_video, job.id)
             return self.store.get(job.id) or job
         elif request.mode == GenerationMode.IMAGE_TO_VIDEO:
             raise AppError(501, "mode_not_available", "Image-to-video is not available in this phase.")
@@ -235,6 +255,79 @@ class GenerationService:
         if job is None:
             raise AppError(404, "generation_not_found", "No generation exists with this ID.")
         return job
+
+    # --- planning ----------------------------------------------------------------------------
+
+    def plan(self, request: GenerationRequest) -> ScenePlan:
+        """The plan a generation would use, without generating. Shown to the user for review and editing."""
+        settings = self.normalize(request)
+        if isinstance(request, TextToVideoRequest):
+            return self._plan_video(request, settings)[0]
+        style_text = STYLE_PROMPTS.get(settings.style)
+        plan = RulePlanner.plan(request.prompt)
+        from app.services.scene_planner import build_image_prompt_parts
+
+        return validate(plan, mode=str(request.mode), model_prompt=", ".join(build_image_prompt_parts(plan, style_text)))
+
+    def _plan_video(self, request: TextToVideoRequest, settings) -> tuple[ScenePlan, list[SceneJob]]:
+        style_text = STYLE_PROMPTS.get(settings.style)
+        plan = RulePlanner.plan(request.prompt)
+        if request.duration_seconds <= SINGLE_CLIP_MAX_SECONDS:
+            return validate(plan, mode="text-to-video", model_prompt=build_video_prompt(plan, style_text)), []
+        if request.continuity == "last_frame":
+            raise AppError(
+                501,
+                "continuity_not_available",
+                "Last-frame continuity (Wan VACE) is not enabled: measured at ~7x slower per clip on this GPU. "
+                "Use continuity 'prompt'.",
+            )
+        beats = (
+            [SceneBeat(index=i + 1, description=s.description, duration_seconds=s.duration_seconds) for i, s in enumerate(request.scenes)]
+            if request.scenes
+            else plan.scenes
+        )
+        try:
+            durations = scene_durations(float(request.duration_seconds), [b.duration_seconds for b in beats])
+        except ValueError as err:
+            raise AppError(422, "validation_error", "The request is invalid.", [{"field": "scenes", "message": str(err)}]) from None
+        clips = plan_clips(durations, settings.fps, request.continuity)
+        beats = [b.model_copy(update={"index": i + 1, "duration_seconds": d}) for i, (b, d) in enumerate(zip(beats, durations))]
+        scenes = [
+            SceneJob(
+                index=b.index,
+                description=b.description,
+                prompt=build_video_prompt(plan, style_text, b),
+                duration_seconds=b.duration_seconds,
+                clips=[c.frames for c in clips if c.scene == b.index - 1],
+            )
+            for b in beats
+        ]
+        plan = plan.model_copy(update={"scenes": beats})
+        return validate(plan, mode="text-to-video", model_prompt=" | ".join(s.prompt for s in scenes)), scenes
+
+    def retry_scene(self, job_id: str, index: int) -> GenerationJob:
+        """Re-queues a failed long video. Clips already on disk are kept; only missing ones are generated."""
+        job = self.get(job_id)
+        if not job.scenes:
+            raise AppError(422, "not_a_long_video", "Only long (multi-scene) videos have scenes to retry.")
+        if job.status != GenerationStatus.FAILED:
+            raise AppError(409, "job_not_failed", "This video has not failed; there is nothing to retry.")
+        scene = next((s for s in job.scenes if s.index == index), None)
+        if scene is None:
+            raise AppError(404, "scene_not_found", "No scene with this number.")
+        if scene.status != GenerationStatus.FAILED:
+            raise AppError(409, "scene_not_failed", "This scene did not fail.")
+        scenes = [s.model_copy(update={"status": GenerationStatus.QUEUED, "error": None}) if s.index == index else s for s in job.scenes]
+        self.store.update(job_id, status=GenerationStatus.QUEUED, error=None, finished_at=None, scenes=scenes)
+        self._executor.submit(self._run_long_video, job_id)
+        return self.get(job_id)
+
+    def _update_scene(self, job_id: str, index: int, **changes: object) -> GenerationJob:
+        job = self.store.get(job_id)
+        assert job is not None
+        scenes = [s.model_copy(update=changes) if s.index == index else s for s in job.scenes]
+        completed = sum(s.clips_completed for s in scenes)
+        return self.store.update(job_id, scenes=scenes, clips_completed=completed)
 
     def preload(self) -> None:
         if self.engine is None:
@@ -313,7 +406,8 @@ class GenerationService:
                 tmp = self.video_storage.temp_path(job_id)
                 device = self.video_engine.generate(
                     VideoParams(
-                        prompt=s.prompt,
+                        # The planner's scene description (user words first, then cast/place/camera/style).
+                        prompt=(job.plan.model_prompt if job.plan and job.plan.model_prompt else s.prompt),
                         width=s.width,
                         height=s.height,
                         num_frames=s.num_frames,
@@ -356,6 +450,98 @@ class GenerationService:
                     JobError(code="generation_failed", message="Video generation failed on the server.", retryable=True),
                 )
 
+    def _run_long_video(self, job_id: str) -> None:
+        """Generates each scene's clips (skipping ones already on disk), then joins and validates the MP4."""
+        from app.services.video_storage import probe_mp4
+
+        with self._video_lock:
+            job = self.store.get(job_id)
+            assert job is not None and self.video_engine is not None
+            self.store.update(
+                job_id, status=GenerationStatus.PROCESSING, started_at=job.started_at or _now(), queue_position=None
+            )
+            s = job.settings
+            assert s.width and s.height and s.steps and s.seed is not None and s.fps and s.duration_seconds
+            # Clips are stored by what they contain, not by job: if the backend has to restart (jobs are in
+            # memory; a CUDA driver error needs a new process), the same request with the same seed reuses them.
+            parts_key = _parts_key(self.video_engine.model_id, s, job.scenes)
+            parts = self.video_storage.parts_dir(parts_key)
+            current: int | None = None
+            device = None
+            try:
+                self._unload(self.engine)
+                ordered: list[tuple[Path, int]] = []
+                for scene in job.scenes:
+                    current = scene.index
+                    self._update_scene(job_id, scene.index, status=GenerationStatus.PROCESSING, error=None)
+                    for k, frames in enumerate(scene.clips):
+                        path = parts / f"s{scene.index:02d}_c{k:02d}.mp4"
+                        if not _valid_clip(path, frames, probe_mp4):
+                            tmp = parts / f".s{scene.index:02d}_c{k:02d}.part.mp4"
+                            device = self.video_engine.generate(
+                                VideoParams(
+                                    prompt=scene.prompt,
+                                    width=s.width,
+                                    height=s.height,
+                                    num_frames=frames,
+                                    num_inference_steps=s.steps,
+                                    # Distinct but reproducible noise per clip.
+                                    seed=(s.seed + scene.index * 1000 + k) % (MAX_SEED + 1),
+                                    fps=s.fps,
+                                ),
+                                deadline=time.monotonic() + self.settings.video_timeout_seconds,
+                                output_path=tmp,
+                            )
+                            if not _valid_clip(tmp, frames, probe_mp4):
+                                tmp.unlink(missing_ok=True)
+                                raise VideoEngineError("video_invalid", "A generated clip could not be decoded.", retryable=True)
+                            os.replace(tmp, path)
+                        # Clips of one scene crossfade; a new scene starts with a cut.
+                        overlap = CROSSFADE_FRAMES if k > 0 else (SCENE_CUT_FRAMES if ordered else 0)
+                        ordered.append((path, overlap))
+                        self._update_scene(job_id, scene.index, clips_completed=k + 1)
+                    self._update_scene(job_id, scene.index, status=GenerationStatus.COMPLETED)
+                current = None
+                total = round(s.duration_seconds * s.fps)
+                tmp_final = self.video_storage.temp_path(job_id)
+                written = join_clips(ordered, tmp_final, s.fps, total)
+                if written != total:
+                    raise VideoEngineError("video_invalid", f"Joined {written} of {total} frames.", retryable=True)
+                stored = self.video_storage.finalize(job_id, tmp_final)
+                if stored.num_frames != total:
+                    raise VideoEngineError("video_invalid", "The final video has the wrong length.", retryable=True)
+                url = f"{VIDEOS_PREFIX}/{stored.filename}"
+                self.store.update(
+                    job_id,
+                    status=GenerationStatus.COMPLETED,
+                    finished_at=_now(),
+                    device=device or job.device,
+                    video=GeneratedVideo(
+                        url=url,
+                        download_url=f"{url}?download=true",
+                        width=stored.width,
+                        height=stored.height,
+                        size_bytes=stored.size_bytes,
+                        num_frames=stored.num_frames,
+                        duration_seconds=stored.duration_seconds,
+                    ),
+                    output_url=url,
+                )
+                self.video_storage.discard_parts(parts_key)
+                logger.info("long video %s completed: %d clips, %.1fs", job_id, len(ordered), stored.duration_seconds)
+            except Exception as exc:
+                error = (
+                    JobError(code=exc.code, message=exc.message, retryable=exc.retryable)
+                    if isinstance(exc, VideoEngineError)
+                    else JobError(code="generation_failed", message="Video generation failed on the server.", retryable=True)
+                )
+                if not isinstance(exc, VideoEngineError):
+                    logger.exception("long video %s failed", job_id)
+                self.video_storage.discard(job_id)
+                if current is not None:
+                    self._update_scene(job_id, current, status=GenerationStatus.FAILED, error=error)
+                self._fail(job_id, error)
+
     @staticmethod
     def _unload(engine: object) -> None:
         unload = getattr(engine, "unload", None)
@@ -374,3 +560,29 @@ class GenerationService:
             except Exception:
                 pass
         self.store.update(job_id, status=GenerationStatus.FAILED, finished_at=_now(), error=error, device=device)
+
+
+def _parts_key(model_id: str, s: NormalizedSettings, scenes: list[SceneJob]) -> str:
+    """A UUID derived from everything that determines the clips' pixels (model, size, fps, steps, seed and
+    each scene's prompt and clip lengths). Equal requests map to the same clip folder."""
+    import hashlib
+    import json
+
+    content = json.dumps(
+        {
+            "model": model_id, "w": s.width, "h": s.height, "fps": s.fps, "steps": s.steps, "seed": s.seed,
+            "scenes": [[sc.index, sc.prompt, sc.clips] for sc in scenes],
+        },
+        sort_keys=True,
+    )
+    return str(uuid.UUID(bytes=hashlib.sha256(content.encode()).digest()[:16]))
+
+
+def _valid_clip(path: Path, frames: int, probe) -> bool:
+    """A clip counts as done only if it decodes to the planned number of frames."""
+    if not path.is_file():
+        return False
+    try:
+        return probe(path)[2] == frames
+    except Exception:
+        return False

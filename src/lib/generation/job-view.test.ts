@@ -231,3 +231,34 @@ describe("viewFromJob (text-to-video)", () => {
     assert.doesNotMatch(msg, /%/);
   });
 });
+
+describe("long video progress", () => {
+  const scenes = [
+    { index: 1, description: "A", prompt: "A", duration_seconds: 10, clips: [81, 81], clips_completed: 2, status: "completed" as const, error: null },
+    { index: 2, description: "B", prompt: "B", duration_seconds: 10, clips: [81, 81], clips_completed: 1, status: "processing" as const, error: null },
+  ];
+
+  it("reports real scene and clip counts with an estimate from measured pace", () => {
+    const msg = progressMessage(viewFromJob(videoJob({ status: "processing", scenes, clips_total: 4, clips_completed: 3 })), 300, null);
+    assert.match(msg, /Scene 2 of 2 · 3 of 4 clips finished/);
+    assert.match(msg, /About 1m 40s left/);
+    assert.doesNotMatch(msg, /%/);
+  });
+
+  it("gives no estimate before the first clip is finished", () => {
+    const fresh = scenes.map((s) => ({ ...s, clips_completed: 0, status: "queued" as const }));
+    const msg = progressMessage(viewFromJob(videoJob({ status: "processing", scenes: fresh, clips_total: 4, clips_completed: 0 })), 40, null);
+    assert.match(msg, /Scene 1 of 2 · 0 of 4 clips finished\./);
+    assert.doesNotMatch(msg, /left/);
+  });
+
+  it("a failed long video names the failure and stays retryable", () => {
+    const failed = videoJob({
+      status: "failed",
+      scenes: [{ ...scenes[1], status: "failed", error: { code: "gpu_out_of_memory", message: "Out of memory.", retryable: true } }],
+      error: { code: "gpu_out_of_memory", message: "Out of memory.", retryable: true },
+    });
+    const view = viewFromJob(failed);
+    assert.ok(view.phase === "failed" && view.title === "GPU out of memory" && view.retryable);
+  });
+});

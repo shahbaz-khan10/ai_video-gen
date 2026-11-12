@@ -188,7 +188,7 @@ $env:AVS_RUN_REAL_INFERENCE = "1"; python -m pytest tests/test_real_inference.py
 
 ## Text to video (Phase 5)
 
-Text-to-video runs **Wan2.1 T2V 1.3B** locally through Diffusers. No paid or remote API is used; a job only reports `completed` after a real MP4 was written **and decoded frame by frame**. Image-to-video is not implemented yet (returns `501`).
+Text-to-video runs **Wan2.1 T2V 1.3B** locally through Diffusers, by default with the **FastWan2.1** distilled transformer (3 steps). Videos of 15-120 s are built from several real clips (see [Long videos](#long-videos-15-120-s-and-scene-planning)). No paid or remote API is used; a job only reports `completed` after a real MP4 was written **and decoded frame by frame**. Image-to-video is not implemented yet (returns `501`).
 
 ### Model and license
 
@@ -197,6 +197,8 @@ Text-to-video runs **Wan2.1 T2V 1.3B** locally through Diffusers. No paid or rem
 | Model | [`Wan-AI/Wan2.1-T2V-1.3B-Diffusers`](https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B-Diffusers) |
 | License | **Apache 2.0**: commercial use allowed. Not gated, no account needed |
 | Download | **28.9 GB**: UMT5-XXL text encoder 22.7 GB (stored in fp32), transformer 5.7 GB, VAE 0.5 GB. Loaded in bf16 (~14.5 GB of RAM) |
+| Fast sampler (default) | [`FastVideo/FastWan2.1-T2V-1.3B-Diffusers`](https://huggingface.co/FastVideo/FastWan2.1-T2V-1.3B-Diffusers), **Apache 2.0**. Only its transformer (5.96 GB) is used; text encoder and VAE come from Wan2.1. 3 fixed DMD steps, no guidance |
+| Evaluated, not enabled | [`Wan-AI/Wan2.1-VACE-1.3B-diffusers`](https://huggingface.co/Wan-AI/Wan2.1-VACE-1.3B-diffusers) (Apache 2.0, 7.7 GB) for last-frame continuity: works, but ~7× slower per clip. [`Qwen/Qwen3-1.7B`](https://huggingface.co/Qwen/Qwen3-1.7B) (Apache 2.0, 4.1 GB) as a scene planner: 77-174 s per prompt on CPU, no better than the rule planner |
 | Why not LTX-Video 0.9 | Its Diffusers checkpoint is licensed for research and academic use only (RAIL-M, commercial use excluded) |
 
 ### Hardware results (RTX 3050 8 GB, Ryzen 5 7500F, 32 GB RAM, Docker Desktop)
@@ -204,7 +206,10 @@ Text-to-video runs **Wan2.1 T2V 1.3B** locally through Diffusers. No paid or rem
 | Setting | Measured |
 | --- | --- |
 | Model load (first job) | ~37 s |
-| Draft 576×320, 2 s (33 frames), 25 steps | **~2 min**, 4.5 GB peak VRAM |
+| FastWan draft 576×320, 5 s (81 frames), warm | **~2 min** (text encode 10-48 s on CPU, denoise 18-24 s, VAE decode 47-82 s), 4.6-4.8 GB peak VRAM |
+| FastWan 480p 832×480, 5 s (81 frames) | **~2.7 min** (denoise 55 s, VAE 98 s), 5.0 GB peak VRAM |
+| Original Wan sampler, 480p 5 s, 25 steps + guidance | 17.3 min |
+| Draft 576×320, 2 s (33 frames), 25 steps (original sampler) | **~2 min**, 4.5 GB peak VRAM |
 | 480p 832×480, 2 s (33 frames), 25 steps | **~5.5 min** through the API (incl. model load), 1.5 MB MP4 |
 | RAM in the backend container while generating | ~15 GB |
 
@@ -245,10 +250,12 @@ Generate the first video: open http://localhost:3001/create (Docker) or http://l
 
 | Field | Rules |
 | --- | --- |
-| `duration_seconds` | `2`, `3` or `5` (default 2). Becomes 33, 49 or 81 frames at 16 fps |
+| `duration_seconds` | `2`, `3` or `5` (one clip: 33, 49 or 81 frames at 16 fps), or `15`, `30`, `60`, `90`, `120` (a long video joined from scene clips) |
+| `scenes` | Long videos only, optional: `[{"description": "...", "duration_seconds": 10}]`, up to 24. Missing durations share the rest; all are scaled to the total; each scene needs ≥ 2 s. Without it the scenes come from the prompt |
+| `continuity` | `prompt` (default): every clip repeats the characters, setting, camera and style. `last_frame` returns `501` (VACE not enabled) |
 | `num_frames` | Optional override: 4k+1 between 5 and 81 (e.g. 17, 33, 49, 81) |
 | `resolution` | `standard` (draft: 576×320, 320×576, 416×416) or `large` (480p: 832×480, 480×832, 624×624). `high`/720p is rejected: unstable on the 1.3B model |
-| `steps` | 10-50 (default `VIDEO_DEFAULT_STEPS`, 25). The UI offers 15 / 25 / 40 |
+| `steps` | `VIDEO_SAMPLER=wan` only: 10-50 (default 25). With FastWan (default) the 3 steps are fixed and sending `steps` is a `422` |
 | `seed` | Optional, 0 to 2³²-1 |
 
 Anything else (`fps`, `guidance_scale`, `negative_prompt`, motion or camera fields) is rejected with `422` rather than silently ignored; guidance and Wan's negative prompt are fixed server-side.
@@ -262,21 +269,35 @@ Jobs are in memory and are lost on a backend restart. Finished MP4s stay in `VID
 | Variable | Default | Notes |
 | --- | --- | --- |
 | `VIDEO_ENGINE` | `wan` | `none` turns video off |
-| `VIDEO_MODEL_ID` | `Wan-AI/Wan2.1-T2V-1.3B-Diffusers` | |
+| `VIDEO_MODEL_ID` | `Wan-AI/Wan2.1-T2V-1.3B-Diffusers` | Text encoder, VAE, and the transformer when `VIDEO_SAMPLER=wan` |
+| `VIDEO_SAMPLER` | `fastwan` | `fastwan` (3 steps, no guidance) or `wan` (original, ~6× slower) |
+| `VIDEO_FAST_MODEL_ID` | `FastVideo/FastWan2.1-T2V-1.3B-Diffusers` | Transformer for `fastwan` |
+| `VIDEO_CONTINUITY_MODEL_ID` | `Wan-AI/Wan2.1-VACE-1.3B-diffusers` | Reserved for `last_frame` continuity (not enabled) |
 | `VIDEO_MODEL_CACHE_DIR` | *(empty)* | Empty shares `IMAGE_MODEL_CACHE_DIR` |
 | `VIDEO_OUTPUT_DIR` | `outputs/videos` | |
 | `VIDEO_DEVICE` | `auto` | `cuda`, `cpu` (CPU works but takes hours) |
 | `VIDEO_FPS` | `16` | Wan's native rate |
-| `VIDEO_DEFAULT_STEPS` | `25` | |
+| `VIDEO_DEFAULT_STEPS` | `25` | `wan` sampler only |
 | `VIDEO_GUIDANCE_SCALE` / `VIDEO_FLOW_SHIFT` | `5.0` / `3.0` | Wan's recommendations for 480p and below |
 | `VIDEO_TEXT_ENCODER_ON_CPU` | `true` | Set false only with a GPU of 16 GB+ |
 | `VIDEO_ENABLE_VAE_TILING` | `true` | |
 | `VIDEO_TIMEOUT_SECONDS` | `3600` | Checked between denoising steps |
 | `VIDEO_MAX_QUEUED_JOBS` | `2` | |
 
+### Long videos (15-120 s) and scene planning
+
+Wan makes at most 81 frames (~5 s) per clip, so a long video is planned as **scenes**, each scene as one or more clips of ≤ 81 frames. Clips of the same scene are joined with a 0.5 s crossfade; scenes meet with a hard cut. Every frame comes from a generated clip: nothing is looped, repeated or frozen. The joined MP4 is trimmed to exactly `duration × 16` frames, decoded and checked before the job reports `completed`.
+
+- **Scene plan**: `POST /api/v1/generations/scene-plan` (same body as a generation) returns how the prompt was understood: characters (count, clothing, position, action), place, weather, time, camera, scenes, which prompt instructions were planned / partly / not understood, and the model's known limitations (exact counts above 4, left/right, text in images…). The Create page shows this under **Plan scenes** and lets you edit scene text and length before generating.
+- **Planner**: rule-based (`app/services/scene_planner.py`). Story prompts ("She makes tea. She walks to a park…" or "walking…, meeting…, returning…") become ordered scenes; descriptive prompts stay one scene. Every clip prompt repeats the shared characters, setting, camera and style so scenes stay consistent; the image model gets the same plan.
+- **Progress**: jobs report `scenes[]` with `status` and `clips_completed`, and `clips_total` / `clips_completed`. The UI's time estimate comes only from this job's own measured pace after the first clip.
+- **Retry**: `POST /api/v1/generations/{id}/scenes/{n}/retry` re-queues a failed long video; clips already on disk are reused. After a backend restart the job is gone, but resubmitting the same request with the same seed reuses the clips too. Parts are deleted once the final MP4 is written.
+- **Time**: about 2 min per 5 s draft clip on an RTX 3050, so 120 s (about 30 clips) took ~65 min of GPU time in testing; close other GPU apps, a full GPU slows this down a lot.
+
 ### Troubleshooting
 
 - **`model_not_downloaded`**: the weights are missing or a shard is incomplete; re-run the download in step 3 (it resumes).
+- **`gpu_error`** ("CUDA error: unknown error"): a GPU driver reset, seen on Windows/WSL when video memory is nearly full. The backend process cannot use the GPU again until it restarts: run `docker compose restart backend`, then send the same request **with the same seed** (shown in the job's settings). Finished clips of a long video are stored by content (`outputs/videos/parts/<hash>/`) and are reused, so only the missing clips are generated.
 - **`ai_libraries_missing`**: install `requirements-video.txt` (`sentencepiece`, `ftfy`, `imageio`, `imageio-ffmpeg`), or rebuild the Docker image.
 - **`gpu_out_of_memory`**: use Draft, 2 s, fewer steps; close other GPU-heavy apps (games, other AI tools).
 - **`out_of_memory` or the container restarts while loading**: the text encoder needs ~15 GB of free RAM. Raise `memory` in `.wslconfig` or stop other containers.

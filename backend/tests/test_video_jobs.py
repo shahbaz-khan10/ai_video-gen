@@ -243,7 +243,7 @@ def test_info_reports_video_limits_and_availability(vclient: TestClient) -> None
     assert body["video"]["model_id"] == "test/fake-video-model"
     assert "text-to-video" in body["generation"]["modes_available"]
     limits = body["limits"]
-    assert limits["video_duration_options_seconds"] == [2, 3, 5]
+    assert limits["video_duration_options_seconds"] == [2, 3, 5, 15, 30, 60, 90, 120]
     assert limits["video_max_frames"] == 81 and limits["video_fps"] == 16
     assert {"resolution": "large", "aspect_ratio": "16:9", "width": 832, "height": 480} in limits["video_sizes"]
 
@@ -258,9 +258,142 @@ def test_ready_reports_video_model_separately(vclient: TestClient, video_engine:
     assert "text-to-video" not in info["generation"]["modes_available"]
 
 
-def test_wan_license_is_reported(settings: Settings, engine: FakeImageEngine) -> None:
+def test_fastwan_license_and_fixed_steps_are_reported(settings: Settings, engine: FakeImageEngine) -> None:
     with TestClient(create_app(settings, engine=engine)) as client:  # the real (unloaded) Wan engine
-        info = client.get("/api/v1/info").json()["video"]
-    assert info["model_id"] == "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"
+        body = client.get("/api/v1/info").json()
+    info = body["video"]
+    assert info["model_id"] == "FastVideo/FastWan2.1-T2V-1.3B-Diffusers"  # the default sampler
+    assert body["limits"]["video_sampler"] == "fastwan" and body["limits"]["video_steps"] == [3]
     assert info["license"]["name"] == "Apache License 2.0"
     assert info["available"] is False  # no weights in the test cache
+
+
+# --- long videos (15-120 s) ------------------------------------------------------------------
+
+
+class FlakyVideoEngine(FakeVideoEngine):
+    """Fails exactly once on one clip, to test that a retry regenerates only what is missing."""
+
+    def __init__(self, fail_on_call: int) -> None:
+        super().__init__()
+        self.fail_on_call = fail_on_call
+
+    def generate(self, params, deadline, output_path):
+        if len(self.calls) + 1 == self.fail_on_call:
+            self.fail_on_call = -1
+            self.calls.append(params)
+            raise VideoEngineError("gpu_out_of_memory", "The GPU ran out of memory.", retryable=True)
+        return super().generate(params, deadline, output_path)
+
+
+def test_long_video_is_assembled_from_real_clips_with_exact_duration(
+    vclient: TestClient, video_engine: FakeVideoEngine, settings: Settings
+) -> None:
+    created = vclient.post(CREATE, json=video(duration_seconds=15))
+    assert created.status_code == 202, created.text
+    job = created.json()
+    assert job["clips_total"] >= 3 and job["clips_completed"] == 0
+    assert all(s["status"] == "queued" for s in job["scenes"])
+
+    done = wait_for_status(vclient, job["id"], {"completed", "failed"}, timeout=60)
+    assert done["status"] == "completed", done["error"]
+    assert done["video"]["num_frames"] == 15 * 16 and done["video"]["duration_seconds"] == 15.0
+    assert done["clips_completed"] == done["clips_total"] == len(video_engine.calls)
+    assert all(s["status"] == "completed" for s in done["scenes"])
+    # Each clip is its own generation (distinct seeds), never a repeated or looped clip.
+    assert len({c.seed for c in video_engine.calls}) == len(video_engine.calls)
+    assert all(c.num_frames <= 81 for c in video_engine.calls)
+    parts = settings.video_output_dir / "parts"
+    assert not parts.exists() or not any(parts.iterdir())  # temporary clips cleaned up
+
+
+def test_user_scenes_and_durations_are_used(vclient: TestClient, video_engine: FakeVideoEngine) -> None:
+    scenes = [
+        {"description": "A young man walks through a village", "duration_seconds": 10},
+        {"description": "He meets an old farmer", "duration_seconds": 20},
+    ]
+    job = vclient.post(CREATE, json=video(duration_seconds=30, scenes=scenes, style="documentary")).json()
+    assert [s["duration_seconds"] for s in job["scenes"]] == [10, 20]
+    assert job["scenes"][1]["prompt"].startswith("He meets an old farmer.")
+    done = wait_for_status(vclient, job["id"], {"completed", "failed"}, timeout=60)
+    assert done["video"]["num_frames"] == 30 * 16
+    assert video_engine.calls[-1].prompt.startswith("He meets an old farmer.")
+
+
+def test_failed_scene_can_be_retried_without_regenerating_finished_clips(settings: Settings, engine: FakeImageEngine) -> None:
+    flaky = FlakyVideoEngine(fail_on_call=3)
+    with TestClient(create_app(settings, engine=engine, video_engine=flaky)) as client:
+        job = client.post(CREATE, json=video(duration_seconds=15)).json()
+        failed = wait_for_status(client, job["id"], {"completed", "failed"}, timeout=60)
+        assert failed["status"] == "failed" and failed["error"]["code"] == "gpu_out_of_memory"
+        bad = [s for s in failed["scenes"] if s["status"] == "failed"]
+        assert len(bad) == 1 and failed["video"] is None
+        calls_before = len(flaky.calls)
+
+        retried = client.post(f"{CREATE}/{job['id']}/scenes/{bad[0]['index']}/retry")
+        assert retried.status_code == 202
+        done = wait_for_status(client, job["id"], {"completed", "failed"}, timeout=60)
+        assert done["status"] == "completed"
+        # Only the failed clip and the ones after it were generated again.
+        assert len(flaky.calls) - calls_before == done["clips_total"] - 2
+
+
+def test_after_a_restart_the_same_request_reuses_finished_clips(settings: Settings, engine: FakeImageEngine) -> None:
+    # Jobs live in memory; a CUDA driver error needs a new backend process. Clips are kept by content.
+    request = video(duration_seconds=15, seed=99)
+    flaky = FlakyVideoEngine(fail_on_call=3)
+    with TestClient(create_app(settings, engine=engine, video_engine=flaky)) as client:
+        job = client.post(CREATE, json=request).json()
+        assert wait_for_status(client, job["id"], {"completed", "failed"}, timeout=60)["status"] == "failed"
+
+    fresh = FakeVideoEngine()  # "restarted" backend
+    with TestClient(create_app(settings, engine=engine, video_engine=fresh)) as client:
+        job = client.post(CREATE, json=request).json()
+        done = wait_for_status(client, job["id"], {"completed", "failed"}, timeout=60)
+        assert done["status"] == "completed"
+        assert len(fresh.calls) == done["clips_total"] - 2  # the two finished clips were not generated again
+
+
+def test_retry_is_refused_for_unfailed_or_unknown_scenes(vclient: TestClient) -> None:
+    job = vclient.post(CREATE, json=video(duration_seconds=15)).json()
+    wait_for_status(vclient, job["id"], {"completed"}, timeout=60)
+    assert vclient.post(f"{CREATE}/{job['id']}/scenes/1/retry").status_code == 409
+    assert vclient.post(f"{CREATE}/{uuid.uuid4()}/scenes/1/retry").status_code == 404
+
+
+@pytest.mark.parametrize(
+    "payload",
+    [
+        {"duration_seconds": 5, "scenes": [{"description": "x"}]},  # scenes only for long videos
+        {"duration_seconds": 30, "num_frames": 33},
+        {"duration_seconds": 45},  # not an offered duration
+        {"duration_seconds": 15, "scenes": [{"description": f"s{i}"} for i in range(10)]},  # < 2 s per scene
+    ],
+)
+def test_invalid_long_video_requests_are_rejected(vclient: TestClient, payload: dict) -> None:
+    assert vclient.post(CREATE, json=video(**payload)).status_code == 422
+
+
+def test_last_frame_continuity_is_reported_unavailable(vclient: TestClient) -> None:
+    res = vclient.post(CREATE, json=video(duration_seconds=15, continuity="last_frame"))
+    assert res.status_code == 501 and res.json()["error"]["code"] == "continuity_not_available"
+
+
+def test_scene_plan_endpoint_reports_coverage_and_limitations(vclient: TestClient) -> None:
+    prompt = (
+        "A realistic school classroom. One male teacher wearing a white shirt and black trousers stands at the "
+        "front beside a blackboard, teaching ten students sitting at separate desks."
+    )
+    plan = vclient.post(f"{CREATE}/scene-plan", json={"mode": "text-to-image", "prompt": prompt}).json()
+    assert plan["original_prompt"] == prompt and plan["people_count"] == 11
+    assert all(i["status"] == "planned" for i in plan["instructions"])
+    assert any("10 students" in note for note in plan["limitations"])
+    assert plan["model_prompt"].startswith(prompt)
+
+
+def test_video_jobs_carry_the_exact_model_prompt(vclient: TestClient, video_engine: FakeVideoEngine) -> None:
+    job = vclient.post(CREATE, json=video(style="anime")).json()
+    wait_for_status(vclient, job["id"], {"completed"})
+    sent = video_engine.calls[0].prompt
+    assert sent == job["plan"]["model_prompt"]
+    assert sent.startswith("Waves rolling onto a beach at sunset.") and "anime" in sent  # style now reaches video

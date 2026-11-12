@@ -7,6 +7,7 @@ import type {
   ApiErrorBody,
   ApiErrorDetail,
   GenerationJob,
+  GenerationPlan,
   GenerationPayload,
   HealthResponse,
   ImageModelStatus,
@@ -118,4 +119,10 @@ export const api = {
   createGeneration: (payload: GenerationPayload) =>
     request<GenerationJob>("/generations", { method: "POST", body: JSON.stringify(payload) }),
   getGeneration: (id: string) => request<GenerationJob>(`/generations/${encodeURIComponent(id)}`),
+  /** How the prompt will be understood (characters, place, camera, scenes, coverage, limitations). */
+  scenePlan: (payload: GenerationPayload) =>
+    request<GenerationPlan>("/generations/scene-plan", { method: "POST", body: JSON.stringify(payload) }),
+  /** Retries one failed scene of a long video; finished clips are reused. */
+  retryScene: (id: string, index: number) =>
+    request<GenerationJob>(`/generations/${encodeURIComponent(id)}/scenes/${index}/retry`, { method: "POST" }),
 };

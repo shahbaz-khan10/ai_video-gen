@@ -88,6 +88,21 @@ class VideoStorage:
             duration_seconds=round(frames / fps, 2),
         )
 
+    def parts_dir(self, job_id: str) -> Path:
+        """Clips of a long video, kept until the final MP4 exists so a failed scene can be retried alone.
+        Lives in a sub-folder, so ``resolve`` (top-level ``<uuid>.mp4`` only) never serves a part."""
+        if not _JOB_ID.match(job_id):
+            raise ValueError("Job IDs must be UUIDs")
+        path = self.output_dir / "parts" / job_id
+        path.mkdir(parents=True, exist_ok=True)
+        return path
+
+    def discard_parts(self, job_id: str) -> None:
+        import shutil
+
+        if _JOB_ID.match(job_id):
+            shutil.rmtree(self.output_dir / "parts" / job_id, ignore_errors=True)
+
     def discard(self, job_id: str) -> None:
         """Removes a failed job's temporary file. Finished videos are never touched."""
         try:

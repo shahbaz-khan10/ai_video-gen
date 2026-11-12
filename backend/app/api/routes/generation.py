@@ -15,6 +15,7 @@ from app.schemas.generation import (
     GenerationRequest,
     ValidationResponse,
 )
+from app.schemas.scene_plan import ScenePlan
 from app.services.prompt_understanding import PromptUnderstandingEngine
 
 router = APIRouter(prefix="/generations", tags=["generations"])
@@ -91,3 +92,28 @@ def get_generation(
     generation_id: uuid.UUID = Path(description="Generation ID (UUID)."),
 ) -> GenerationJob:
     return service.get(str(generation_id))
+
+
+@router.post(
+    "/scene-plan",
+    response_model=ScenePlan,
+    responses=_validation_error,
+    summary="How a prompt will be understood: characters, place, camera, scenes, coverage and limitations",
+)
+def scene_plan(request: GenerationRequest, service: GenerationServiceDep) -> ScenePlan:
+    return service.plan(request)
+
+
+@router.post(
+    "/{generation_id}/scenes/{index}/retry",
+    response_model=GenerationJob,
+    status_code=202,
+    responses={404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 422: {"model": ErrorResponse}},
+    summary="Retry one failed scene of a long video; finished clips are reused",
+)
+def retry_scene(
+    service: GenerationServiceDep,
+    generation_id: uuid.UUID = Path(description="Generation ID (UUID)."),
+    index: int = Path(ge=1, le=24, description="Scene number (1-based)."),
+) -> GenerationJob:
+    return service.retry_scene(str(generation_id), index)

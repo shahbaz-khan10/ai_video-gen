@@ -62,6 +62,7 @@ class Limits(BaseModel):
     video_duration_options_seconds: list[int]
     video_sizes: list[ImageSizeOption]
     video_steps: list[int]
+    video_sampler: str = Field("none", description="fastwan (3 fixed steps) or wan (configurable steps).")
     video_max_frames: int
     video_fps: int
 

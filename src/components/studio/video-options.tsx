@@ -6,7 +6,7 @@ import type { VideoResolution } from "@/types/api";
 import type { AspectRatio } from "@/types/studio";
 import { OptionGroup } from "./option-group";
 
-/** Clip lengths the video model supports (from /info). Wan 1.3B tops out at 81 frames, about 5 s. */
+/** Lengths the backend supports (from /info). Up to 5 s is one clip; longer videos are joined from scene clips. */
 export function VideoDurationSelector({
   options,
   fps,
@@ -21,15 +21,15 @@ export function VideoDurationSelector({
   return (
     <OptionGroup
       legend="Clip length"
-      hint={`The model renders at ${fps} fps and at most about 5 seconds. Longer clips take proportionally longer.`}
+      hint={`The model renders ${fps} fps clips of at most 5 seconds. Longer videos are split into scenes, each made of several clips, and joined. Time grows with length.`}
       options={options.map((s) => ({ id: String(s) }))}
       value={String(value)}
       onChange={(v) => onChange(Number(v))}
-      className={options.length >= 3 ? "grid-cols-3" : "grid-cols-2"}
+      className={options.length >= 4 ? "grid-cols-4" : options.length === 3 ? "grid-cols-3" : "grid-cols-2"}
       renderOption={(id) => (
         <span className="flex items-center justify-center gap-1.5 py-2 text-xs font-medium">
           <Timer className="size-3.5 opacity-70" aria-hidden />
-          {id}s
+          {formatSeconds(Number(id))}
         </span>
       )}
     />
@@ -49,7 +49,7 @@ export function VideoSizeSelector({
   return (
     <OptionGroup
       legend="Video size"
-      hint="Draft is the quickest way to check an idea; 480p is the model's native size."
+      hint="Draft (~320p) is the quickest way to check an idea; Quality is 480p, the model's native size."
       options={VIDEO_RESOLUTIONS}
       value={value}
       onChange={onChange}
@@ -71,4 +71,10 @@ export function VideoSizeSelector({
       }}
     />
   );
+}
+
+function formatSeconds(s: number): string {
+  if (s < 60) return `${s}s`;
+  const m = Math.floor(s / 60);
+  return s % 60 ? `${m}m ${s % 60}s` : `${m}m`;
 }

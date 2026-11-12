@@ -1,0 +1,42 @@
+{
+  "test": "T1_classroom",
+  "kind": "image",
+  "original_prompt": "A realistic school classroom. One male teacher wearing a white shirt and black trousers stands at the front beside a blackboard, teaching ten students sitting at separate desks. The teacher must be visible at the front. Students must remain seated.",
+  "scene_plan": {
+    "scene": {
+      "category": "indoor",
+      "environment": "educational classroom with desks, chairs, and learning materials",
+      "weather": null,
+      "time_of_day": null,
+      "lighting": "authentic natural lighting, soft organic shadows, true-to-life skin illumination"
+    },
+    "people": {
+      "count": 0,
+      "individuals": []
+    },
+    "composition": {
+      "shot_type": "medium shot from waist up",
+      "camera": "35mm prime lens, f/2.8 aperture, natural eye-level perspective, authentic photography framing",
+      "spatial_arrangement": "environmental landscape framing, balanced architectural proportions, leading lines",
+      "objects": [
+        "desk"
+      ]
+    },
+    "prompts": {
+      "positive": "authentic raw 35mm color photograph, A realistic school classroom. One male teacher wearing a white shirt and black trousers stands at the front beside a blackboard, teaching ten students sitting at separate desks. The teacher must be visible at the front. Students must remain seated., educational classroom with desks, chairs, and learning materials, authentic natural lighting, soft organic shadows, true-to-life skin illumination, 35mm prime lens, f/2.8 aperture, natural eye-level perspective, authentic photography framing, shot on professional camera, sharp focus, natural color grading, no airbrushing",
+      "negative": "bad anatomy, deformed face, distorted eyes, cross-eyed, malformed iris, unnatural pupils, disfigured body, extra limbs, missing arms, missing legs, extra fingers, mutated hands, fused fingers, too many fingers, missing fingers, poorly drawn hands, poorly drawn face, cloned face, identical faces on different people, merged bodies, conjoined twins, plastic skin, porcelain skin, airbrushed, cartoon, 3d render, anime, cgi, illustration, painting, oversaturated, blurry, out of focus, low quality, watermark, signature, bad proportions, unnatural poses, floating limbs"
+    }
+  },
+  "result": {
+    "model": "SG161222/RealVisXL_V5.0_Lightning",
+    "model_prompt": "A realistic school classroom. One male teacher wearing a white shirt and black trousers stands at the front beside a blackboard, teaching ten students sitting at separate desks. The teacher must be visible at the front. Students must remain seated., photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting",
+    "output": "T1_classroom.png",
+    "resolution": "1344x768",
+    "steps": 6,
+    "load_seconds": 32.3,
+    "generate_seconds": 30.0,
+    "peak_vram_gb": 5.37,
+    "device": "cuda"
+  },
+  "peak_process_ram_gb": 8.1
+}

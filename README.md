@@ -1,6 +1,6 @@
 # AI Video Studio
 
-AI image and video generation studio: a Next.js frontend and a FastAPI backend (Phase 5). **Text to Image** (RealVisXL V5.0 Lightning) and **Text to Video** (Wan2.1 T2V 1.3B, Apache-2.0) run on local open-weight models on your own GPU; no paid or remote API is used. Image to Video is not implemented yet. There is no auth, database or payment, and project cards are mock data.
+AI image and video generation studio: a Next.js frontend and a FastAPI backend (Phase 5). **Text to Image** (RealVisXL V5.0 Lightning) and **Text to Video** (Wan2.1 T2V 1.3B with the FastWan2.1 3-step transformer, both Apache-2.0; 2-5 s clips or 15-120 s videos joined from planned scenes) run on local open-weight models on your own GPU; no paid or remote API is used. Image to Video is not implemented yet. There is no auth, database or payment, and project cards are mock data.
 
 ## Stack
 
@@ -16,7 +16,7 @@ The app has two parts: this Next.js frontend and the FastAPI backend in [`backen
 docker compose up -d --build   # frontend http://localhost:3001, backend http://localhost:8003 (docs at /docs)
 ```
 
-The models (RealVisXL ~6.9 GB, Wan2.1 ~29 GB) live in the `backend-models` volume; first-time download and the 24 GB Docker RAM setting are in [backend/README.md](backend/README.md#text-to-video-phase-5).
+The models (RealVisXL ~6.9 GB, Wan2.1 ~29 GB, FastWan transformer ~6 GB) live in the `backend-models` volume; first-time download and the 24 GB Docker RAM setting are in [backend/README.md](backend/README.md#text-to-video-phase-5).
 
 **Without Docker:**
 

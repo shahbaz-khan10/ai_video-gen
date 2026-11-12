@@ -206,6 +206,24 @@ class DiffusersImageEngine:
             finally:
                 self._loading = False
 
+    def unload(self) -> None:
+        """Frees the model's RAM and VRAM (e.g. before a video job). The next image job loads it again."""
+        with self._lock:
+            if self._pipe is None:
+                return
+            self._pipe = None
+            self._device = None
+            self._optimizations = []
+            gc.collect()
+            try:
+                import torch
+
+                if torch.cuda.is_available():
+                    torch.cuda.empty_cache()
+            except ImportError:
+                pass
+            logger.info("Image model unloaded to free memory")
+
     def _resolve_device(self, torch: Any) -> str:
         cuda = torch.cuda.is_available()
         if self._requested_device == "cuda" and not cuda:

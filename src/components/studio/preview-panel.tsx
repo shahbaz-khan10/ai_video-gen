@@ -26,8 +26,8 @@ type PreviewPanelProps = {
   aspectRatio: AspectRatio;
   details: string[];
   sourceImage: SelectedImage | null;
-  /** A real generated image from the backend. */
-  result: { src: string; alt: string } | null;
+  /** A real generated image or video from the backend. */
+  result: { kind: "image" | "video"; src: string; alt: string } | null;
   /** Shown over the frame while a job is in progress. */
   busyMessage: string | null;
   /** Status, errors and actions below the preview. */
@@ -89,8 +89,22 @@ export function PreviewPanel({
                 transition={{ duration: 0.45 }}
                 className="absolute inset-0"
               >
-                {/* eslint-disable-next-line @next/next/no-img-element -- image served by our own API */}
-                <img src={result.src} alt={result.alt} className="size-full object-cover" />
+                {result.kind === "video" ? (
+                  <video
+                    src={result.src}
+                    aria-label={result.alt}
+                    controls
+                    autoPlay
+                    loop
+                    muted
+                    playsInline
+                    preload="auto"
+                    className="size-full bg-black object-contain"
+                  />
+                ) : (
+                  // eslint-disable-next-line @next/next/no-img-element -- image served by our own API
+                  <img src={result.src} alt={result.alt} className="size-full object-cover" />
+                )}
               </motion.figure>
             ) : showSource ? (
               <motion.figure
@@ -122,7 +136,9 @@ export function PreviewPanel({
                 <p className="mt-1.5 max-w-xs text-xs leading-relaxed text-fg-muted">
                   {mode === "text-to-image"
                     ? "Describe your shot and press Generate. The image renders here on your local model."
-                    : "Video generation is coming soon. You can set up the shot and check its settings."}
+                    : mode === "text-to-video"
+                    ? "Describe the scene and its motion, then press Generate. The clip plays here when it is ready."
+                    : "Image-to-video is coming soon. You can set up the shot and check its settings."}
                 </p>
               </motion.div>
             )}

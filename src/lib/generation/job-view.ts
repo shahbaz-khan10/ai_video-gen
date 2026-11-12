@@ -1,5 +1,5 @@
 /**
- * Pure state logic for a text-to-image job in the UI: what to show, what to say,
+ * Pure state logic for a text-to-image or text-to-video job in the UI: what to show, what to say,
  * and when to poll next. No React, no fetch, so it is unit-tested directly
  * (job-view.test.ts). Progress is described in words; no percentages are invented.
  */
@@ -36,6 +36,8 @@ const ERROR_TITLES: Record<string, string> = {
   model_load_failed: "Model failed to load",
   generation_timeout: "Generation timed out",
   image_save_failed: "Couldn't save the image",
+  video_save_failed: "Couldn't save the video",
+  video_invalid: "Video file was invalid",
   queue_full: "Queue is full",
   mode_not_available: "Not available yet",
   engine_not_configured: "Generation is turned off",
@@ -49,21 +51,26 @@ export function errorTitle(code: string | undefined): string {
 /** Server-side setup problems the user can't fix by retrying from the browser. */
 const SETUP_ERRORS = new Set(["model_not_downloaded", "ai_libraries_missing", "engine_not_configured", "mode_not_available"]);
 
+function isVideoJob(job: GenerationJob): boolean {
+  return job.settings.mode === "text-to-video";
+}
+
 export function viewFromJob(job: GenerationJob): JobView {
+  const noun = isVideoJob(job) ? "video" : "image";
   switch (job.status) {
     case "queued":
       return { phase: "queued", job, position: job.queue_position };
     case "processing":
       return { phase: "processing", job };
     case "completed":
-      // Only trust "completed" when the server actually returned an image.
-      return job.image
+      // Only trust "completed" when the server actually returned the file.
+      return (isVideoJob(job) ? job.video : job.image)
         ? { phase: "completed", job }
         : {
             phase: "failed",
             job,
             title: "Generation failed",
-            message: "The server reported success but returned no image.",
+            message: `The server reported success but returned no ${noun}.`,
             retryable: true,
           };
     case "failed":
@@ -71,7 +78,7 @@ export function viewFromJob(job: GenerationJob): JobView {
         phase: "failed",
         job,
         title: errorTitle(job.error?.code),
-        message: job.error?.message ?? "Image generation failed on the server.",
+        message: job.error?.message ?? `${noun === "video" ? "Video" : "Image"} generation failed on the server.`,
         retryable: job.error?.retryable ?? true,
       };
   }
@@ -105,6 +112,11 @@ export function progressMessage(view: JobView, elapsedSeconds: number, modelStat
         ? `Waiting in the queue: ${view.position} ${view.position === 1 ? "job" : "jobs"} ahead.`
         : "Queued. Starting shortly…";
     case "processing": {
+      if (isVideoJob(view.job)) {
+        // Video on an 8 GB GPU takes minutes; the server reports no per-step progress, so none is shown.
+        const base = "Generating your video on the local model. This usually takes several minutes.";
+        return elapsedSeconds >= 5 ? `${base} ${formatElapsed(elapsedSeconds)} elapsed.` : base;
+      }
       const loading = modelState !== "loaded";
       const base = loading
         ? "Loading the model and generating. The first image takes longer."

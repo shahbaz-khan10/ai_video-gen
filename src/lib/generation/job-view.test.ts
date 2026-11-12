@@ -166,3 +166,68 @@ describe("helpers", () => {
     assert.ok(parseSeed(String(2 ** 32)).error);
   });
 });
+
+function videoJob(overrides: Partial<GenerationJob> = {}): GenerationJob {
+  const base = job();
+  return job({
+    settings: { ...base.settings, mode: "text-to-video", duration_seconds: 2, width: 576, height: 320, steps: 25, num_frames: 33, fps: 16 },
+    model_id: "Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
+    ...overrides,
+  });
+}
+
+const VIDEO = {
+  url: "/api/v1/files/videos/6f1c3c1e-0000-4000-8000-000000000000.mp4",
+  download_url: "/api/v1/files/videos/6f1c3c1e-0000-4000-8000-000000000000.mp4?download=true",
+  content_type: "video/mp4" as const,
+  width: 576,
+  height: 320,
+  size_bytes: 640_000,
+  num_frames: 33,
+  duration_seconds: 2.06,
+};
+
+describe("viewFromJob (text-to-video)", () => {
+  it("is busy while queued and processing", () => {
+    assert.equal(isBusy(viewFromJob(videoJob({ status: "queued" }))), true);
+    assert.equal(isBusy(viewFromJob(videoJob({ status: "processing" }))), true);
+  });
+
+  it("only reports success when the server returned a real video", () => {
+    assert.equal(viewFromJob(videoJob({ status: "completed", video: VIDEO })).phase, "completed");
+    const missing = viewFromJob(videoJob({ status: "completed", video: null }));
+    assert.equal(missing.phase, "failed");
+    assert.ok(missing.phase === "failed" && missing.message.includes("no video"));
+  });
+
+  it("an image on a video job does not count as success", () => {
+    const view = viewFromJob(videoJob({ status: "completed", image: { url: "/x.png", download_url: "/x.png", content_type: "image/png", width: 1, height: 1, size_bytes: 1 } }));
+    assert.equal(view.phase, "failed");
+  });
+
+  it("explains an undecodable video and keeps it retryable", () => {
+    const view = viewFromJob(
+      videoJob({ status: "failed", error: { code: "video_invalid", message: "The video file could not be decoded.", retryable: true } }),
+    );
+    assert.ok(view.phase === "failed");
+    assert.equal(view.title, "Video file was invalid");
+    assert.equal(view.retryable, true);
+  });
+
+  it("falls back to a video-specific failure message", () => {
+    const view = viewFromJob(videoJob({ status: "failed", error: null }));
+    assert.ok(view.phase === "failed" && view.message.startsWith("Video generation failed"));
+  });
+
+  it("does not offer retry when the video weights are missing", () => {
+    const view = viewFromSubmitError({ kind: "http", status: 503, code: "model_not_downloaded", message: "Not downloaded." });
+    assert.ok(view.phase === "submit-error" && !view.retryable);
+  });
+
+  it("describes video progress honestly, without percentages", () => {
+    const msg = progressMessage(viewFromJob(videoJob({ status: "processing" })), 130, null);
+    assert.match(msg, /several minutes/);
+    assert.match(msg, /2m 10s elapsed/);
+    assert.doesNotMatch(msg, /%/);
+  });
+});

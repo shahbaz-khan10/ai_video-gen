@@ -35,6 +35,20 @@ export type ImageModelStatus = {
   can_generate: boolean;
 };
 
+/** Video size tiers: standard ≈ 320p draft, large = 480p. 720p is not offered by the 1.3B model. */
+export type VideoResolution = "standard" | "large";
+
+export type VideoAvailability = {
+  available: boolean;
+  engine: string;
+  model_id: string | null;
+  state: ImageModelState;
+  detail: string;
+  device: string | null;
+  license: { name: string; url: string; attribution: string } | null;
+  message: string;
+};
+
 export type InfoResponse = {
   name: string;
   version: string;
@@ -52,6 +66,12 @@ export type InfoResponse = {
     image_sizes: { resolution: ImageResolution; aspect_ratio: AspectRatio; width: number; height: number }[];
     image_steps: number[];
     max_seed: number;
+    /** Text-to-video: the video model's real limits. Anything else is rejected by the API. */
+    video_duration_options_seconds: number[];
+    video_sizes: { resolution: VideoResolution; aspect_ratio: AspectRatio; width: number; height: number }[];
+    video_steps: number[];
+    video_max_frames: number;
+    video_fps: number;
   };
   generation: {
     available: boolean;
@@ -61,6 +81,7 @@ export type InfoResponse = {
     license: { name: string; url: string; attribution: string } | null;
     message: string;
   };
+  video: VideoAvailability;
 };
 
 export type SourceImageInfo = {
@@ -80,7 +101,13 @@ export type GenerationPayload =
       guidance_scale?: number;
       model_id?: string;
     })
-  | (GenerationBase & { mode: "text-to-video"; duration_seconds: number })
+  | (GenerationBase & {
+      mode: "text-to-video";
+      duration_seconds: number;
+      resolution?: VideoResolution;
+      steps?: number;
+      seed?: number;
+    })
   | (GenerationBase & { mode: "image-to-video"; duration_seconds: number; source_image: SourceImageInfo });
 
 export type ScenePlan = {
@@ -111,6 +138,8 @@ export type NormalizedSettings = {
   width: number | null;
   height: number | null;
   steps: number | null;
+  num_frames?: number | null;
+  fps?: number | null;
   seed: number | null;
   negative_prompt?: string | null;
   guidance_scale?: number | null;
@@ -118,6 +147,18 @@ export type NormalizedSettings = {
 };
 
 export type GenerationStatus = "queued" | "processing" | "completed" | "failed";
+
+export type GeneratedVideo = {
+  /** Path on the API, e.g. /api/v1/files/videos/<id>.mp4. Resolve with `assetUrl`. */
+  url: string;
+  download_url: string;
+  content_type: "video/mp4";
+  width: number;
+  height: number;
+  size_bytes: number;
+  num_frames: number | null;
+  duration_seconds: number | null;
+};
 
 export type GeneratedImage = {
   /** Path on the API, e.g. /api/v1/files/images/<id>.png. Resolve with `assetUrl`. */
@@ -142,6 +183,7 @@ export type GenerationJob = {
   finished_at: string | null;
   queue_position: number | null;
   image: GeneratedImage | null;
+  video?: GeneratedVideo | null;
   error: JobError | null;
 };
 

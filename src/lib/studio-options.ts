@@ -1,5 +1,5 @@
 import { Camera, Clapperboard, Film, ImageIcon, ImagePlay, Sparkles, Users, Eye } from "lucide-react";
-import type { ImageResolution } from "@/types/api";
+import type { ImageResolution, VideoResolution } from "@/types/api";
 import type {
   AspectRatio,
   AspectRatioOption,
@@ -109,5 +109,31 @@ export const IMAGE_RESOLUTIONS: { id: ImageResolution; label: string; hint: stri
 /** Step presets used until /info answers; match the backend's default model (RealVisXL Lightning, 4-8 steps). */
 export const DEFAULT_IMAGE_STEPS = [4, 6, 8];
 
-/** Generation modes that actually run on a model today. */
-export const LIVE_MODES: GenerationMode[] = ["text-to-image"];
+/** Generation modes that actually run on a model today. Image-to-video arrives in a later phase. */
+export const LIVE_MODES: GenerationMode[] = ["text-to-image", "text-to-video"];
+
+/**
+ * Text-to-video defaults, used until /info answers. They match the backend's Wan2.1 T2V 1.3B limits:
+ * at most 81 frames (~5 s at 16 fps), 320p draft or 480p, 10-50 denoising steps.
+ */
+export const DEFAULT_VIDEO_DURATIONS = [2, 3, 5];
+export const DEFAULT_VIDEO_STEPS = [15, 25, 40];
+
+/** Must match VIDEO_SIZES in backend/app/schemas/generation.py. */
+export const VIDEO_SIZES: Record<VideoResolution, Record<AspectRatio, { width: number; height: number }>> = {
+  standard: {
+    "1:1": { width: 416, height: 416 },
+    "16:9": { width: 576, height: 320 },
+    "9:16": { width: 320, height: 576 },
+  },
+  large: {
+    "1:1": { width: 624, height: 624 },
+    "16:9": { width: 832, height: 480 },
+    "9:16": { width: 480, height: 832 },
+  },
+};
+
+export const VIDEO_RESOLUTIONS: { id: VideoResolution; label: string; hint: string }[] = [
+  { id: "standard", label: "Draft", hint: "About 320p. Much faster; good for checking motion and framing." },
+  { id: "large", label: "480p", hint: "The model's trained size. Sharper, but takes roughly twice as long." },
+];

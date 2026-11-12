@@ -1,0 +1,5 @@
+# Local text-to-video (Phase 5, Wan2.1 T2V 1.3B). Install after requirements-ai.txt.
+sentencepiece==0.2.3   # UMT5 tokenizer
+ftfy==6.3.1            # Wan prompt cleaning
+imageio==2.38.1        # MP4 writing and validation
+imageio-ffmpeg==0.8.1  # bundles its own ffmpeg binary, so no system FFmpeg is required

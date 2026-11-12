@@ -53,6 +53,22 @@ DurationSeconds = Literal[4, 6, 8]
 # Values the UI may send; the engine clamps them to what the chosen model supports.
 ImageSteps = Literal[1, 2, 4, 5, 6, 8, 15, 20, 25, 30, 35]
 
+# --- Text-to-video (Wan2.1 T2V 1.3B) -------------------------------------------------
+# Wan generates 4k+1 frames, up to 81 (about 5 s at its native 16 fps). Longer clips are not supported.
+VIDEO_DURATION_OPTIONS_SECONDS = (2, 3, 5)
+DEFAULT_VIDEO_DURATION_SECONDS = 2
+VideoDurationSeconds = Literal[2, 3, 5]
+VIDEO_MAX_FRAMES = 81
+VIDEO_STEP_OPTIONS = (15, 25, 40)
+VIDEO_MIN_STEPS, VIDEO_MAX_STEPS = 10, 50
+
+
+def video_frames_for(duration_seconds: int, fps: int) -> int:
+    """Smallest valid Wan frame count (4k+1) covering the duration, capped at VIDEO_MAX_FRAMES."""
+    frames = duration_seconds * fps + 1
+    frames += (-(frames - 1)) % 4
+    return min(frames, VIDEO_MAX_FRAMES)
+
 
 class ImageResolution(StrEnum):
     """Size tiers. Exact pixels come from IMAGE_SIZES, never from the client."""
@@ -79,6 +95,22 @@ IMAGE_SIZES: dict[ImageResolution, dict[AspectRatio, tuple[int, int]]] = {
         AspectRatio.SQUARE: (1024, 1024),
         AspectRatio.LANDSCAPE: (1344, 768),
         AspectRatio.PORTRAIT: (768, 1344),
+    },
+}
+
+
+# Wan2.1 sizes: multiples of 16 (VAE x8, transformer patch x2). 832x480 is the 1.3B model's trained 480p
+# size; "standard" is a smaller, much faster draft. 720p ("high") is unstable on the 1.3B model.
+VIDEO_SIZES: dict[ImageResolution, dict[AspectRatio, tuple[int, int]]] = {
+    ImageResolution.STANDARD: {
+        AspectRatio.SQUARE: (416, 416),
+        AspectRatio.LANDSCAPE: (576, 320),
+        AspectRatio.PORTRAIT: (320, 576),
+    },
+    ImageResolution.LARGE: {
+        AspectRatio.SQUARE: (624, 624),
+        AspectRatio.LANDSCAPE: (832, 480),
+        AspectRatio.PORTRAIT: (480, 832),
     },
 }
 
@@ -128,11 +160,26 @@ class TextToImageRequest(_GenerationBase):
 
 class TextToVideoRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_VIDEO]
-    duration_seconds: DurationSeconds = DEFAULT_DURATION_SECONDS
-    resolution: ImageResolution = ImageResolution.STANDARD
-    steps: int | None = Field(None, ge=1, le=50, description="Inference steps (model dependent)")
+    duration_seconds: VideoDurationSeconds = Field(
+        DEFAULT_VIDEO_DURATION_SECONDS, description="Clip length. The model generates at most 81 frames (~5 s)."
+    )
+    resolution: Literal[ImageResolution.STANDARD, ImageResolution.LARGE] = Field(
+        ImageResolution.STANDARD, description="standard ≈ 320p draft, large = 480p. 720p is not supported."
+    )
+    steps: int | None = Field(
+        None, ge=VIDEO_MIN_STEPS, le=VIDEO_MAX_STEPS, description="Denoising steps; omit for the server default."
+    )
     seed: int | None = Field(None, ge=0, le=MAX_SEED, description="Omit for a random seed.")
-    num_frames: int | None = Field(None, ge=1, le=257, description="Optional explicit frame count if supported")
+    num_frames: int | None = Field(
+        None, ge=5, le=VIDEO_MAX_FRAMES, description="Optional explicit frame count; must be 4k+1 (e.g. 33, 49, 81)."
+    )
+
+    @field_validator("num_frames")
+    @classmethod
+    def _wan_frame_count(cls, value: int | None) -> int | None:
+        if value is not None and (value - 1) % 4 != 0:
+            raise ValueError("Frame count must be one more than a multiple of 4 (e.g. 33, 49, 81).")
+        return value
 
 
 class ImageToVideoRequest(_GenerationBase):
@@ -167,6 +214,7 @@ class GenerationSettings(BaseModel):
     steps: int | None = None
     seed: int | None = Field(None, description="Null until the server picks one for a random-seed job.")
     num_frames: int | None = None
+    fps: int | None = Field(None, description="Frames per second of the generated video.")
     negative_prompt: str | None = None
     guidance_scale: float | None = None
     model_id: str | None = None

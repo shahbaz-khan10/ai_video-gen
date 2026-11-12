@@ -1,5 +1,5 @@
 import { ApiError } from "@/lib/api/client";
-import type { GenerationPayload, ImageResolution, NormalizedSettings, SourceImageInfo } from "@/types/api";
+import type { GenerationPayload, ImageResolution, NormalizedSettings, SourceImageInfo, VideoResolution } from "@/types/api";
 import type { AspectRatio, ClipDuration, GenerationMode } from "@/types/studio";
 import type { SelectedImage } from "./use-image-selection";
 
@@ -25,6 +25,8 @@ export type Draft = {
   seed: number | null;
   guidanceScale?: number;
   modelId?: string;
+  /** Text-to-video only: seconds, size tier and steps the video model supports. */
+  video?: { durationSeconds: number; resolution: VideoResolution; steps: number };
 };
 
 export function buildPayload(draft: Draft): GenerationPayload {
@@ -42,7 +44,17 @@ export function buildPayload(draft: Draft): GenerationPayload {
       ...(draft.modelId && draft.modelId !== "auto" ? { model_id: draft.modelId } : {}),
     };
   }
-  if (draft.mode === "text-to-video") return { ...base, mode: draft.mode, duration_seconds };
+  if (draft.mode === "text-to-video") {
+    if (!draft.video) throw new Error("A text-to-video request needs video settings.");
+    return {
+      ...base,
+      mode: draft.mode,
+      duration_seconds: draft.video.durationSeconds,
+      resolution: draft.video.resolution,
+      steps: draft.video.steps,
+      ...(draft.seed === null ? {} : { seed: draft.seed }),
+    };
+  }
   if (!draft.image) throw new Error("An image-to-video request needs a source image.");
   const source_image: SourceImageInfo = { content_type: draft.image.type, size_bytes: draft.image.size };
   return { ...base, mode: draft.mode, duration_seconds, source_image };

@@ -25,7 +25,9 @@ def test_validate_text_to_video_returns_normalized_settings(client: TestClient, 
     assert body["generation_available"] is False
     settings = body["settings"]
     assert settings["mode"] == "text-to-video"
-    assert settings["duration_seconds"] == 6
+    assert settings["duration_seconds"] == 2
+    # 2 s at 16 fps, rounded up to Wan's 4k+1 frame rule; 576x320 is the draft 16:9 size.
+    assert (settings["num_frames"], settings["fps"], settings["width"], settings["height"]) == (33, 16, 576, 320)
     assert settings["prompt_length"] == len(video_request["prompt"])
     assert settings["source_image"] is None
 
@@ -56,7 +58,7 @@ def test_video_duration_defaults_when_omitted(client: TestClient, video_request:
     del video_request["duration_seconds"]
     res = client.post(VALIDATE, json=video_request)
     assert res.status_code == 200
-    assert res.json()["settings"]["duration_seconds"] == 6
+    assert res.json()["settings"]["duration_seconds"] == 2
 
 
 def test_prompt_is_trimmed_and_whitespace_normalized(client: TestClient, video_request: dict) -> None:
@@ -124,7 +126,8 @@ def test_unknown_style_rejected(client: TestClient, video_request: dict) -> None
     assert "style" in error_fields(res)
 
 
-@pytest.mark.parametrize("duration", [0, 3, 5, 10, 60, -6, "six"])
+# Text-to-video allows 2, 3 or 5 s: Wan generates at most 81 frames (~5 s at 16 fps).
+@pytest.mark.parametrize("duration", [0, 4, 6, 8, 10, 60, -6, "six"])
 def test_unsupported_duration_rejected(client: TestClient, video_request: dict, duration) -> None:
     video_request["duration_seconds"] = duration
     res = client.post(VALIDATE, json=video_request)

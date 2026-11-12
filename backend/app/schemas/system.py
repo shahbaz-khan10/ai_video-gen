@@ -58,6 +58,12 @@ class Limits(BaseModel):
     image_sizes: list[ImageSizeOption]
     image_steps: list[int]
     max_seed: int
+    # Text-to-video (the video model's real limits; anything else is rejected).
+    video_duration_options_seconds: list[int]
+    video_sizes: list[ImageSizeOption]
+    video_steps: list[int]
+    video_max_frames: int
+    video_fps: int
 
 
 class ModelLicense(BaseModel):
@@ -75,6 +81,17 @@ class GenerationAvailability(BaseModel):
     message: str
 
 
+class VideoAvailability(BaseModel):
+    available: bool = Field(description="True when text-to-video jobs are accepted right now.")
+    engine: str
+    model_id: str | None
+    state: str = Field(description="disabled, unavailable, not_downloaded, not_loaded, loading, loaded or error.")
+    detail: str
+    device: str | None = None
+    license: ModelLicense | None
+    message: str
+
+
 class InfoResponse(BaseModel):
     name: str
     version: str
@@ -85,3 +102,4 @@ class InfoResponse(BaseModel):
     styles: list[VisualStyle]
     limits: Limits
     generation: GenerationAvailability
+    video: VideoAvailability

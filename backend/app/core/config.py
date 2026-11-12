@@ -62,18 +62,25 @@ class Settings(BaseSettings):
     image_cpu_offload: Literal["auto", "on", "off"] = Field("auto", validation_alias=_image_env("IMAGE_CPU_OFFLOAD"))
 
     # --- Local text-to-video model --------------------------------------------------
-    video_engine: Literal["ltx", "none"] = Field("ltx", validation_alias=_image_env("VIDEO_ENGINE"))
-    video_model_id: str = Field("Lightricks/LTX-Video", validation_alias=_image_env("VIDEO_MODEL_ID"))
+    # "wan" runs Wan2.1 text-to-video (Apache-2.0) through Diffusers; "none" turns video off.
+    video_engine: Literal["wan", "none"] = Field("wan", validation_alias=_image_env("VIDEO_ENGINE"))
+    video_model_id: str = Field("Wan-AI/Wan2.1-T2V-1.3B-Diffusers", validation_alias=_image_env("VIDEO_MODEL_ID"))
+    # Unset uses IMAGE_MODEL_CACHE_DIR, so both models share one download location.
     video_model_cache_dir: Path | None = Field(None, validation_alias=_image_env("VIDEO_MODEL_CACHE_DIR"))
     video_output_dir: Path = Field(BACKEND_DIR / "outputs" / "videos", validation_alias=_image_env("VIDEO_OUTPUT_DIR"))
     video_device: Literal["auto", "cuda", "cpu"] = Field("auto", validation_alias=_image_env("VIDEO_DEVICE"))
     video_max_concurrent_jobs: int = Field(1, ge=1, le=1, validation_alias=_image_env("VIDEO_MAX_CONCURRENT_JOBS"))
     video_max_queued_jobs: int = Field(2, ge=0, le=10, validation_alias=_image_env("VIDEO_MAX_QUEUED_JOBS"))
-    video_timeout_seconds: int = Field(1800, ge=60, le=3600, validation_alias=_image_env("VIDEO_TIMEOUT_SECONDS"))
-    video_allow_download: bool = Field(False, validation_alias=_image_env("VIDEO_ALLOW_DOWNLOAD"))
-    video_enable_cpu_offload: bool = Field(True, validation_alias=_image_env("VIDEO_ENABLE_CPU_OFFLOAD"))
-    video_enable_model_cpu_offload: bool = Field(False, validation_alias=_image_env("VIDEO_ENABLE_MODEL_CPU_OFFLOAD"))
-    video_enable_attention_slicing: bool = Field(True, validation_alias=_image_env("VIDEO_ENABLE_ATTENTION_SLICING"))
+    # Wan 1.3B on an 8 GB RTX 3050 needs minutes per clip; this stops runaway jobs.
+    video_timeout_seconds: int = Field(3600, ge=60, le=7200, validation_alias=_image_env("VIDEO_TIMEOUT_SECONDS"))
+    video_fps: int = Field(16, ge=8, le=30, validation_alias=_image_env("VIDEO_FPS"))
+    video_default_steps: int = Field(25, ge=10, le=50, validation_alias=_image_env("VIDEO_DEFAULT_STEPS"))
+    # Wan's recommended classifier-free guidance and flow shift (3.0 suits 480p and below).
+    video_guidance_scale: float = Field(5.0, ge=1.0, le=10.0, validation_alias=_image_env("VIDEO_GUIDANCE_SCALE"))
+    video_flow_shift: float = Field(3.0, ge=1.0, le=12.0, validation_alias=_image_env("VIDEO_FLOW_SHIFT"))
+    # The T5 text encoder (~11 GB in bf16) never fits an 8 GB GPU next to the transformer, so by default it
+    # runs on the CPU while the transformer and VAE use the GPU (the approach Wan's own `--t5_cpu` uses).
+    video_text_encoder_on_cpu: bool = Field(True, validation_alias=_image_env("VIDEO_TEXT_ENCODER_ON_CPU"))
     video_enable_vae_tiling: bool = Field(True, validation_alias=_image_env("VIDEO_ENABLE_VAE_TILING"))
 
     @field_validator("video_model_cache_dir", mode="before")

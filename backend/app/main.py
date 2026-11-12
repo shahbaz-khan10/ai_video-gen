@@ -12,7 +12,7 @@ from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimitMiddleware
 from app.services.generation_service import GenerationService
 from app.services.image_engine import DiffusersImageEngine, ImageEngine
-from app.services.video_engine import DisabledVideoEngine, build_video_engine
+from app.services.video_engine import VideoEngine, build_video_engine
 
 API_PREFIX = "/api/v1"
 
@@ -24,10 +24,15 @@ def _default_engine(settings: Settings) -> ImageEngine | None:
     return DiffusersImageEngine(settings) if settings.image_engine == "diffusers" else None
 
 
-def create_app(settings: Settings | None = None, engine: ImageEngine | None | object = _DEFAULT) -> FastAPI:
+def create_app(
+    settings: Settings | None = None,
+    engine: ImageEngine | None | object = _DEFAULT,
+    video_engine: VideoEngine | None = None,
+) -> FastAPI:
     settings = settings or get_settings()
     image_engine = _default_engine(settings) if engine is _DEFAULT else engine
-    video_engine = build_video_engine(settings)
+    # Tests pass a fake; otherwise the configured engine (constructed cheaply, loaded on first use).
+    video_engine = video_engine or build_video_engine(settings)
     service = GenerationService(settings, image_engine, video_engine)  # type: ignore[arg-type]
 
     @asynccontextmanager

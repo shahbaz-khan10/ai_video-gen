@@ -1,4 +1,4 @@
-"""Serves generated images. Only ``<uuid>.png`` names from the output directory are reachable."""
+"""Serves generated images and videos. Only ``<uuid>.png`` / ``<uuid>.mp4`` names from the output directories are reachable."""
 
 from fastapi import APIRouter, Query
 from fastapi.responses import FileResponse
@@ -28,6 +28,30 @@ def get_image(
     return FileResponse(
         path,
         media_type="image/png",
+        filename=f"ai-video-studio-{filename}" if download else None,
+        content_disposition_type="attachment" if download else "inline",
+        headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=86400, immutable"},
+    )
+
+
+@router.get(
+    "/videos/{filename}",
+    response_class=FileResponse,
+    responses={200: {"content": {"video/mp4": {}}}, 404: {"model": ErrorResponse}},
+    summary="Fetch a generated video (supports HTTP range requests for seeking)",
+)
+def get_video(
+    filename: str,
+    service: GenerationServiceDep,
+    download: bool = Query(False, description="Send as an attachment instead of inline."),
+) -> FileResponse:
+    path = service.video_storage.resolve(filename)
+    if path is None:
+        # Only validated, finished <uuid>.mp4 files are reachable; temp files and other names are not.
+        raise AppError(404, "file_not_found", "No generated video with this name.")
+    return FileResponse(
+        path,
+        media_type="video/mp4",
         filename=f"ai-video-studio-{filename}" if download else None,
         content_disposition_type="attachment" if download else "inline",
         headers={"X-Content-Type-Options": "nosniff", "Cache-Control": "private, max-age=86400, immutable"},

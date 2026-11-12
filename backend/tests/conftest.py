@@ -21,6 +21,7 @@ def settings(tmp_path: Path) -> Settings:
         cors_origins=["http://localhost:3000"],
         image_output_dir=tmp_path / "outputs",
         image_model_cache_dir=tmp_path / "models",
+        video_output_dir=tmp_path / "videos",
     )
 
 
@@ -42,7 +43,7 @@ def video_request() -> dict:
         "prompt": "A lighthouse at blue hour, waves in slow motion",
         "aspect_ratio": "16:9",
         "style": "cinematic",
-        "duration_seconds": 6,
+        "duration_seconds": 2,
     }
 
 

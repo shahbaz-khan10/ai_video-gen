@@ -9,7 +9,8 @@ services:
       AVS_IMAGE_MODEL_ID: SG161222/RealVisXL_V5.0_Lightning
       AVS_IMAGE_DEVICE: auto
       AVS_IMAGE_MODEL_CACHE_DIR: /app/models
-      AVS_VIDEO_ENGINE: none
+      # Wan2.1 T2V 1.3B (Apache-2.0). Weights (~29 GB) live in the same models volume; set to none to turn video off.
+      AVS_VIDEO_ENGINE: wan
       AVS_CORS_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
     ports:
       - "8003:8000"
@@ -35,7 +36,8 @@ services:
     ports:
       - "3001:3000"
     volumes:
-      - .:/app:ro
+      # Read-write: next dev writes next-env.d.ts (git-ignored) on start and hangs on a read-only mount.
+      - .:/app
       - frontend-node-modules:/app/node_modules
       - frontend-next-cache:/app/.next
 

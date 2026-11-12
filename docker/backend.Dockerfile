@@ -12,8 +12,11 @@ COPY backend/requirements-ai.txt ./requirements-ai.txt
 RUN pip install --no-cache-dir torch --index-url ${TORCH_INDEX} \
     && pip install --no-cache-dir -r requirements-ai.txt
 
+# Text-to-video extras in their own layer, so changing them does not re-download PyTorch.
+COPY backend/requirements-video.txt ./requirements-video.txt
+RUN pip install --no-cache-dir -r requirements-video.txt
+
 COPY backend/ ./
-COPY docker/backend/video_engine.py ./app/services/video_engine.py
 
 EXPOSE 8000
 

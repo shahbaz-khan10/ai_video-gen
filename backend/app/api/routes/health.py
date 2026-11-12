@@ -1,4 +1,4 @@
-"""Health, readiness, application info and image-model status. None of these load the model."""
+"""Health, readiness, application info and image/video model status. None of these load a model."""
 
 from datetime import UTC, datetime
 
@@ -13,6 +13,10 @@ from app.schemas.generation import (
     MAX_SEED,
     MAX_SOURCE_IMAGE_BYTES,
     PROMPT_MAX_CHARS,
+    VIDEO_DURATION_OPTIONS_SECONDS,
+    VIDEO_MAX_FRAMES,
+    VIDEO_SIZES,
+    VIDEO_STEP_OPTIONS,
     AspectRatio,
     GenerationMode,
     SourceImageInfo,
@@ -28,10 +32,12 @@ from app.schemas.system import (
     ModelLicense,
     ReadinessCheck,
     ReadinessResponse,
+    VideoAvailability,
 )
 from app.services.generation_service import GenerationService
 
 router = APIRouter(tags=["system"])
+
 
 def _step_presets(model_id: str | None) -> list[int]:
     """Fast / balanced / best step counts for the current model, so the UI never offers unusable values."""
@@ -53,7 +59,43 @@ KNOWN_LICENSES = {
         url="https://huggingface.co/SG161222/RealVisXL_V5.0_Lightning",
         attribution="RealVisXL V5.0 Lightning by SG161222",
     ),
+    "Wan-AI/Wan2.1-T2V-1.3B-Diffusers": ModelLicense(
+        name="Apache License 2.0",
+        url="https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B-Diffusers",
+        attribution="Wan2.1 by the Wan team (Alibaba)",
+    ),
 }
+
+
+def video_status(service: GenerationService) -> VideoAvailability:
+    engine = service.video_engine
+    if engine is None:
+        return VideoAvailability(
+            available=False, engine="none", model_id=None, state="disabled",
+            detail="Video generation is turned off.", license=None, message="Video generation is turned off on this server.",
+        )
+    status = engine.status()
+    try:
+        engine.ensure_can_accept()
+        available = True
+    except Exception:
+        available = False
+    if available:
+        message = "Text-to-video runs locally. Expect several minutes per clip on an 8 GB GPU."
+    elif status.state == "disabled":
+        message = "Video generation is turned off on this server."
+    else:
+        message = f"Text-to-video is not ready: {status.detail}"
+    return VideoAvailability(
+        available=available,
+        engine=engine.name,
+        model_id=status.model_id,
+        state=status.state,
+        detail=status.detail,
+        device=status.device,
+        license=KNOWN_LICENSES.get(status.model_id or ""),
+        message=message,
+    )
 
 
 def _source_image_types() -> list[str]:
@@ -102,15 +144,18 @@ def ready(settings: SettingsDep, service: GenerationServiceDep) -> ReadinessResp
         "config": ReadinessCheck(status="ok", detail=f"Loaded for '{settings.environment}'."),
         "image_model": ReadinessCheck(status=_MODEL_CHECK[model.state], detail=model.detail),  # type: ignore[arg-type]
     }
+    video = video_status(service)
+    checks["video_model"] = ReadinessCheck(status=_MODEL_CHECK.get(video.state, "error"), detail=video.detail)  # type: ignore[arg-type]
     return ReadinessResponse(ready=True, model_ready=model.state == "loaded", checks=checks)
 
 
 @router.get("/info", response_model=InfoResponse, summary="Application metadata and capabilities")
 def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
     model = image_model_status(service)
+    video = video_status(service)
     available = model.can_generate
     if available:
-        message = "Text-to-image runs on a local open-weight model. Video modes are coming soon."
+        message = "Text-to-image runs on a local open-weight model."
     elif model.state == "disabled":
         message = "AI generation is turned off on this server."
     else:
@@ -135,13 +180,26 @@ def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
             ],
             image_steps=_step_presets(model.model_id),
             max_seed=MAX_SEED,
+            video_duration_options_seconds=list(VIDEO_DURATION_OPTIONS_SECONDS),
+            video_sizes=[
+                ImageSizeOption(resolution=res, aspect_ratio=ratio, width=w, height=h)
+                for res, by_ratio in VIDEO_SIZES.items()
+                for ratio, (w, h) in by_ratio.items()
+            ],
+            video_steps=list(VIDEO_STEP_OPTIONS),
+            video_max_frames=VIDEO_MAX_FRAMES,
+            video_fps=settings.video_fps,
         ),
         generation=GenerationAvailability(
             available=available,
-            modes_available=[GenerationMode.TEXT_TO_IMAGE] if available else [],
+            modes_available=[
+                *([GenerationMode.TEXT_TO_IMAGE] if available else []),
+                *([GenerationMode.TEXT_TO_VIDEO] if video.available else []),
+            ],
             engine=model.engine,
             model_id=model.model_id,
             license=KNOWN_LICENSES.get(model.model_id or ""),
             message=message,
         ),
+        video=video,
     )

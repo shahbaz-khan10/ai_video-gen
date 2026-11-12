@@ -54,14 +54,15 @@ All routes are under `/api/v1`.
 | Method | Path | Purpose |
 | --- | --- | --- |
 | GET | `/health` | Liveness: the API process is running |
-| GET | `/health/ready` | API readiness, plus the image model's state reported separately (`model_ready`). Never loads the model |
-| GET | `/info` | Safe metadata: modes, sizes, steps, limits, model ID and license, what is available now |
+| GET | `/health/ready` | API readiness, plus the image and video models' states reported separately (`checks.image_model`, `checks.video_model`). Never loads a model |
+| GET | `/info` | Safe metadata: modes, sizes, steps, video durations, limits, model IDs and licenses, what is available now (`generation`, `video`) |
 | POST | `/generations/validate` | Validates and normalizes a request without generating anything |
-| POST | `/generations` | Queues a text-to-image job: `202` with `status: queued`. `503` if libraries/weights are missing, `429` if the queue is full |
-| GET | `/generations/{id}` | Real status: `queued` → `processing` → `completed` (with image URL) or `failed` (with a safe error). `404` for unknown IDs |
+| POST | `/generations` | Queues a text-to-image or text-to-video job: `202` with `status: queued`. `503` if libraries/weights are missing, `429` if the queue is full, `501` for image-to-video |
+| GET | `/generations/{id}` | Real status: `queued` → `processing` → `completed` (with `image` or `video`) or `failed` (with a safe error). `404` for unknown IDs |
 | GET | `/models/image` | Model state: `unavailable`, `not_downloaded`, `not_loaded`, `loading`, `loaded`, `error`. Never loads the model |
 | POST | `/models/image/load` | Starts loading the model in the background (optional; the first job also loads it) |
 | GET | `/files/images/{uuid}.png` | Serves a generated image. Add `?download=true` for an attachment. Only `<uuid>.png` names from the output folder are reachable |
+| GET | `/files/videos/{uuid}.mp4` | Serves a generated, validated MP4 (HTTP range requests supported for seeking). `?download=true` for an attachment. Temporary files are never reachable |
 
 ### Request shape
 
@@ -184,6 +185,103 @@ $env:AVS_RUN_REAL_INFERENCE = "1"; python -m pytest tests/test_real_inference.py
 | `IMAGE_MAX_CONCURRENT_JOBS` | `1` | 1–4 |
 | `IMAGE_MAX_QUEUED_JOBS` | `8` | Beyond this, `429 queue_full` |
 | `IMAGE_TIMEOUT_SECONDS` | `600` | Checked between denoising steps |
+
+## Text to video (Phase 5)
+
+Text-to-video runs **Wan2.1 T2V 1.3B** locally through Diffusers. No paid or remote API is used; a job only reports `completed` after a real MP4 was written **and decoded frame by frame**. Image-to-video is not implemented yet (returns `501`).
+
+### Model and license
+
+| | |
+| --- | --- |
+| Model | [`Wan-AI/Wan2.1-T2V-1.3B-Diffusers`](https://huggingface.co/Wan-AI/Wan2.1-T2V-1.3B-Diffusers) |
+| License | **Apache 2.0**: commercial use allowed. Not gated, no account needed |
+| Download | **28.9 GB**: UMT5-XXL text encoder 22.7 GB (stored in fp32), transformer 5.7 GB, VAE 0.5 GB. Loaded in bf16 (~14.5 GB of RAM) |
+| Why not LTX-Video 0.9 | Its Diffusers checkpoint is licensed for research and academic use only (RAIL-M, commercial use excluded) |
+
+### Hardware results (RTX 3050 8 GB, Ryzen 5 7500F, 32 GB RAM, Docker Desktop)
+
+| Setting | Measured |
+| --- | --- |
+| Model load (first job) | ~37 s |
+| Draft 576×320, 2 s (33 frames), 25 steps | **~2 min**, 4.5 GB peak VRAM |
+| 480p 832×480, 2 s (33 frames), 25 steps | **~5.5 min** through the API (incl. model load), 1.5 MB MP4 |
+| RAM in the backend container while generating | ~15 GB |
+
+How it fits an 8 GB GPU: the 11 GB text encoder runs **on the CPU** once per job (`VIDEO_TEXT_ENCODER_ON_CPU`, the approach of Wan's own `--t5_cpu`); the transformer (bf16) and VAE (fp32, as Wan recommends) stay on the GPU; VAE tiling keeps decoding within memory. Image and video models never share memory: the service unloads one before running the other, and only one GPU job runs at a time.
+
+Expect minutes, not seconds. Time grows roughly with frames × pixels × steps: 5 s at 480p is about 2.5× the frames and 2.2× the pixels of a 2 s draft. Quality is below commercial services; motion and faces are best at 480p.
+
+### Setup
+
+Docker (recommended on this machine; Windows Smart App Control blocks PyTorch outside it):
+
+```powershell
+# 1. Give Docker Desktop enough RAM (once). In %USERPROFILE%.wslconfig:
+#      [wsl2]
+#      memory=24GB
+#    then: wsl --shutdown   (restarts Docker Desktop and all containers)
+
+# 2. Build and start (the image installs requirements-video.txt; imageio-ffmpeg bundles ffmpeg)
+docker compose up -d --build
+
+# 3. Download the weights into the models volume (~29 GB, once, needs internet)
+docker run --rm -v ai_video-gen_backend-models:/app/models --entrypoint python ai_video-gen-backend -c "from huggingface_hub import snapshot_download; snapshot_download('Wan-AI/Wan2.1-T2V-1.3B-Diffusers', cache_dir='/app/models', allow_patterns=['model_index.json','scheduler/*','text_encoder/*','tokenizer/*','transformer/*','vae/*'])"
+
+# 4. Real smoke test (not mocked): generates and decodes one draft clip
+docker run --rm --gpus all -v ai_video-gen_backend-models:/app/models -v ai_video-gen_backend-outputs:/app/outputs --entrypoint python ai_video-gen-backend scripts/smoke_test_video.py --size standard --seconds 2
+```
+
+Without Docker: `python -m pip install -r requirements-video.txt` after `requirements-ai.txt`, download the weights the same way (`cache_dir` = `IMAGE_MODEL_CACHE_DIR`), then `python scripts/smoke_test_video.py`.
+
+Generate the first video: open http://localhost:3001/create (Docker) or http://localhost:3000/create, pick **Text to Video**, write the scene and its motion, keep **Draft** and **2s**, press **Generate video**. The clip plays in the preview; **Download MP4** saves it.
+
+### Request
+
+```json
+{ "mode": "text-to-video", "prompt": "A golden retriever running along a beach at sunset", "aspect_ratio": "16:9",
+  "duration_seconds": 2, "resolution": "standard", "steps": 25, "seed": 11 }
+```
+
+| Field | Rules |
+| --- | --- |
+| `duration_seconds` | `2`, `3` or `5` (default 2). Becomes 33, 49 or 81 frames at 16 fps |
+| `num_frames` | Optional override: 4k+1 between 5 and 81 (e.g. 17, 33, 49, 81) |
+| `resolution` | `standard` (draft: 576×320, 320×576, 416×416) or `large` (480p: 832×480, 480×832, 624×624). `high`/720p is rejected: unstable on the 1.3B model |
+| `steps` | 10-50 (default `VIDEO_DEFAULT_STEPS`, 25). The UI offers 15 / 25 / 40 |
+| `seed` | Optional, 0 to 2³²-1 |
+
+Anything else (`fps`, `guidance_scale`, `negative_prompt`, motion or camera fields) is rejected with `422` rather than silently ignored; guidance and Wan's negative prompt are fixed server-side.
+
+A completed job has `video`: `url`, `download_url`, `width`, `height`, `num_frames`, `duration_seconds` and `size_bytes`, all read back from the decoded file. Failure codes: `gpu_out_of_memory`, `out_of_memory`, `model_not_downloaded`, `ai_libraries_missing`, `model_load_failed`, `generation_timeout`, `video_invalid`, `video_save_failed`, `generation_failed`.
+
+Jobs are in memory and are lost on a backend restart. Finished MP4s stay in `VIDEO_OUTPUT_DIR` (the `backend-outputs` volume in Docker).
+
+### Video settings
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `VIDEO_ENGINE` | `wan` | `none` turns video off |
+| `VIDEO_MODEL_ID` | `Wan-AI/Wan2.1-T2V-1.3B-Diffusers` | |
+| `VIDEO_MODEL_CACHE_DIR` | *(empty)* | Empty shares `IMAGE_MODEL_CACHE_DIR` |
+| `VIDEO_OUTPUT_DIR` | `outputs/videos` | |
+| `VIDEO_DEVICE` | `auto` | `cuda`, `cpu` (CPU works but takes hours) |
+| `VIDEO_FPS` | `16` | Wan's native rate |
+| `VIDEO_DEFAULT_STEPS` | `25` | |
+| `VIDEO_GUIDANCE_SCALE` / `VIDEO_FLOW_SHIFT` | `5.0` / `3.0` | Wan's recommendations for 480p and below |
+| `VIDEO_TEXT_ENCODER_ON_CPU` | `true` | Set false only with a GPU of 16 GB+ |
+| `VIDEO_ENABLE_VAE_TILING` | `true` | |
+| `VIDEO_TIMEOUT_SECONDS` | `3600` | Checked between denoising steps |
+| `VIDEO_MAX_QUEUED_JOBS` | `2` | |
+
+### Troubleshooting
+
+- **`model_not_downloaded`**: the weights are missing or a shard is incomplete; re-run the download in step 3 (it resumes).
+- **`ai_libraries_missing`**: install `requirements-video.txt` (`sentencepiece`, `ftfy`, `imageio`, `imageio-ffmpeg`), or rebuild the Docker image.
+- **`gpu_out_of_memory`**: use Draft, 2 s, fewer steps; close other GPU-heavy apps (games, other AI tools).
+- **`out_of_memory` or the container restarts while loading**: the text encoder needs ~15 GB of free RAM. Raise `memory` in `.wslconfig` or stop other containers.
+- **CUDA not visible in Docker**: update the NVIDIA driver; check `docker run --rm --gpus all ai_video-gen-backend nvidia-smi` or `python -c "import torch; print(torch.cuda.is_available())"` inside the container.
+- **MP4 won't play**: files are H.264/yuv420p with faststart; if a job reports `video_invalid`, the encoder output failed validation and nothing was published.
 
 ## Adding another engine
 

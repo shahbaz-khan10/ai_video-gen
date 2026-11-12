@@ -9,8 +9,19 @@ import { useBackendStatus } from "@/lib/api/use-backend-status";
 import { isBusy, parseSeed, progressMessage } from "@/lib/generation/job-view";
 import { useImageJob } from "@/lib/generation/use-image-job";
 import { prefersReducedMotion } from "@/lib/motion";
-import { ASPECT_RATIOS, DEFAULT_IMAGE_STEPS, getMode, getStyle, IMAGE_SIZES, isVideoMode, MODELS } from "@/lib/studio-options";
-import type { GenerationPayload, ImageResolution } from "@/types/api";
+import {
+  ASPECT_RATIOS,
+  DEFAULT_IMAGE_STEPS,
+  DEFAULT_VIDEO_DURATIONS,
+  DEFAULT_VIDEO_STEPS,
+  getMode,
+  getStyle,
+  IMAGE_SIZES,
+  isVideoMode,
+  MODELS,
+  VIDEO_SIZES,
+} from "@/lib/studio-options";
+import type { GenerationPayload, ImageResolution, VideoResolution } from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
 import { AspectRatioSelector } from "./aspect-ratio-selector";
 import { DurationSelector } from "./duration-selector";
@@ -27,10 +38,11 @@ import { PreviewPanel } from "./preview-panel";
 import { PromptEditor } from "./prompt-editor";
 import { StyleSelector } from "./style-selector";
 import { useImageSelection } from "./use-image-selection";
+import { VideoDurationSelector, VideoSizeSelector } from "./video-options";
 
 const GENERATE_LABEL: Record<GenerationMode, string> = {
   "text-to-image": "Generate photograph",
-  "text-to-video": "Check video settings",
+  "text-to-video": "Generate video",
   "image-to-video": "Check animation settings",
 };
 
@@ -58,6 +70,10 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   // null = the model's middle preset; the presets come from the backend once it answers.
   const [pickedSteps, setSteps] = useState<number | null>(null);
   const [seedInput, setSeedInput] = useState("");
+  // Text-to-video settings; null = the model's default, known once /info answers.
+  const [pickedVideoSeconds, setVideoSeconds] = useState<number | null>(null);
+  const [videoResolution, setVideoResolution] = useState<VideoResolution>("standard");
+  const [pickedVideoSteps, setVideoSteps] = useState<number | null>(null);
   const [model, setModel] = useState(MODELS[0].id);
   const [errors, setErrors] = useState<FieldErrors>({});
   // Video modes: settings check only.
@@ -72,6 +88,9 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [elapsed, setElapsed] = useState<{ jobId: string; seconds: number } | null>(null);
 
   const isImage = mode === "text-to-image";
+  const isTextToVideo = mode === "text-to-video";
+  // Modes that queue a real job on a local model (image-to-video still only checks settings).
+  const runsJob = isImage || isTextToVideo;
   const isVideo = isVideoMode(mode);
   const needsImage = mode === "image-to-video";
   const view = imageJob.view;
@@ -88,7 +107,12 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   }, [view]);
 
   const elapsedSeconds = viewJob && elapsed?.jobId === viewJob.id ? elapsed.seconds : 0;
-  const license = backend.state === "online" ? backend.info.generation.license : null;
+  const license =
+    backend.state === "online"
+      ? mode === "text-to-video"
+        ? backend.info.video?.license ?? null
+        : backend.info.generation.license
+      : null;
   const size = (IMAGE_SIZES[resolution] || IMAGE_SIZES.standard)[aspectRatio];
   const stepOptions =
     backend.state === "online" && backend.info.limits.image_steps.length > 0
@@ -99,7 +123,31 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       ? pickedSteps
       : stepOptions[Math.floor((stepOptions.length - 1) / 2)];
 
-  const details = isImage
+  const online = backend.state === "online" ? backend : null;
+  const videoInfo = online?.info.video ?? null;
+  const videoFps = online?.info.limits.video_fps ?? 16;
+  const videoDurations = online?.info.limits.video_duration_options_seconds?.length
+    ? online.info.limits.video_duration_options_seconds
+    : DEFAULT_VIDEO_DURATIONS;
+  const videoStepOptions = online?.info.limits.video_steps?.length ? online.info.limits.video_steps : DEFAULT_VIDEO_STEPS;
+  const videoSeconds =
+    pickedVideoSeconds !== null && videoDurations.includes(pickedVideoSeconds) ? pickedVideoSeconds : videoDurations[0];
+  const videoSteps =
+    pickedVideoSteps !== null && videoStepOptions.includes(pickedVideoSteps)
+      ? pickedVideoSteps
+      : videoStepOptions[Math.floor((videoStepOptions.length - 1) / 2)];
+  const videoSize = VIDEO_SIZES[videoResolution][aspectRatio];
+
+  const details = isTextToVideo
+    ? [
+        getMode(mode).label,
+        `${aspectRatio} · ${videoSize.width}×${videoSize.height}`,
+        getStyle(style).label,
+        `${videoSeconds}s @ ${videoFps} fps`,
+        `${videoSteps} steps`,
+        seedInput.trim() ? `Seed ${seedInput.trim()}` : "Random seed",
+      ]
+    : isImage
     ? [
         getMode(mode).label,
         `${aspectRatio} · ${size.width}×${size.height}`,
@@ -146,7 +194,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     if (!prompt.trim()) localErrors.prompt = "Add a prompt to describe what you want to create.";
     if (needsImage && !upload.image) localErrors.image = "Add a source image to animate.";
     const seed = parseSeed(seedInput);
-    if (isImage && seed.error) localErrors.seed = seed.error;
+    if (runsJob && seed.error) localErrors.seed = seed.error;
     setErrors(localErrors);
     if (localErrors.image || localErrors.prompt || localErrors.seed) {
       setOutcome(null);
@@ -165,11 +213,12 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       resolution,
       steps,
       seed: seed.seed,
-      // Image jobs run on the backend's configured model (shown in the model card); only video has a picker.
-      modelId: isImage ? undefined : model,
+      // Image and text-to-video jobs run on the backend's configured models; no client-side model switch.
+      modelId: runsJob ? undefined : model,
+      video: { durationSeconds: videoSeconds, resolution: videoResolution, steps: videoSteps },
     });
 
-    if (isImage) {
+    if (runsJob) {
       submitImage(payload);
       return;
     }
@@ -197,8 +246,13 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     }
   };
 
-  const completedImage = isImage && view.phase === "completed" ? view.job.image : null;
-  const resultSrc = completedImage ? assetUrl(completedImage.url) : null;
+  // A finished job is only shown in the mode that produced it.
+  const completedJob = view.phase === "completed" && view.job.settings.mode === mode ? view.job : null;
+  const completedImage = isImage ? completedJob?.image ?? null : null;
+  const completedVideo = isTextToVideo ? completedJob?.video ?? null : null;
+  const resultSrc = completedImage ? assetUrl(completedImage.url) : completedVideo ? assetUrl(completedVideo.url) : null;
+  const jobInThisMode = viewJob === null || viewJob.settings.mode === mode;
+  const jobBusy = imageBusy && jobInThisMode;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
@@ -288,6 +342,32 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
               </div>
               <ImageModelCard refreshKey={viewJob ? `${viewJob.id}:${view.phase}` : view.phase} />
             </motion.div>
+          ) : isTextToVideo ? (
+            <motion.div key="text-to-video-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
+              <VideoDurationSelector
+                options={videoDurations}
+                fps={videoFps}
+                value={videoSeconds}
+                onChange={setVideoSeconds}
+              />
+              <VideoSizeSelector value={videoResolution} aspectRatio={aspectRatio} onChange={setVideoResolution} />
+              <StepsSelector options={videoStepOptions} value={videoSteps} onChange={setVideoSteps} />
+              <div id="seed-field">
+                <SeedInput
+                  value={seedInput}
+                  onChange={(v) => {
+                    setSeedInput(v);
+                    setErrors((e) => ({ ...e, seed: undefined }));
+                  }}
+                  error={errors.seed}
+                />
+              </div>
+              <p className="rounded-lg border border-line bg-ink-900 px-3 py-2.5 text-xs leading-relaxed text-fg-muted">
+                <span className="font-mono text-fg">{videoInfo?.model_id ?? "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"}</span>
+                {" · "}
+                {videoInfo ? (videoInfo.available ? videoInfo.message : videoInfo.detail) : "Checking the video model…"}
+              </p>
+            </motion.div>
           ) : (
             <motion.div key="video-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
               {isVideo && (
@@ -308,12 +388,22 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           <GenerateButton
             onClick={handleGenerate}
             label={GENERATE_LABEL[mode]}
-            busy={isImage ? imageBusy : checking}
-            busyLabel={isImage ? "Generating photograph…" : "Checking settings…"}
+            busy={runsJob ? jobBusy || (imageBusy && !jobInThisMode) : checking}
+            busyLabel={
+              runsJob && !jobInThisMode
+                ? "Another job is running…"
+                : isImage
+                ? "Generating photograph…"
+                : isTextToVideo
+                ? "Generating video…"
+                : "Checking settings…"
+            }
             note={
               isImage
                 ? "Photorealistic engine · Scene understanding and anatomical preservation active"
-                : "Video generation is coming soon · settings are validated only"
+                : isTextToVideo
+                ? "Runs on your GPU · several minutes per clip · one job at a time"
+                : "Image-to-video is coming soon · settings are validated only"
             }
           />
         </div>
@@ -322,13 +412,21 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       <div id="preview-panel" className="scroll-mt-20 lg:sticky lg:top-6 lg:self-start">
         <PreviewPanel
           mode={mode}
-          aspectRatio={completedImage && viewJob ? viewJob.settings.aspect_ratio : aspectRatio}
+          aspectRatio={completedJob ? completedJob.settings.aspect_ratio : aspectRatio}
           details={details}
           sourceImage={upload.image}
-          result={resultSrc ? { src: resultSrc, alt: `Generated image: ${viewJob?.settings.prompt ?? ""}` } : null}
-          busyMessage={isImage && imageBusy ? progressMessage(view, elapsedSeconds, imageJob.modelState) : null}
+          result={
+            resultSrc
+              ? {
+                  kind: completedVideo ? "video" : "image",
+                  src: resultSrc,
+                  alt: `Generated ${completedVideo ? "video" : "image"}: ${completedJob?.settings.prompt ?? ""}`,
+                }
+              : null
+          }
+          busyMessage={runsJob && jobBusy ? progressMessage(view, elapsedSeconds, imageJob.modelState) : null}
           notice={
-            isImage ? (
+            runsJob && jobInThisMode ? (
               <JobNotice
                 view={view}
                 progress={progressMessage(view, elapsedSeconds, imageJob.modelState)}

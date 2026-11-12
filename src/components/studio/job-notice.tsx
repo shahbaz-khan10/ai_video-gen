@@ -35,36 +35,41 @@ function Card({ tone, children }: { tone: "ok" | "error" | "muted"; children: Re
 
 function Completed({ view, attribution }: { view: Extract<JobView, { phase: "completed" }>; attribution: JobNoticeProps["attribution"] }) {
   const { job } = view;
-  const image = job.image!;
+  // Exactly one of these is set for a completed job (viewFromJob checks it).
+  const video = job.video ?? null;
+  const file = video ?? job.image!;
   const s = job.settings;
   const took = secondsBetween(job.started_at, job.finished_at);
   const meta = [
-    `${image.width} × ${image.height}`,
+    `${file.width} × ${file.height}`,
+    video?.duration_seconds ? `${video.duration_seconds.toFixed(1)}s` : null,
+    video?.num_frames ? `${video.num_frames} frames` : null,
+    video ? `${(video.size_bytes / 1e6).toFixed(1)} MB` : null,
     `seed ${s.seed}`,
     `${s.steps} ${s.steps === 1 ? "step" : "steps"}`,
     job.device?.toUpperCase(),
-    took !== null ? `${formatElapsed(took)}` : null,
+    took !== null ? `took ${formatElapsed(took)}` : null,
   ].filter(Boolean);
-  const download = assetUrl(image.download_url);
-  const open = assetUrl(image.url);
+  const download = assetUrl(file.download_url);
+  const open = assetUrl(file.url);
 
   return (
     <div className="flex gap-3">
       <CircleCheck className="mt-0.5 size-4 shrink-0 text-emerald-300" aria-hidden />
       <div className="min-w-0 flex-1 text-sm">
-        <p className="font-medium text-fg">Image generated</p>
+        <p className="font-medium text-fg">{video ? "Video generated" : "Image generated"}</p>
         <p className="mt-1 font-mono text-[11px] text-fg-muted">{meta.join(" · ")}</p>
         <div className="mt-3 flex flex-wrap gap-2">
           {download && (
             <a href={download} className={buttonStyles({ size: "sm" })}>
               <Download className="size-3.5" aria-hidden />
-              Download PNG
+              {video ? "Download MP4" : "Download PNG"}
             </a>
           )}
           {open && (
             <a href={open} target="_blank" rel="noopener noreferrer" className={buttonStyles({ variant: "secondary", size: "sm" })}>
               <ExternalLink className="size-3.5" aria-hidden />
-              Open full size
+              {video ? "Open in new tab" : "Open full size"}
             </a>
           )}
         </div>
@@ -129,7 +134,8 @@ export function JobNotice({ view, progress, attribution, onRetry, onReconnect }:
               <div className="flex-1 text-sm">
                 <p className="font-medium text-fg">Lost connection to the backend</p>
                 <p className="mt-1 text-xs leading-relaxed text-fg-muted">
-                  Your image may still be generating. Reconnect to check its status.
+                  Your {view.job.settings.mode === "text-to-video" ? "video" : "image"} may still be generating. Reconnect to
+                  check its status.
                 </p>
                 <Button variant="secondary" size="sm" onClick={onReconnect} className="mt-3">
                   <RotateCcw className="size-3.5" aria-hidden />

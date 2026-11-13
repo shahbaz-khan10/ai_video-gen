@@ -1,4 +1,6 @@
-@import "tailwindcss";
+/* Scan only src/: scanning the project root makes Turbopack read the multi-GB
+   model weights in backend/models and fail with "Cannot allocate memory". */
+@import "tailwindcss" source("../");
 
 /* Design tokens — AI Video Studio is a dark-first product. */
 :root {

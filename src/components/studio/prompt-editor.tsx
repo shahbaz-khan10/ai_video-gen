@@ -7,7 +7,7 @@ import { EXAMPLE_PROMPT } from "@/lib/studio-options";
 import type { GenerationMode } from "@/types/studio";
 import { cn } from "@/lib/cn";
 
-export const PROMPT_MAX = 1000;
+export const PROMPT_MAX = 4000; // must match PROMPT_MAX_CHARS in backend/app/schemas/generation.py
 
 const PLACEHOLDERS: Record<GenerationMode, string> = {
   "text-to-image": "Describe the scene, people, their clothes, activities, lighting and camera lens…",

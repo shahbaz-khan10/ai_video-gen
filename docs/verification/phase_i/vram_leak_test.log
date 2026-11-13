@@ -1,0 +1,4 @@
+run 1 completed 09:33:08 09:33:37 VRAM_after=4310 MiB container_mem=18.5GiB / 23.47GiB
+run 2 completed 09:33:41 09:34:10 VRAM_after=4310 MiB container_mem=18.46GiB / 23.47GiB
+run 3 completed 09:34:14 09:34:44 VRAM_after=4266 MiB container_mem=18.41GiB / 23.47GiB
+run 4 completed 09:34:47 09:35:17 VRAM_after=4244 MiB container_mem=18.16GiB / 23.47GiB

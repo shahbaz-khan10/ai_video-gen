@@ -78,6 +78,9 @@ PLACES = {
     "bridge": ("bridge", "outdoor"), "stadium": ("stadium", None), "space": ("outer space", None),
     "underwater": ("underwater", "outdoor"), "rooftop": ("rooftop", "outdoor"), "harbor": ("harbor", "outdoor"),
     "home": ("home", None), "house": ("house", None), "valley": ("valley", "outdoor"),
+    "meadow": ("meadow", "outdoor"), "countryside": ("countryside", "outdoor"), "grassland": ("grassland", "outdoor"),
+    "pasture": ("pasture", "outdoor"), "hill": ("hills", "outdoor"), "hills": ("hills", "outdoor"),
+    "river bank": ("river bank", "outdoor"), "riverbank": ("river bank", "outdoor"), "waterfall": ("waterfall", "outdoor"),
 }
 WEATHER = {
     r"snow(?:ing|y|fall| is falling| falling)?": "snow", r"rain(?:ing|y|fall)?": "rain",
@@ -347,7 +350,7 @@ def _beats(clauses: list[str], subject: str | None) -> list[SceneBeat]:
     story = [c for c in clauses if ACTION_START.match(c) or PRONOUN_ACTION.match(c)]
     # One action clause ("teaching ten students") is a single moment, not a story.
     if len(story) < 2:
-        return [SceneBeat(index=1, description=". ".join(clauses)[:600] or "scene")]
+        return [SceneBeat(index=1, description=". ".join(clauses) or "scene")]
     beats: list[SceneBeat] = []
     lead = [c for c in clauses if c not in story]
     for clause in lead[:1] + story:
@@ -359,7 +362,7 @@ def _beats(clauses: list[str], subject: str | None) -> list[SceneBeat]:
                 description = f"{clause[:start]}the {subject}{clause[end:]}"
             else:
                 description = f"{subject} {clause}"
-        beats.append(SceneBeat(index=len(beats) + 1, description=description[:600]))
+        beats.append(SceneBeat(index=len(beats) + 1, description=description))
     return beats
 
 
@@ -400,13 +403,19 @@ def validate(plan: ScenePlan, *, mode: str, model_prompt: str, fits: Callable[[s
         hits = {name for name, ws in field_words.items() if any(w in ws or w.rstrip("s") in ws for w in words)}
         matched = [w for w in words if any(w in ws or w.rstrip("s") in ws for ws in field_words.values())]
         ratio = len(matched) / len(words)
-        status = "planned" if ratio >= 0.6 else "partial" if matched else "unplanned"
+        status = "included" if ratio >= 0.6 else "compressed" if matched else "unsupported"
         # Scene prompts may reword a clause ("She makes tea" -> "the girl makes tea"); its words must all arrive.
         reaches = fits(clause) if fits else (
             clause.lower() in model_prompt.lower() or set(words) <= set(content_words(model_prompt))
         )
         instructions.append(Instruction(text=clause, covered_by=sorted(hits), reaches_model=reaches, status=status))
 
+    limitations = limitations_for(plan, mode=mode)
+    return plan.model_copy(update={"instructions": instructions, "limitations": limitations, "model_prompt": model_prompt})
+
+
+def limitations_for(plan: ScenePlan, *, mode: str) -> list[str]:
+    """Requests the models cannot honour reliably, in plain words."""
     limitations: list[str] = []
     for c in plan.characters:
         if c.count and c.count > 4:
@@ -445,12 +454,7 @@ def validate(plan: ScenePlan, *, mode: str, model_prompt: str, fits: Callable[[s
         limitations.append(
             "Scenes are separate clips joined with cuts; the same character can still change slightly between scenes."
         )
-    not_reaching = [i.text for i in instructions if not i.reaches_model]
-    if not_reaching:
-        limitations.append(
-            "The model's text limit cuts off: " + "; ".join(f"'{t}'" for t in not_reaching) + ". Shorten the prompt or move key details earlier."
-        )
-    return plan.model_copy(update={"instructions": instructions, "limitations": limitations, "model_prompt": model_prompt})
+    return limitations
 
 
 def negative_terms(prompt: str) -> list[str]:

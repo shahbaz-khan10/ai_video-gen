@@ -1,0 +1,50 @@
+
+=== phase4_meadow: 429 chars | CLIP 77 tokens (budget 75) | UMT5 87 tokens (budget 512) | scenes 1
+  video prompt 1: 111 UMT5 tokens
+  image prompt: 79 CLIP tokens; dropped by CLIP: 'story ., photorealistic'
+  600-char scene cut: False
+  [partial  ] A beautiful green countryside meadow surrounded by tall pine trees, distant green mountain
+  [planned  ] A white sheep is peacefully eating fresh green grass
+  [planned  ] A grey wolf slowly appears from behind a tree in the background
+  [unplanned] Maintain the same environment, character appearance and lighting throughout
+  [partial  ] Create a cinematic multi-scene story
+
+=== wolf_sheep_structured: 926 chars | CLIP 204 tokens (budget 75) | UMT5 242 tokens (budget 512) | scenes 1
+  video prompt 1: 185 UMT5 tokens
+  image prompt: 206 CLIP tokens; dropped by CLIP: 'one small white sheep , fluffy white wool , pink face , black eyes . keep exactly the same sheep in every scene . maintain the exact same environment and lighti'
+  600-char scene cut: True
+  [planned  ] Create an exactly 30-second cinematic 3D animated wildlife story featuring ONLY TWO main c
+  [planned  ] CHARACTER CONSISTENCY (VERY IMPORTANT):
+  [planned  ] WOLF: One medium-sized grey wolf, dark grey fur, white chest, yellow eyes, pointed ears, l
+  [planned  ] Keep exactly the same wolf in every scene
+  [planned  ] SHEEP: One small white sheep, fluffy white wool, pink face, black eyes
+  [planned  ] Keep exactly the same sheep in every scene
+  [planned  ] Maintain the exact same environment and lighting throughout
+  [planned  ] SCENE 1 (0-7 seconds): Wide cinematic establishing shot of the beautiful green meadow
+  [partial  ] The white sheep is peacefully eating fresh green grass  <-- reported 'cut off by the model's text limit'
+  [planned  ] SCENE 2 (7-15 seconds): The grey wolf slowly appears from behind a tree in the background  <-- reported 'cut off by the model's text limit'
+  [planned  ] SCENE 3 (15-23 seconds): The sheep notices the wolf and runs toward the river  <-- reported 'cut off by the model's text limit'
+  [partial  ] SCENE 4 (23-30 seconds): The wolf stops at the river bank while the sheep escapes across t  <-- reported 'cut off by the model's text limit'
+
+=== rabbit_story: 684 chars | CLIP 140 tokens (budget 75) | UMT5 155 tokens (budget 512) | scenes 1
+  video prompt 1: 170 UMT5 tokens
+  image prompt: 142 CLIP tokens; dropped by CLIP: 'long branch , and a strong elephant carefully lifted the bird . together , they saved the little bird ! the bird happily flew back to its mother . all the anima'
+  600-char scene cut: True
+  [partial  ] Title: The Brave Little Rabbit
+  [partial  ] Once upon a time, there was a little rabbit named Ruby who lived in a beautiful forest
+  [planned  ] One day, Ruby heard a tiny bird crying near a river
+  [partial  ] The bird had fallen from its nest and couldn't fly
+  [partial  ] Ruby wanted to help, but the river was deep and dangerous
+  [partial  ] She quickly called her forest friends
+  [partial  ] A clever monkey brought a long branch, and a strong elephant carefully lifted the bird
+  [partial  ] Together, they saved the little bird
+  [partial  ] The bird happily flew back to its mother
+  [unplanned] All the animals praised Ruby for her kindness
+  [unplanned] Ruby smiled and said, "Even the smallest animal can make a big difference!"  <-- reported 'cut off by the model's text limit'
+  [unplanned] Moral: Kindness and teamwork can make the impossible possible  <-- reported 'cut off by the model's text limit'
+
+=== classroom: 58 chars | CLIP 13 tokens (budget 75) | UMT5 14 tokens (budget 512) | scenes 1
+  video prompt 1: 30 UMT5 tokens
+  image prompt: 22 CLIP tokens; dropped by CLIP: ''
+  600-char scene cut: False
+  [planned  ] A teacher standing in front of 10 students in a classroom

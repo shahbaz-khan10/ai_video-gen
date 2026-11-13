@@ -335,12 +335,28 @@ class DiffusersImageEngine:
         # Intelligent prompt understanding & scene planning
         scene_plan = PromptUnderstandingEngine.plan_scene(params.prompt, params.style)
 
-        # The text encoder reads only 77 tokens, so the model gets the user's own words first, then the
-        # explicit counts ("one male teacher, 10 students"), then the style, each only while it fits.
-        from app.services.scene_planner import RulePlanner, build_image_prompt_parts, negative_terms
+        # CLIP reads only 77 tokens. The prompt compiler builds the image prompt from prioritised parts (the moment
+        # and its characters first, then setting, camera, style) and fits it with this pipeline's own tokenizer, so
+        # what is reported to the user is exactly what CLIP reads. ``_fit_prompt`` stays as a final guard.
+        from app.services.prompt_compiler import compile_plan
+        from app.services.prompt_tokens import count_tokens
+        from app.services.scene_planner import negative_terms
 
-        plan = RulePlanner.plan(params.prompt)
-        prompt_text = self._fit_prompt(build_image_prompt_parts(plan, STYLE_PROMPTS.get(params.style)))
+        tokenizer = getattr(self._pipe, "tokenizer", None)
+        if tokenizer is not None:
+            compiled = compile_plan(
+                params.prompt,
+                mode="text-to-image",
+                style_text=STYLE_PROMPTS.get(params.style),
+                style_name=params.style,
+                measure=lambda t: count_tokens(tokenizer, t),
+                budget=tokenizer.model_max_length - 2,
+                tokenizer_name="clip (RealVisXL)",
+                measured=True,
+            ).compiled[0].text
+            prompt_text = self._fit_prompt([compiled])
+        else:
+            prompt_text = params.prompt
         self.last_prompt = prompt_text
 
         # Negative prompt resolution

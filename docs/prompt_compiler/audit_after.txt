@@ -1,0 +1,124 @@
+
+=== phase4_meadow · text-to-video 30s: 2 prompt(s)
+  [scene 1] 96/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     A white sheep is peacefully eating fresh green grass. Characters: white sheep. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 2] 100/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     A grey wolf slowly appears from behind a tree in the background. Characters: grey wolf; white sheep. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  included        'A beautiful green countryside meadow surrounded by tall pine trees, distant green mou'
+  included        'A white sheep is peacefully eating fresh green grass.'
+  included        'A grey wolf slowly appears from behind a tree in the background.'
+  included        'Maintain the same environment, character appearance and lighting throughout.'  — Applied by repeating the same character and setting descriptions in every clip prompt.
+  included        'Create a cinematic multi-scene story.'  — Style and characters are taken from this request.
+
+=== phase4_meadow · text-to-image: 1 prompt(s)
+  [image] 74/75 tokens (clip (RealVisXL)) · action=included, characters=included, setting=included, style=compressed
+     A white sheep is peacefully eating fresh green grass, then a grey wolf slowly appears from behind a tree in the background. Characters: white sheep; grey wolf. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: photorealistic.
+  included        'A beautiful green countryside meadow surrounded by tall pine trees, distant green mou'
+  included        'A white sheep is peacefully eating fresh green grass.'
+  included        'A grey wolf slowly appears from behind a tree in the background.'
+  included        'Maintain the same environment, character appearance and lighting throughout.'  — Applied: one prompt describes the characters and setting.
+  included        'Create a cinematic multi-scene story.'  — Style and characters are taken from this request.
+
+=== wolf_sheep_structured · text-to-video 30s: 4 prompt(s)
+  [scene 1] 83/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, camera=included, style=included, continuity=included
+     Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass. Characters: small white sheep — fluffy white wool, pink face, black eyes. Camera: wide shot. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 2] 101/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     The grey wolf slowly appears from behind a tree in the background. Characters: medium-sized grey wolf — dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail; small white sheep — fluffy white wool, pink face, black eyes. Setting: the beautiful green meadow. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 3] 103/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     The sheep notices the wolf and runs toward the river. Characters: small white sheep — fluffy white wool, pink face, black eyes; medium-sized grey wolf — dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail. Setting: river, the beautiful green meadow. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 4] 108/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     The wolf stops at the river bank while the sheep escapes across the water. Characters: medium-sized grey wolf — dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail; small white sheep — fluffy white wool, pink face, black eyes. Setting: river, the beautiful green meadow. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  included        'Create an exactly 30-second cinematic 3D animated wildlife story featuring ONLY TWO m'  — Style and characters are taken from this request. Length 30 s matches the Duration setting.
+  included        'CHARACTER CONSISTENCY (VERY IMPORTANT):'  — Section heading: used to read the structure of the prompt.
+  included        'WOLF: One medium-sized grey wolf, dark grey fur, white chest, yellow eyes, pointed ea'
+  included        'Keep exactly the same wolf in every scene.'  — Applied by repeating the same character and setting descriptions in every clip prompt.
+  included        'SHEEP: One small white sheep, fluffy white wool, pink face, black eyes.'
+  included        'Keep exactly the same sheep in every scene.'  — Applied by repeating the same character and setting descriptions in every clip prompt.
+  included        'Maintain the exact same environment and lighting throughout.'  — Applied by repeating the same character and setting descriptions in every clip prompt.
+  included        'SCENE 1 (0-7 seconds)'  — Scene boundary (scene 1, 7 s).
+  included        'Wide cinematic establishing shot of the beautiful green meadow.'
+  included        'The white sheep is peacefully eating fresh green grass.'
+  included        'SCENE 2 (7-15 seconds)'  — Scene boundary (scene 2, 8 s).
+  included        'The grey wolf slowly appears from behind a tree in the background.'
+  included        'SCENE 3 (15-23 seconds)'  — Scene boundary (scene 3, 8 s).
+  included        'The sheep notices the wolf and runs toward the river.'
+  included        'SCENE 4 (23-30 seconds)'  — Scene boundary (scene 4, 7 s).
+  included        'The wolf stops at the river bank while the sheep escapes across the water.'
+
+=== wolf_sheep_structured · text-to-image: 1 prompt(s)
+  [image] 65/75 tokens (clip (RealVisXL)) · action=included, characters=included, camera=included, style=included
+     Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass. Characters: small white sheep — fluffy white wool, pink face, black eyes. Camera: wide shot. Style: photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting.
+  included        'Create an exactly 30-second cinematic 3D animated wildlife story featuring ONLY TWO m'  — Style and characters are taken from this request. Length 30 s matches the Duration setting.
+  included        'CHARACTER CONSISTENCY (VERY IMPORTANT):'  — Section heading: used to read the structure of the prompt.
+  unsupported     'WOLF: One medium-sized grey wolf, dark grey fur, white chest, yellow eyes, pointed ea'  — This character first appears in a later moment of the story, not in the one the image shows.
+  included        'Keep exactly the same wolf in every scene.'  — Applied: one prompt describes the characters and setting.
+  included        'SHEEP: One small white sheep, fluffy white wool, pink face, black eyes.'
+  included        'Keep exactly the same sheep in every scene.'  — Applied: one prompt describes the characters and setting.
+  included        'Maintain the exact same environment and lighting throughout.'  — Applied: one prompt describes the characters and setting.
+  included        'SCENE 1 (0-7 seconds)'  — Scene boundary (scene 1, 7 s).
+  included        'Wide cinematic establishing shot of the beautiful green meadow.'
+  included        'The white sheep is peacefully eating fresh green grass.'
+  included        'SCENE 2 (7-15 seconds)'  — Scene boundary (scene 2, 8 s).
+  unsupported     'The grey wolf slowly appears from behind a tree in the background.'  — A still image shows one moment, so it uses the first moment of the story; this is moment 2. Use Text to Video to show the whole story.
+  included        'SCENE 3 (15-23 seconds)'  — Scene boundary (scene 3, 8 s).
+  unsupported     'The sheep notices the wolf and runs toward the river.'  — A still image shows one moment, so it uses the first moment of the story; this is moment 3. Use Text to Video to show the whole story.
+  included        'SCENE 4 (23-30 seconds)'  — Scene boundary (scene 4, 7 s).
+  unsupported     'The wolf stops at the river bank while the sheep escapes across the water.'  — A still image shows one moment, so it uses the first moment of the story; this is moment 4. Use Text to Video to show the whole story.
+
+=== rabbit_story · text-to-video 30s: 9 prompt(s)
+  [scene 1] 72/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     One day, the little rabbit heard a tiny bird crying near a river. Characters: little rabbit — who lived in a beautiful forest; tiny bird. Setting: river. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 2] 68/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     The bird had fallen from its nest and couldn't fly. Characters: tiny bird; little rabbit — who lived in a beautiful forest. Setting: river. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 3] 71/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     The little rabbit wanted to help, but the river was deep and dangerous. Characters: little rabbit — who lived in a beautiful forest; tiny bird. Setting: river. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 4] 65/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     The little rabbit quickly called her forest friends. Characters: little rabbit — who lived in a beautiful forest; tiny bird. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 5] 74/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     A clever monkey brought a long branch, and a strong elephant carefully lifted the bird. Characters: clever monkey; strong elephant; tiny bird. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 6] 57/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     Together, they saved the little bird. Characters: tiny bird; clever monkey. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 7] 60/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     The bird happily flew back to its mother. Characters: tiny bird; clever monkey. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 8] 69/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     All the animals praised the little rabbit for her kindness. Characters: little rabbit — who lived in a beautiful forest; tiny bird. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  [scene 9] 62/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included, continuity=included
+     The little rabbit smiled. Characters: little rabbit — who lived in a beautiful forest; tiny bird. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.
+  unsupported     'Title: The Brave Little Rabbit'  — Not visual: the models cannot render a title or a moral as text. The story itself is used.
+  compressed      'Once upon a time, there was a little rabbit named Ruby who lived in a beautiful fores'  — Included with simplified wording.
+  included        'One day, Ruby heard a tiny bird crying near a river.'
+  included        "The bird had fallen from its nest and couldn't fly."
+  included        'Ruby wanted to help, but the river was deep and dangerous.'
+  included        'She quickly called her forest friends.'
+  included        'A clever monkey brought a long branch, and a strong elephant carefully lifted the bir'
+  included        'Together, they saved the little bird!'
+  included        'The bird happily flew back to its mother.'
+  compressed      'All the animals praised Ruby for her kindness.'  — Included with simplified wording.
+  compressed      'Ruby smiled and said, "Even the smallest animal can make a big difference!"'  — Shown without the spoken or written words, which the models cannot render: "Even the smallest animal can make a big difference!"
+  unsupported     'Moral: Kindness and teamwork can make the impossible possible.'  — Not visual: the models cannot render a title or a moral as text. The story itself is used.
+
+=== rabbit_story · text-to-image: 1 prompt(s)
+  [image] 58/75 tokens (clip (RealVisXL)) · action=included, characters=included, setting=included, style=included
+     One day, the little rabbit heard a tiny bird crying near a river. Characters: little rabbit — who lived in a beautiful forest; tiny bird. Setting: river. Style: photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting.
+  unsupported     'Title: The Brave Little Rabbit'  — Not visual: the models cannot render a title or a moral as text. The story itself is used.
+  compressed      'Once upon a time, there was a little rabbit named Ruby who lived in a beautiful fores'  — Included with simplified wording.
+  included        'One day, Ruby heard a tiny bird crying near a river.'
+  unsupported     "The bird had fallen from its nest and couldn't fly."  — A still image shows one moment, so it uses the first moment of the story; this is moment 2. Use Text to Video to show the whole story.
+  unsupported     'Ruby wanted to help, but the river was deep and dangerous.'  — A still image shows one moment, so it uses the first moment of the story; this is moment 3. Use Text to Video to show the whole story.
+  unsupported     'She quickly called her forest friends.'  — A still image shows one moment, so it uses the first moment of the story; this is moment 4. Use Text to Video to show the whole story.
+  unsupported     'A clever monkey brought a long branch, and a strong elephant carefully lifted the bir'  — A still image shows one moment, so it uses the first moment of the story; this is moment 5. Use Text to Video to show the whole story.
+  unsupported     'Together, they saved the little bird!'  — A still image shows one moment, so it uses the first moment of the story; this is moment 6. Use Text to Video to show the whole story.
+  unsupported     'The bird happily flew back to its mother.'  — A still image shows one moment, so it uses the first moment of the story; this is moment 7. Use Text to Video to show the whole story.
+  unsupported     'All the animals praised Ruby for her kindness.'  — A still image shows one moment, so it uses the first moment of the story; this is moment 8. Use Text to Video to show the whole story.
+  unsupported     'Ruby smiled and said, "Even the smallest animal can make a big difference!"'  — A still image shows one moment, so it uses the first moment of the story; this is moment 9. Use Text to Video to show the whole story.
+  unsupported     'Moral: Kindness and teamwork can make the impossible possible.'  — Not visual: the models cannot render a title or a moral as text. The story itself is used.
+
+=== classroom · text-to-video 30s: 1 prompt(s)
+  [scene 1] 44/511 tokens (umt5 (Wan2.1)) · action=included, characters=included, setting=included, style=included
+     A teacher standing in front of 10 students in a classroom. Characters: teacher; students. Setting: classroom. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain.
+  included        'A teacher standing in front of 10 students in a classroom.'
+
+=== classroom · text-to-image: 1 prompt(s)
+  [image] 50/75 tokens (clip (RealVisXL)) · action=included, characters=included, setting=included, style=included
+     A teacher standing in front of 10 students in a classroom. Characters: one teacher, 10 students. Setting: classroom. Style: photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting.
+  included        'A teacher standing in front of 10 students in a classroom.'

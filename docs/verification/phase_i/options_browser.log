@@ -1,0 +1,15 @@
+2026-11-13T09:36:04.438Z duration options: 2,3,5,15,30,60,90,120
+2026-11-13T09:36:04.441Z size options: Draft576 × 320 | Quality832 × 480
+2026-11-13T09:36:04.443Z steps selector visible: 0
+2026-11-13T09:36:04.598Z screenshot options_01_video_options.png
+2026-11-13T09:36:04.606Z duration 2: note="Runs on your GPU · about a minute or more per clip · one job at a time"
+2026-11-13T09:36:04.637Z duration 3: note="Runs on your GPU · about a minute or more per clip · one job at a time"
+2026-11-13T09:36:04.664Z duration 5: note="Runs on your GPU · about a minute or more per clip · one job at a time"
+2026-11-13T09:36:04.693Z duration 15: note="Runs on your GPU · 15s is built from many clips and takes a long time · one job at a time"
+2026-11-13T09:36:04.719Z duration 30: note="Runs on your GPU · 30s is built from many clips and takes a long time · one job at a time"
+2026-11-13T09:36:04.745Z duration 60: note="Runs on your GPU · 60s is built from many clips and takes a long time · one job at a time"
+2026-11-13T09:36:04.770Z duration 90: note="Runs on your GPU · 90s is built from many clips and takes a long time · one job at a time"
+2026-11-13T09:36:04.796Z duration 120: note="Runs on your GPU · 120s is built from many clips and takes a long time · one job at a time"
+2026-11-13T09:36:04.902Z POST http://localhost:8003/api/v1/generations/scene-plan -> 200
+2026-11-13T09:36:04.920Z plan: How your prompt was understoodrulesCharacters · 1 peoplefishermanPlaceharbor · sunriseYour instructionsA fisherman rows his boat at dawnHe casts a netHe returns to the harborWhat the models can't do reliablyNo look is given for 'fisherman': each scene is generated separately, so the model may draw a different-looking character every time. Describe hair, age and clothing to keep them consistent.Scenes are separate clips joined with cuts; the same character can still change slightly between scenes.Scenes · edit before generating120s of 120s1A fisherman rows his boat at dawnseconds2the fisherman casts a netseconds3the fisherman returns to the harborsecondsAdd scene
+2026-11-13T09:36:05.195Z screenshot options_02_plan_120s_quality.png

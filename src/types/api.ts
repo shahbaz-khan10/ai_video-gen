@@ -144,9 +144,30 @@ export type GenerationPlan = {
   camera: { shot_type: string | null; angle: string | null; movement: string | null };
   style: string | null;
   scenes: { index: number; description: string; duration_seconds: number | null }[];
-  instructions: { text: string; covered_by: string[]; reaches_model: boolean; status: "planned" | "partial" | "unplanned" }[];
+  instructions: {
+    text: string;
+    covered_by: string[];
+    reaches_model: boolean;
+    status: InstructionStatus;
+    note?: string | null;
+    targets?: string[];
+  }[];
   limitations: string[];
   model_prompt: string | null;
+  /** The exact prompt of every model call (one per scene for long videos), measured with the model's tokenizer. */
+  compiled?: CompiledPrompt[];
+};
+
+export type InstructionStatus = "included" | "compressed" | "unsupported" | "omitted_budget";
+
+export type CompiledPrompt = {
+  target: string;
+  model: string;
+  text: string;
+  tokens: number;
+  budget: number;
+  measured: boolean;
+  components: { name: string; status: "included" | "compressed" | "omitted"; text: string; full_text: string }[];
 };
 
 export type SceneJob = {

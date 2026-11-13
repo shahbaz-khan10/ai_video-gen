@@ -47,20 +47,50 @@ class SceneBeat(BaseModel):
     """One scene of a story. Long videos are generated scene by scene."""
 
     index: int = Field(ge=1)
-    description: str = Field(min_length=1, max_length=600)
+    description: str = Field(min_length=1, max_length=4000)
     characters: list[str] = Field(default_factory=list, description="Character ids present in this scene.")
     action: str | None = None
     camera: str | None = None
     duration_seconds: float | None = Field(None, ge=1, le=120)
 
 
+InstructionStatus = Literal["included", "compressed", "unsupported", "omitted_budget"]
+
+
 class Instruction(BaseModel):
-    """One clause of the user's prompt and where it went."""
+    """One instruction (sentence or line) of the user's prompt and what happened to it.
+
+    included        understood and present in the prompt(s) sent to the model
+    compressed      understood; sent in shortened form (to fit the token budget, or without unrenderable words)
+    unsupported     understood but not something the models can show (a title, a moral, spoken words)
+    omitted_budget  not sent because it did not fit the model's token budget
+    """
 
     text: str
-    covered_by: list[str] = Field(default_factory=list, description="Plan fields that represent this clause.")
-    reaches_model: bool = Field(True, description="False if the model's text limit cuts this clause off.")
-    status: Literal["planned", "partial", "unplanned"] = "planned"
+    covered_by: list[str] = Field(default_factory=list, description="Plan fields that represent this instruction.")
+    reaches_model: bool = Field(True, description="True when the instruction is in at least one model prompt.")
+    status: InstructionStatus = "included"
+    note: str | None = Field(None, description="Why this status, in plain words.")
+    targets: list[str] = Field(default_factory=list, description="Compiled prompts that contain it, e.g. 'scene 2'.")
+
+
+class PromptComponent(BaseModel):
+    name: str = Field(description="action, characters, setting, camera, lighting, style or continuity")
+    status: Literal["included", "compressed", "omitted"]
+    text: str = Field(description="What was sent ('' when omitted).")
+    full_text: str = Field(description="The component before compression.")
+
+
+class CompiledPrompt(BaseModel):
+    """The exact prompt one model call receives, measured with that model's tokenizer."""
+
+    target: str = Field(description="'image', 'video' or 'scene N'.")
+    model: str = Field(description="Tokenizer used for the budget, e.g. 'umt5 (Wan2.1)' or 'clip (RealVisXL)'.")
+    text: str
+    tokens: int
+    budget: int
+    measured: bool = Field(description="True when counted with the model's real tokenizer.")
+    components: list[PromptComponent] = []
 
 
 class ScenePlan(BaseModel):
@@ -77,3 +107,4 @@ class ScenePlan(BaseModel):
     instructions: list[Instruction] = []
     limitations: list[str] = Field(default_factory=list, description="Requests the current models cannot honour reliably.")
     model_prompt: str | None = Field(None, description="Exactly what the generation model receives.")
+    compiled: list[CompiledPrompt] = Field(default_factory=list, description="One entry per model call (per scene for long videos).")

@@ -1,0 +1,178 @@
+{
+ "original_prompt": "Title: The Brave Little Rabbit\n\nOnce upon a time, there was a little rabbit named Ruby who lived in a beautiful forest.\n\nOne day, Ruby heard a tiny bird crying near a river. The bird had fallen from its nest and couldn't fly.\n\nRuby wanted to help, but the river was deep and dangerous.\n\nShe quickly called her forest friends. A clever monkey brought a long branch, and a strong elephant carefully lifted the bird.\n\nTogether, they saved the little bird!\n\nThe bird happily flew back to its mother.\n\nAll the animals praised Ruby for her kindness.\n\nRuby smiled and said, \"Even the smallest animal can make a big difference!\"\n\nMoral: Kindness and teamwork can make the impossible possible.",
+ "planner": "rules",
+ "main_subject": "little rabbit",
+ "people_count": null,
+ "characters": [
+  {
+   "id": "rabbit",
+   "kind": "animal",
+   "count": 1,
+   "description": "little rabbit",
+   "age": null,
+   "clothing": null,
+   "position": null,
+   "action": null
+  },
+  {
+   "id": "bird",
+   "kind": "animal",
+   "count": 1,
+   "description": "tiny bird",
+   "age": null,
+   "clothing": null,
+   "position": "near a river",
+   "action": "crying near a river"
+  },
+  {
+   "id": "monkey",
+   "kind": "animal",
+   "count": 1,
+   "description": "clever monkey",
+   "age": null,
+   "clothing": null,
+   "position": null,
+   "action": null
+  },
+  {
+   "id": "elephant",
+   "kind": "animal",
+   "count": 1,
+   "description": "strong elephant",
+   "age": null,
+   "clothing": null,
+   "position": null,
+   "action": null
+  }
+ ],
+ "objects": [],
+ "environment": {
+  "location": "forest",
+  "setting": "outdoor",
+  "background": [
+   "river"
+  ],
+  "weather": null,
+  "time_of_day": null,
+  "lighting": null
+ },
+ "camera": {
+  "shot_type": null,
+  "angle": null,
+  "movement": null
+ },
+ "style": null,
+ "scenes": [
+  {
+   "index": 1,
+   "description": "Title: The Brave Little Rabbit. Once upon a time, there was a little rabbit named Ruby who lived in a beautiful forest. One day, Ruby heard a tiny bird crying near a river. The bird had fallen from its nest and couldn't fly. Ruby wanted to help, but the river was deep and dangerous. She quickly called her forest friends. A clever monkey brought a long branch, and a strong elephant carefully lifted the bird. Together, they saved the little bird. The bird happily flew back to its mother. All the animals praised Ruby for her kindness. Ruby smiled and said, \"Even the smallest animal can make a big",
+   "characters": [],
+   "action": null,
+   "camera": null,
+   "duration_seconds": 60.0
+  }
+ ],
+ "instructions": [
+  {
+   "text": "Title: The Brave Little Rabbit",
+   "covered_by": [
+    "characters[0]"
+   ],
+   "reaches_model": true,
+   "status": "partial"
+  },
+  {
+   "text": "Once upon a time, there was a little rabbit named Ruby who lived in a beautiful forest",
+   "covered_by": [
+    "characters[0]",
+    "environment"
+   ],
+   "reaches_model": true,
+   "status": "partial"
+  },
+  {
+   "text": "One day, Ruby heard a tiny bird crying near a river",
+   "covered_by": [
+    "characters[1]",
+    "environment"
+   ],
+   "reaches_model": true,
+   "status": "planned"
+  },
+  {
+   "text": "The bird had fallen from its nest and couldn't fly",
+   "covered_by": [
+    "characters[1]"
+   ],
+   "reaches_model": true,
+   "status": "partial"
+  },
+  {
+   "text": "Ruby wanted to help, but the river was deep and dangerous",
+   "covered_by": [
+    "characters[1]",
+    "environment"
+   ],
+   "reaches_model": true,
+   "status": "partial"
+  },
+  {
+   "text": "She quickly called her forest friends",
+   "covered_by": [
+    "environment"
+   ],
+   "reaches_model": true,
+   "status": "partial"
+  },
+  {
+   "text": "A clever monkey brought a long branch, and a strong elephant carefully lifted the bird",
+   "covered_by": [
+    "characters[1]",
+    "characters[2]",
+    "characters[3]"
+   ],
+   "reaches_model": true,
+   "status": "partial"
+  },
+  {
+   "text": "Together, they saved the little bird",
+   "covered_by": [
+    "characters[0]",
+    "characters[1]"
+   ],
+   "reaches_model": true,
+   "status": "partial"
+  },
+  {
+   "text": "The bird happily flew back to its mother",
+   "covered_by": [
+    "characters[1]"
+   ],
+   "reaches_model": true,
+   "status": "partial"
+  },
+  {
+   "text": "All the animals praised Ruby for her kindness",
+   "covered_by": [],
+   "reaches_model": true,
+   "status": "unplanned"
+  },
+  {
+   "text": "Ruby smiled and said, \"Even the smallest animal can make a big difference!\"",
+   "covered_by": [],
+   "reaches_model": false,
+   "status": "unplanned"
+  },
+  {
+   "text": "Moral: Kindness and teamwork can make the impossible possible",
+   "covered_by": [],
+   "reaches_model": false,
+   "status": "unplanned"
+  }
+ ],
+ "limitations": [
+  "Readable text, signs and logos are not reliably rendered.",
+  "The model's text limit cuts off: 'Ruby smiled and said, \"Even the smallest animal can make a big difference!\"'; 'Moral: Kindness and teamwork can make the impossible possible'. Shorten the prompt or move key details earlier."
+ ],
+ "model_prompt": "Title: The Brave Little Rabbit. Once upon a time, there was a little rabbit named Ruby who lived in a beautiful forest. One day, Ruby heard a tiny bird crying near a river. The bird had fallen from its nest and couldn't fly. Ruby wanted to help, but the river was deep and dangerous. She quickly called her forest friends. A clever monkey brought a long branch, and a strong elephant carefully lifted the bird. Together, they saved the little bird. The bird happily flew back to its mother. All the animals praised Ruby for her kindness. Ruby smiled and said, \"Even the smallest animal can make a big. Characters: little rabbit; tiny bird; clever monkey; strong elephant. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain."
+}

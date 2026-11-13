@@ -81,19 +81,19 @@ def test_empty_prompt_rejected(client: TestClient, video_request: dict, prompt: 
 
 
 def test_overlong_prompt_rejected(client: TestClient, video_request: dict) -> None:
-    video_request["prompt"] = "a" * 1001
+    video_request["prompt"] = "a" * 4001
     res = client.post(VALIDATE, json=video_request)
     assert res.status_code == 422
     assert "prompt" in error_fields(res)
 
 
 def test_prompt_at_limit_accepted(client: TestClient, video_request: dict) -> None:
-    video_request["prompt"] = "a" * 1000
+    video_request["prompt"] = "a" * 4000
     assert client.post(VALIDATE, json=video_request).status_code == 200
 
 
 def test_validation_errors_do_not_echo_prompt(client: TestClient, video_request: dict) -> None:
-    video_request["prompt"] = "PRIVATE-" + "x" * 1000
+    video_request["prompt"] = "PRIVATE-" + "x" * 4000
     res = client.post(VALIDATE, json=video_request)
     assert res.status_code == 422
     assert "PRIVATE" not in res.text

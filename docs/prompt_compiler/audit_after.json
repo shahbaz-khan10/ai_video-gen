@@ -1,0 +1,1762 @@
+{
+ "prompts": {
+  "phase4_meadow": {
+   "text-to-video": {
+    "scenes": [
+     {
+      "index": 1,
+      "description": "A white sheep is peacefully eating fresh green grass",
+      "characters": [
+       "sheep"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 2,
+      "description": "A grey wolf slowly appears from behind a tree in the background",
+      "characters": [
+       "wolf",
+       "sheep"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     }
+    ],
+    "instructions": [
+     {
+      "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 1",
+       "scene 2"
+      ]
+     },
+     {
+      "text": "A white sheep is peacefully eating fresh green grass.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 1"
+      ]
+     },
+     {
+      "text": "A grey wolf slowly appears from behind a tree in the background.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 2"
+      ]
+     },
+     {
+      "text": "Maintain the same environment, character appearance and lighting throughout.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Applied by repeating the same character and setting descriptions in every clip prompt.",
+      "targets": [
+       "scene 1",
+       "scene 2"
+      ]
+     },
+     {
+      "text": "Create a cinematic multi-scene story.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Style and characters are taken from this request.",
+      "targets": []
+     }
+    ],
+    "limitations": [
+     "Scenes are separate clips joined with cuts; the same character can still change slightly between scenes."
+    ],
+    "compiled": [
+     {
+      "target": "scene 1",
+      "model": "umt5 (Wan2.1)",
+      "text": "A white sheep is peacefully eating fresh green grass. Characters: white sheep. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 96,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "A white sheep is peacefully eating fresh green grass",
+        "full_text": "A white sheep is peacefully eating fresh green grass"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "white sheep",
+        "full_text": "white sheep"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds",
+        "full_text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 2",
+      "model": "umt5 (Wan2.1)",
+      "text": "A grey wolf slowly appears from behind a tree in the background. Characters: grey wolf; white sheep. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 100,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "A grey wolf slowly appears from behind a tree in the background",
+        "full_text": "A grey wolf slowly appears from behind a tree in the background"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "grey wolf; white sheep",
+        "full_text": "grey wolf; white sheep"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds",
+        "full_text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     }
+    ]
+   },
+   "text-to-image": {
+    "scenes": [
+     {
+      "index": 1,
+      "description": "A white sheep is peacefully eating fresh green grass, then a grey wolf slowly appears from behind a tree in the background",
+      "characters": [
+       "sheep",
+       "wolf"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     }
+    ],
+    "instructions": [
+     {
+      "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "A white sheep is peacefully eating fresh green grass.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "A grey wolf slowly appears from behind a tree in the background.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "Maintain the same environment, character appearance and lighting throughout.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Applied: one prompt describes the characters and setting.",
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "Create a cinematic multi-scene story.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Style and characters are taken from this request.",
+      "targets": []
+     }
+    ],
+    "limitations": [],
+    "compiled": [
+     {
+      "target": "image",
+      "model": "clip (RealVisXL)",
+      "text": "A white sheep is peacefully eating fresh green grass, then a grey wolf slowly appears from behind a tree in the background. Characters: white sheep; grey wolf. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: photorealistic.",
+      "tokens": 74,
+      "budget": 75,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "A white sheep is peacefully eating fresh green grass, then a grey wolf slowly appears from behind a tree in the background",
+        "full_text": "A white sheep is peacefully eating fresh green grass, then a grey wolf slowly appears from behind a tree in the background"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "white sheep; grey wolf",
+        "full_text": "white sheep; grey wolf"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds",
+        "full_text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds"
+       },
+       {
+        "name": "style",
+        "status": "compressed",
+        "text": "photorealistic",
+        "full_text": "photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "wolf_sheep_structured": {
+   "text-to-video": {
+    "scenes": [
+     {
+      "index": 1,
+      "description": "Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass.",
+      "characters": [
+       "sheep"
+      ],
+      "action": null,
+      "camera": "wide shot",
+      "duration_seconds": 7.0
+     },
+     {
+      "index": 2,
+      "description": "The grey wolf slowly appears from behind a tree in the background.",
+      "characters": [
+       "wolf",
+       "sheep"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": 8.0
+     },
+     {
+      "index": 3,
+      "description": "The sheep notices the wolf and runs toward the river.",
+      "characters": [
+       "sheep",
+       "wolf"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": 8.0
+     },
+     {
+      "index": 4,
+      "description": "The wolf stops at the river bank while the sheep escapes across the water.",
+      "characters": [
+       "wolf",
+       "sheep"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": 7.0
+     }
+    ],
+    "instructions": [
+     {
+      "text": "Create an exactly 30-second cinematic 3D animated wildlife story featuring ONLY TWO main characters: one grey wolf and one white sheep.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Style and characters are taken from this request. Length 30 s matches the Duration setting.",
+      "targets": [
+       "scene 1",
+       "scene 2",
+       "scene 3",
+       "scene 4"
+      ]
+     },
+     {
+      "text": "CHARACTER CONSISTENCY (VERY IMPORTANT):",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Section heading: used to read the structure of the prompt.",
+      "targets": []
+     },
+     {
+      "text": "WOLF: One medium-sized grey wolf, dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 2",
+       "scene 3",
+       "scene 4"
+      ]
+     },
+     {
+      "text": "Keep exactly the same wolf in every scene.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Applied by repeating the same character and setting descriptions in every clip prompt.",
+      "targets": [
+       "scene 1",
+       "scene 2",
+       "scene 3",
+       "scene 4"
+      ]
+     },
+     {
+      "text": "SHEEP: One small white sheep, fluffy white wool, pink face, black eyes.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 1",
+       "scene 2",
+       "scene 3",
+       "scene 4"
+      ]
+     },
+     {
+      "text": "Keep exactly the same sheep in every scene.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Applied by repeating the same character and setting descriptions in every clip prompt.",
+      "targets": [
+       "scene 1",
+       "scene 2",
+       "scene 3",
+       "scene 4"
+      ]
+     },
+     {
+      "text": "Maintain the exact same environment and lighting throughout.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Applied by repeating the same character and setting descriptions in every clip prompt.",
+      "targets": [
+       "scene 1",
+       "scene 2",
+       "scene 3",
+       "scene 4"
+      ]
+     },
+     {
+      "text": "SCENE 1 (0-7 seconds)",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Scene boundary (scene 1, 7 s).",
+      "targets": [
+       "scene 1"
+      ]
+     },
+     {
+      "text": "Wide cinematic establishing shot of the beautiful green meadow.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 1",
+       "scene 2",
+       "scene 3",
+       "scene 4"
+      ]
+     },
+     {
+      "text": "The white sheep is peacefully eating fresh green grass.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 1"
+      ]
+     },
+     {
+      "text": "SCENE 2 (7-15 seconds)",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Scene boundary (scene 2, 8 s).",
+      "targets": [
+       "scene 2"
+      ]
+     },
+     {
+      "text": "The grey wolf slowly appears from behind a tree in the background.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 2"
+      ]
+     },
+     {
+      "text": "SCENE 3 (15-23 seconds)",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Scene boundary (scene 3, 8 s).",
+      "targets": [
+       "scene 3"
+      ]
+     },
+     {
+      "text": "The sheep notices the wolf and runs toward the river.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 3",
+       "scene 4"
+      ]
+     },
+     {
+      "text": "SCENE 4 (23-30 seconds)",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Scene boundary (scene 4, 7 s).",
+      "targets": [
+       "scene 4"
+      ]
+     },
+     {
+      "text": "The wolf stops at the river bank while the sheep escapes across the water.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 4"
+      ]
+     }
+    ],
+    "limitations": [
+     "Scenes are separate clips joined with cuts; the same character can still change slightly between scenes."
+    ],
+    "compiled": [
+     {
+      "target": "scene 1",
+      "model": "umt5 (Wan2.1)",
+      "text": "Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass. Characters: small white sheep \u2014 fluffy white wool, pink face, black eyes. Camera: wide shot. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 83,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass.",
+        "full_text": "Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass."
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "small white sheep \u2014 fluffy white wool, pink face, black eyes",
+        "full_text": "small white sheep \u2014 fluffy white wool, pink face, black eyes"
+       },
+       {
+        "name": "camera",
+        "status": "included",
+        "text": "wide shot",
+        "full_text": "wide shot"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 2",
+      "model": "umt5 (Wan2.1)",
+      "text": "The grey wolf slowly appears from behind a tree in the background. Characters: medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail; small white sheep \u2014 fluffy white wool, pink face, black eyes. Setting: the beautiful green meadow. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 101,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "The grey wolf slowly appears from behind a tree in the background.",
+        "full_text": "The grey wolf slowly appears from behind a tree in the background."
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail; small white sheep \u2014 fluffy white wool, pink face, black eyes",
+        "full_text": "medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail; small white sheep \u2014 fluffy white wool, pink face, black eyes"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "the beautiful green meadow",
+        "full_text": "the beautiful green meadow"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 3",
+      "model": "umt5 (Wan2.1)",
+      "text": "The sheep notices the wolf and runs toward the river. Characters: small white sheep \u2014 fluffy white wool, pink face, black eyes; medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail. Setting: river, the beautiful green meadow. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 103,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "The sheep notices the wolf and runs toward the river.",
+        "full_text": "The sheep notices the wolf and runs toward the river."
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "small white sheep \u2014 fluffy white wool, pink face, black eyes; medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail",
+        "full_text": "small white sheep \u2014 fluffy white wool, pink face, black eyes; medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "river, the beautiful green meadow",
+        "full_text": "river, the beautiful green meadow"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 4",
+      "model": "umt5 (Wan2.1)",
+      "text": "The wolf stops at the river bank while the sheep escapes across the water. Characters: medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail; small white sheep \u2014 fluffy white wool, pink face, black eyes. Setting: river, the beautiful green meadow. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 108,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "The wolf stops at the river bank while the sheep escapes across the water.",
+        "full_text": "The wolf stops at the river bank while the sheep escapes across the water."
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail; small white sheep \u2014 fluffy white wool, pink face, black eyes",
+        "full_text": "medium-sized grey wolf \u2014 dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail; small white sheep \u2014 fluffy white wool, pink face, black eyes"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "river, the beautiful green meadow",
+        "full_text": "river, the beautiful green meadow"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     }
+    ]
+   },
+   "text-to-image": {
+    "scenes": [
+     {
+      "index": 1,
+      "description": "Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass, then the grey wolf slowly appears from behind a tree in the background, then the sheep notices the wolf and runs toward the river, then the wolf stops at the river bank while the sheep escapes across the water",
+      "characters": [
+       "sheep",
+       "wolf"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     }
+    ],
+    "instructions": [
+     {
+      "text": "Create an exactly 30-second cinematic 3D animated wildlife story featuring ONLY TWO main characters: one grey wolf and one white sheep.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Style and characters are taken from this request. Length 30 s matches the Duration setting.",
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "CHARACTER CONSISTENCY (VERY IMPORTANT):",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Section heading: used to read the structure of the prompt.",
+      "targets": []
+     },
+     {
+      "text": "WOLF: One medium-sized grey wolf, dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "This character first appears in a later moment of the story, not in the one the image shows.",
+      "targets": []
+     },
+     {
+      "text": "Keep exactly the same wolf in every scene.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Applied: one prompt describes the characters and setting.",
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "SHEEP: One small white sheep, fluffy white wool, pink face, black eyes.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "Keep exactly the same sheep in every scene.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Applied: one prompt describes the characters and setting.",
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "Maintain the exact same environment and lighting throughout.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Applied: one prompt describes the characters and setting.",
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "SCENE 1 (0-7 seconds)",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Scene boundary (scene 1, 7 s).",
+      "targets": [
+       "scene 1"
+      ]
+     },
+     {
+      "text": "Wide cinematic establishing shot of the beautiful green meadow.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "The white sheep is peacefully eating fresh green grass.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "SCENE 2 (7-15 seconds)",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Scene boundary (scene 2, 8 s).",
+      "targets": [
+       "scene 2"
+      ]
+     },
+     {
+      "text": "The grey wolf slowly appears from behind a tree in the background.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 2. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "SCENE 3 (15-23 seconds)",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Scene boundary (scene 3, 8 s).",
+      "targets": [
+       "scene 3"
+      ]
+     },
+     {
+      "text": "The sheep notices the wolf and runs toward the river.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 3. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "SCENE 4 (23-30 seconds)",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": "Scene boundary (scene 4, 7 s).",
+      "targets": [
+       "scene 4"
+      ]
+     },
+     {
+      "text": "The wolf stops at the river bank while the sheep escapes across the water.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 4. Use Text to Video to show the whole story.",
+      "targets": []
+     }
+    ],
+    "limitations": [],
+    "compiled": [
+     {
+      "target": "image",
+      "model": "clip (RealVisXL)",
+      "text": "Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass. Characters: small white sheep \u2014 fluffy white wool, pink face, black eyes. Camera: wide shot. Style: photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting.",
+      "tokens": 65,
+      "budget": 75,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass.",
+        "full_text": "Wide cinematic establishing shot of the beautiful green meadow. The white sheep is peacefully eating fresh green grass."
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "small white sheep \u2014 fluffy white wool, pink face, black eyes",
+        "full_text": "small white sheep \u2014 fluffy white wool, pink face, black eyes"
+       },
+       {
+        "name": "camera",
+        "status": "included",
+        "text": "wide shot",
+        "full_text": "wide shot"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting",
+        "full_text": "photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "rabbit_story": {
+   "text-to-video": {
+    "scenes": [
+     {
+      "index": 1,
+      "description": "One day, the little rabbit heard a tiny bird crying near a river",
+      "characters": [
+       "rabbit",
+       "bird"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 2,
+      "description": "The bird had fallen from its nest and couldn't fly",
+      "characters": [
+       "bird",
+       "rabbit"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 3,
+      "description": "The little rabbit wanted to help, but the river was deep and dangerous",
+      "characters": [
+       "rabbit",
+       "bird"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 4,
+      "description": "The little rabbit quickly called her forest friends",
+      "characters": [
+       "rabbit",
+       "bird"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 5,
+      "description": "A clever monkey brought a long branch, and a strong elephant carefully lifted the bird",
+      "characters": [
+       "monkey",
+       "elephant",
+       "bird"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 6,
+      "description": "Together, they saved the little bird",
+      "characters": [
+       "bird",
+       "monkey"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 7,
+      "description": "The bird happily flew back to its mother",
+      "characters": [
+       "bird",
+       "monkey"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 8,
+      "description": "All the animals praised the little rabbit for her kindness",
+      "characters": [
+       "rabbit",
+       "bird"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     },
+     {
+      "index": 9,
+      "description": "The little rabbit smiled",
+      "characters": [
+       "rabbit",
+       "bird"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     }
+    ],
+    "instructions": [
+     {
+      "text": "Title: The Brave Little Rabbit",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "unsupported",
+      "note": "Not visual: the models cannot render a title or a moral as text. The story itself is used.",
+      "targets": []
+     },
+     {
+      "text": "Once upon a time, there was a little rabbit named Ruby who lived in a beautiful forest.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "compressed",
+      "note": "Included with simplified wording.",
+      "targets": [
+       "scene 1",
+       "scene 2",
+       "scene 3",
+       "scene 4",
+       "scene 8",
+       "scene 9"
+      ]
+     },
+     {
+      "text": "One day, Ruby heard a tiny bird crying near a river.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 1"
+      ]
+     },
+     {
+      "text": "The bird had fallen from its nest and couldn't fly.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 2"
+      ]
+     },
+     {
+      "text": "Ruby wanted to help, but the river was deep and dangerous.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 3"
+      ]
+     },
+     {
+      "text": "She quickly called her forest friends.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 4"
+      ]
+     },
+     {
+      "text": "A clever monkey brought a long branch, and a strong elephant carefully lifted the bird.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 5"
+      ]
+     },
+     {
+      "text": "Together, they saved the little bird!",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 1",
+       "scene 2",
+       "scene 3",
+       "scene 4",
+       "scene 6",
+       "scene 8",
+       "scene 9"
+      ]
+     },
+     {
+      "text": "The bird happily flew back to its mother.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 7"
+      ]
+     },
+     {
+      "text": "All the animals praised Ruby for her kindness.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "compressed",
+      "note": "Included with simplified wording.",
+      "targets": [
+       "scene 8"
+      ]
+     },
+     {
+      "text": "Ruby smiled and said, \"Even the smallest animal can make a big difference!\"",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "compressed",
+      "note": "Shown without the spoken or written words, which the models cannot render: \"Even the smallest animal can make a big difference!\"",
+      "targets": [
+       "scene 9"
+      ]
+     },
+     {
+      "text": "Moral: Kindness and teamwork can make the impossible possible.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "unsupported",
+      "note": "Not visual: the models cannot render a title or a moral as text. The story itself is used.",
+      "targets": []
+     }
+    ],
+    "limitations": [
+     "Readable text, signs and logos are not reliably rendered.",
+     "Scenes are separate clips joined with cuts; the same character can still change slightly between scenes."
+    ],
+    "compiled": [
+     {
+      "target": "scene 1",
+      "model": "umt5 (Wan2.1)",
+      "text": "One day, the little rabbit heard a tiny bird crying near a river. Characters: little rabbit \u2014 who lived in a beautiful forest; tiny bird. Setting: river. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 72,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "One day, the little rabbit heard a tiny bird crying near a river",
+        "full_text": "One day, the little rabbit heard a tiny bird crying near a river"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird",
+        "full_text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "river",
+        "full_text": "river"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 2",
+      "model": "umt5 (Wan2.1)",
+      "text": "The bird had fallen from its nest and couldn't fly. Characters: tiny bird; little rabbit \u2014 who lived in a beautiful forest. Setting: river. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 68,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "The bird had fallen from its nest and couldn't fly",
+        "full_text": "The bird had fallen from its nest and couldn't fly"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "tiny bird; little rabbit \u2014 who lived in a beautiful forest",
+        "full_text": "tiny bird; little rabbit \u2014 who lived in a beautiful forest"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "river",
+        "full_text": "river"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 3",
+      "model": "umt5 (Wan2.1)",
+      "text": "The little rabbit wanted to help, but the river was deep and dangerous. Characters: little rabbit \u2014 who lived in a beautiful forest; tiny bird. Setting: river. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 71,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "The little rabbit wanted to help, but the river was deep and dangerous",
+        "full_text": "The little rabbit wanted to help, but the river was deep and dangerous"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird",
+        "full_text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "river",
+        "full_text": "river"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 4",
+      "model": "umt5 (Wan2.1)",
+      "text": "The little rabbit quickly called her forest friends. Characters: little rabbit \u2014 who lived in a beautiful forest; tiny bird. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 65,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "The little rabbit quickly called her forest friends",
+        "full_text": "The little rabbit quickly called her forest friends"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird",
+        "full_text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "forest",
+        "full_text": "forest"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 5",
+      "model": "umt5 (Wan2.1)",
+      "text": "A clever monkey brought a long branch, and a strong elephant carefully lifted the bird. Characters: clever monkey; strong elephant; tiny bird. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 74,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "A clever monkey brought a long branch, and a strong elephant carefully lifted the bird",
+        "full_text": "A clever monkey brought a long branch, and a strong elephant carefully lifted the bird"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "clever monkey; strong elephant; tiny bird",
+        "full_text": "clever monkey; strong elephant; tiny bird"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "forest",
+        "full_text": "forest"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 6",
+      "model": "umt5 (Wan2.1)",
+      "text": "Together, they saved the little bird. Characters: tiny bird; clever monkey. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 57,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "Together, they saved the little bird",
+        "full_text": "Together, they saved the little bird"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "tiny bird; clever monkey",
+        "full_text": "tiny bird; clever monkey"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "forest",
+        "full_text": "forest"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 7",
+      "model": "umt5 (Wan2.1)",
+      "text": "The bird happily flew back to its mother. Characters: tiny bird; clever monkey. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 60,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "The bird happily flew back to its mother",
+        "full_text": "The bird happily flew back to its mother"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "tiny bird; clever monkey",
+        "full_text": "tiny bird; clever monkey"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "forest",
+        "full_text": "forest"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 8",
+      "model": "umt5 (Wan2.1)",
+      "text": "All the animals praised the little rabbit for her kindness. Characters: little rabbit \u2014 who lived in a beautiful forest; tiny bird. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 69,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "All the animals praised the little rabbit for her kindness",
+        "full_text": "All the animals praised the little rabbit for her kindness"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird",
+        "full_text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "forest",
+        "full_text": "forest"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     },
+     {
+      "target": "scene 9",
+      "model": "umt5 (Wan2.1)",
+      "text": "The little rabbit smiled. Characters: little rabbit \u2014 who lived in a beautiful forest; tiny bird. Setting: forest. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+      "tokens": 62,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "The little rabbit smiled",
+        "full_text": "The little rabbit smiled"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird",
+        "full_text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "forest",
+        "full_text": "forest"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       },
+       {
+        "name": "continuity",
+        "status": "included",
+        "text": "the same characters, setting and lighting as the other shots",
+        "full_text": "the same characters, setting and lighting as the other shots"
+       }
+      ]
+     }
+    ]
+   },
+   "text-to-image": {
+    "scenes": [
+     {
+      "index": 1,
+      "description": "One day, the little rabbit heard a tiny bird crying near a river, then the bird had fallen from its nest and couldn't fly, then the little rabbit wanted to help, but the river was deep and dangerous, then the little rabbit quickly called her forest friends, then a clever monkey brought a long branch, and a strong elephant carefully lifted the bird, then together, they saved the little bird, then the bird happily flew back to its mother, then all the animals praised the little rabbit for her kindness, then the little rabbit smiled",
+      "characters": [
+       "rabbit",
+       "bird",
+       "monkey",
+       "elephant"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     }
+    ],
+    "instructions": [
+     {
+      "text": "Title: The Brave Little Rabbit",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "unsupported",
+      "note": "Not visual: the models cannot render a title or a moral as text. The story itself is used.",
+      "targets": []
+     },
+     {
+      "text": "Once upon a time, there was a little rabbit named Ruby who lived in a beautiful forest.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "compressed",
+      "note": "Included with simplified wording.",
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "One day, Ruby heard a tiny bird crying near a river.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "image"
+      ]
+     },
+     {
+      "text": "The bird had fallen from its nest and couldn't fly.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 2. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "Ruby wanted to help, but the river was deep and dangerous.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 3. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "She quickly called her forest friends.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 4. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "A clever monkey brought a long branch, and a strong elephant carefully lifted the bird.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 5. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "Together, they saved the little bird!",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 6. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "The bird happily flew back to its mother.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 7. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "All the animals praised Ruby for her kindness.",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 8. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "Ruby smiled and said, \"Even the smallest animal can make a big difference!\"",
+      "covered_by": [],
+      "reaches_model": false,
+      "status": "unsupported",
+      "note": "A still image shows one moment, so it uses the first moment of the story; this is moment 9. Use Text to Video to show the whole story.",
+      "targets": []
+     },
+     {
+      "text": "Moral: Kindness and teamwork can make the impossible possible.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "unsupported",
+      "note": "Not visual: the models cannot render a title or a moral as text. The story itself is used.",
+      "targets": []
+     }
+    ],
+    "limitations": [
+     "Readable text, signs and logos are not reliably rendered."
+    ],
+    "compiled": [
+     {
+      "target": "image",
+      "model": "clip (RealVisXL)",
+      "text": "One day, the little rabbit heard a tiny bird crying near a river. Characters: little rabbit \u2014 who lived in a beautiful forest; tiny bird. Setting: river. Style: photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting.",
+      "tokens": 58,
+      "budget": 75,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "One day, the little rabbit heard a tiny bird crying near a river",
+        "full_text": "One day, the little rabbit heard a tiny bird crying near a river"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird",
+        "full_text": "little rabbit \u2014 who lived in a beautiful forest; tiny bird"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "river",
+        "full_text": "river"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting",
+        "full_text": "photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting"
+       }
+      ]
+     }
+    ]
+   }
+  },
+  "classroom": {
+   "text-to-video": {
+    "scenes": [
+     {
+      "index": 1,
+      "description": "A teacher standing in front of 10 students in a classroom",
+      "characters": [
+       "teacher",
+       "student"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     }
+    ],
+    "instructions": [
+     {
+      "text": "A teacher standing in front of 10 students in a classroom.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "scene 1"
+      ]
+     }
+    ],
+    "limitations": [
+     "Exact count (10 students): image and video models approximate groups larger than about 4; expect roughly this many, not an exact number."
+    ],
+    "compiled": [
+     {
+      "target": "scene 1",
+      "model": "umt5 (Wan2.1)",
+      "text": "A teacher standing in front of 10 students in a classroom. Characters: teacher; students. Setting: classroom. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain.",
+      "tokens": 44,
+      "budget": 511,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "A teacher standing in front of 10 students in a classroom",
+        "full_text": "A teacher standing in front of 10 students in a classroom"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "teacher; students",
+        "full_text": "teacher; students"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "classroom",
+        "full_text": "classroom"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+        "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+       }
+      ]
+     }
+    ]
+   },
+   "text-to-image": {
+    "scenes": [
+     {
+      "index": 1,
+      "description": "A teacher standing in front of 10 students in a classroom",
+      "characters": [
+       "teacher",
+       "student"
+      ],
+      "action": null,
+      "camera": null,
+      "duration_seconds": null
+     }
+    ],
+    "instructions": [
+     {
+      "text": "A teacher standing in front of 10 students in a classroom.",
+      "covered_by": [],
+      "reaches_model": true,
+      "status": "included",
+      "note": null,
+      "targets": [
+       "image"
+      ]
+     }
+    ],
+    "limitations": [
+     "Exact count (10 students): image and video models approximate groups larger than about 4; expect roughly this many, not an exact number."
+    ],
+    "compiled": [
+     {
+      "target": "image",
+      "model": "clip (RealVisXL)",
+      "text": "A teacher standing in front of 10 students in a classroom. Characters: one teacher, 10 students. Setting: classroom. Style: photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting.",
+      "tokens": 50,
+      "budget": 75,
+      "measured": true,
+      "components": [
+       {
+        "name": "action",
+        "status": "included",
+        "text": "A teacher standing in front of 10 students in a classroom",
+        "full_text": "A teacher standing in front of 10 students in a classroom"
+       },
+       {
+        "name": "characters",
+        "status": "included",
+        "text": "one teacher, 10 students",
+        "full_text": "one teacher, 10 students"
+       },
+       {
+        "name": "setting",
+        "status": "included",
+        "text": "classroom",
+        "full_text": "classroom"
+       },
+       {
+        "name": "style",
+        "status": "included",
+        "text": "photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting",
+        "full_text": "photorealistic raw color photograph, 35mm lens, natural skin texture, visible pores, authentic lighting"
+       }
+      ]
+     }
+    ]
+   }
+  }
+ }
+}

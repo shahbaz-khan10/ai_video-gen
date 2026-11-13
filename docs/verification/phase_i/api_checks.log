@@ -1,0 +1,22 @@
+validate 2s standard -> HTTP 200 {"valid
+validate 2s large -> HTTP 200 {"valid":t
+validate 3s standard -> HTTP 200 {"valid
+validate 3s large -> HTTP 200 {"valid":t
+validate 5s standard -> HTTP 200 {"valid
+validate 5s large -> HTTP 200 {"valid":t
+validate 15s standard -> HTTP 200 {"vali
+validate 15s large -> HTTP 200 {"valid":
+validate 30s standard -> HTTP 200 {"vali
+validate 30s large -> HTTP 200 {"valid":
+validate 60s standard -> HTTP 200 {"vali
+validate 60s large -> HTTP 200 {"valid":
+validate 90s standard -> HTTP 200 {"vali
+validate 90s large -> HTTP 200 {"valid":
+validate 120s standard -> HTTP 200 {"val
+validate 120s large -> HTTP 200 {"valid"
+duration 10 -> HTTP 422 {"error":{"code":"validation_error","message":"The request is invalid.","details":[{"field":"duration_seconds","message":"Input should be 2,
+720p -> HTTP 422 {"error":{"code":"validation_error","message":"The request is invalid.","details":[{"field":"resolution","message":"Input should be <ImageRe
+steps with fastwan -> HTTP 422 {"error":{"code":"validation_error","message":"The request is invalid.","details":[{"field":"steps","message":"This server uses the 3-step d
+last_frame -> HTTP 501 {"error":{"code":"continuity_not_available","message":"Last-frame continuity (Wan VACE) is not enabled: measured at ~7x slower per clip on t
+retry unknown job -> HTTP 404 {"error":{"code":"generation_not_found","message":"No generation exists with this ID."}}
+image-to-video -> HTTP 501 {"error":{"code":"mode_not_available","message":"Image-to-video is not available in this phase."}}

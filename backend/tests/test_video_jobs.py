@@ -386,9 +386,11 @@ def test_scene_plan_endpoint_reports_coverage_and_limitations(vclient: TestClien
     )
     plan = vclient.post(f"{CREATE}/scene-plan", json={"mode": "text-to-image", "prompt": prompt}).json()
     assert plan["original_prompt"] == prompt and plan["people_count"] == 11
-    assert all(i["status"] == "planned" for i in plan["instructions"])
+    assert all(i["status"] == "included" for i in plan["instructions"]), plan["instructions"]
     assert any("10 students" in note for note in plan["limitations"])
-    assert plan["model_prompt"].startswith(prompt)
+    image = plan["compiled"][0]
+    assert image["target"] == "image" and image["tokens"] <= image["budget"]
+    assert "teaching ten students" in image["text"] and "classroom" in image["text"]
 
 
 def test_video_jobs_carry_the_exact_model_prompt(vclient: TestClient, video_engine: FakeVideoEngine) -> None:

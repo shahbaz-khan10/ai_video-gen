@@ -44,7 +44,8 @@ from app.schemas.generation import (
 from app.schemas.scene_plan import SceneBeat, ScenePlan
 from app.services.image_engine import STYLE_PROMPTS, EngineError, EngineStatus, ImageEngine, ImageParams
 from app.services.long_video import CROSSFADE_FRAMES, SCENE_CUT_FRAMES, join_clips, plan_clips, scene_durations
-from app.services.scene_planner import RulePlanner, build_video_prompt, validate
+from app.services.prompt_compiler import compile_plan
+from app.services.prompt_tokens import CLIP_MAX_TOKENS, UMT5_MAX_TOKENS, count_tokens, load_tokenizer
 from app.services.image_storage import ImageStorage
 from app.services.video_engine import VideoEngine, VideoEngineError, VideoParams
 from app.services.video_storage import VideoStorage
@@ -263,47 +264,76 @@ class GenerationService:
         settings = self.normalize(request)
         if isinstance(request, TextToVideoRequest):
             return self._plan_video(request, settings)[0]
-        style_text = STYLE_PROMPTS.get(settings.style)
-        plan = RulePlanner.plan(request.prompt)
-        from app.services.scene_planner import build_image_prompt_parts
+        return self._compile(request.prompt, mode=str(request.mode.value if hasattr(request.mode, "value") else request.mode),
+                             style=settings.style, duration=None, user_scenes=None)
 
-        return validate(plan, mode=str(request.mode), model_prompt=", ".join(build_image_prompt_parts(plan, style_text)))
+    def _budget(self, target: str) -> tuple[object, int, str, bool]:
+        """The real tokenizer and token budget of the model that will read the prompt."""
+        if target == "image":
+            model_id, cache, budget, name = (
+                self.settings.image_model_id, self.settings.image_model_cache_dir, CLIP_MAX_TOKENS - 2, "clip (RealVisXL)",
+            )
+        else:
+            model_id = self.settings.video_model_id  # FastWan uses the base Wan2.1 text encoder and tokenizer
+            cache = self.settings.video_model_cache_dir or self.settings.image_model_cache_dir
+            budget, name = UMT5_MAX_TOKENS - 1, "umt5 (Wan2.1)"  # -1: the end-of-sequence token
+        tokenizer = load_tokenizer(model_id, str(cache))
+        if tokenizer is None:
+            # Weights not downloaded (generation is unavailable then): a word/punctuation count stands in, and
+            # every compiled prompt says it was not measured with the real tokenizer.
+            return None, budget, f"{name} (not downloaded: estimated)", False
+        return tokenizer, budget, name, True
+
+    def _compile(self, prompt: str, *, mode: str, style: str, duration: float | None, user_scenes) -> ScenePlan:
+        tokenizer, budget, name, measured = self._budget("image" if mode == "text-to-image" else "video")
+        measure = (lambda t: count_tokens(tokenizer, t)) if tokenizer is not None else _estimate_tokens
+        return compile_plan(
+            prompt,
+            mode=mode,
+            style_text=STYLE_PROMPTS.get(style),
+            style_name=style,
+            duration_seconds=duration,
+            user_scenes=user_scenes,
+            measure=measure,
+            budget=budget,
+            tokenizer_name=name,
+            measured=measured,
+        )
 
     def _plan_video(self, request: TextToVideoRequest, settings) -> tuple[ScenePlan, list[SceneJob]]:
-        style_text = STYLE_PROMPTS.get(settings.style)
-        plan = RulePlanner.plan(request.prompt)
-        if request.duration_seconds <= SINGLE_CLIP_MAX_SECONDS:
-            return validate(plan, mode="text-to-video", model_prompt=build_video_prompt(plan, style_text)), []
-        if request.continuity == "last_frame":
+        if request.duration_seconds > SINGLE_CLIP_MAX_SECONDS and request.continuity == "last_frame":
             raise AppError(
                 501,
                 "continuity_not_available",
                 "Last-frame continuity (Wan VACE) is not enabled: measured at ~7x slower per clip on this GPU. "
                 "Use continuity 'prompt'.",
             )
-        beats = (
-            [SceneBeat(index=i + 1, description=s.description, duration_seconds=s.duration_seconds) for i, s in enumerate(request.scenes)]
-            if request.scenes
-            else plan.scenes
+        user_scenes = [(s.description, s.duration_seconds) for s in request.scenes] if request.scenes else None
+        plan = self._compile(
+            request.prompt, mode="text-to-video", style=settings.style,
+            duration=float(request.duration_seconds), user_scenes=user_scenes,
         )
+        if request.duration_seconds <= SINGLE_CLIP_MAX_SECONDS:
+            return plan, []
+        beats = plan.scenes
         try:
             durations = scene_durations(float(request.duration_seconds), [b.duration_seconds for b in beats])
         except ValueError as err:
             raise AppError(422, "validation_error", "The request is invalid.", [{"field": "scenes", "message": str(err)}]) from None
         clips = plan_clips(durations, settings.fps, request.continuity)
         beats = [b.model_copy(update={"index": i + 1, "duration_seconds": d}) for i, (b, d) in enumerate(zip(beats, durations))]
+        prompts = {c.target: c.text for c in plan.compiled}
         scenes = [
             SceneJob(
                 index=b.index,
                 description=b.description,
-                prompt=build_video_prompt(plan, style_text, b),
+                prompt=prompts[f"scene {b.index}"],
                 duration_seconds=b.duration_seconds,
                 clips=[c.frames for c in clips if c.scene == b.index - 1],
             )
             for b in beats
         ]
-        plan = plan.model_copy(update={"scenes": beats})
-        return validate(plan, mode="text-to-video", model_prompt=" | ".join(s.prompt for s in scenes)), scenes
+        return plan.model_copy(update={"scenes": beats}), scenes
 
     def retry_scene(self, job_id: str, index: int) -> GenerationJob:
         """Re-queues a failed long video. Clips already on disk are kept; only missing ones are generated."""
@@ -560,6 +590,13 @@ class GenerationService:
             except Exception:
                 pass
         self.store.update(job_id, status=GenerationStatus.FAILED, finished_at=_now(), error=error, device=device)
+
+
+def _estimate_tokens(text: str) -> int:
+    """Used only when the model's tokenizer is not on disk; real tokenizers count more (sub-words)."""
+    import re
+
+    return len(re.findall(r"\w+|[^\w\s]", text))
 
 
 def _parts_key(model_id: str, s: NormalizedSettings, scenes: list[SceneJob]) -> str:

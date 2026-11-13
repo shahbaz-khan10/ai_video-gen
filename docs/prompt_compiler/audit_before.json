@@ -1,0 +1,251 @@
+{
+ "clip_budget_tokens": 75,
+ "umt5_budget_tokens": 512,
+ "prompts": {
+  "phase4_meadow": {
+   "chars": 429,
+   "clip_tokens": 77,
+   "umt5_tokens": 87,
+   "scenes": 1,
+   "scene_descriptions_chars": [
+    424
+   ],
+   "scene_description_truncated_at_600": false,
+   "video_prompts": [
+    {
+     "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. A white sheep is peacefully eating fresh green grass. A grey wolf slowly appears from behind a tree in the background. Maintain the same environment, character appearance and lighting throughout. Create a cinematic multi-scene story. Characters: white sheep; grey wolf. Setting: mountains. Camera: from behind. Style: cinematic.",
+     "umt5_tokens": 111
+    }
+   ],
+   "image_prompt_clip_tokens": 79,
+   "image_prompt_clip_kept": "a beautiful green countryside meadow surrounded by tall pine trees , distant green mountains , a small flowing river , colorful wildflowers , soft sunlight and a blue sky with a few white clouds . a white sheep is peacefully eating fresh green grass . a grey wolf slowly appears from behind a tree in the background . maintain the same environment , character appearance and lighting throughout . create a cinematic multi - scene",
+   "image_prompt_clip_dropped": "story ., photorealistic",
+   "instructions": [
+    {
+     "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "A white sheep is peacefully eating fresh green grass",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "A grey wolf slowly appears from behind a tree in the background",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "Maintain the same environment, character appearance and lighting throughout",
+     "status": "unplanned",
+     "reaches_model": true
+    },
+    {
+     "text": "Create a cinematic multi-scene story",
+     "status": "partial",
+     "reaches_model": true
+    }
+   ],
+   "limitations": []
+  },
+  "wolf_sheep_structured": {
+   "chars": 926,
+   "clip_tokens": 204,
+   "umt5_tokens": 242,
+   "scenes": 1,
+   "scene_descriptions_chars": [
+    600
+   ],
+   "scene_description_truncated_at_600": true,
+   "video_prompts": [
+    {
+     "text": "Create an exactly 30-second cinematic 3D animated wildlife story featuring ONLY TWO main characters: one grey wolf and one white sheep. CHARACTER CONSISTENCY (VERY IMPORTANT):. 1. WOLF: One medium-sized grey wolf, dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail. Keep exactly the same wolf in every scene. 2. SHEEP: One small white sheep, fluffy white wool, pink face, black eyes. Keep exactly the same sheep in every scene. Maintain the exact same environment and lighting throughout. SCENE 1 (0-7 seconds): Wide cinematic establishing shot of the beautiful green meadow. The . Characters: grey wolf; white sheep. Setting: river, low light. Camera: wide shot, from behind. Style: cinematic.",
+     "umt5_tokens": 185
+    }
+   ],
+   "image_prompt_clip_tokens": 206,
+   "image_prompt_clip_kept": "create an exactly 3 0 - second cinematic 3 d animated wildlife story featuring only two main characters : one grey wolf and one white sheep . character consistency ( very important ): 1 . wolf : one medium - sized grey wolf , dark grey fur , white chest , yellow eyes , pointed ears , long bushy tail . keep exactly the same wolf in every scene . 2 . sheep :",
+   "image_prompt_clip_dropped": "one small white sheep , fluffy white wool , pink face , black eyes . keep exactly the same sheep in every scene . maintain the exact same environment and lighting throughout . scene 1 ( 0 - 7 seconds ): wide cinematic establishing shot of the beautiful green meadow . the white sheep is peacefully eating fresh green grass . scene 2 ( 7 - 1 5 seconds ): the grey wolf slowly appears from behind a tree in the background . scene 3 ( 1 5 - 2 3 seconds ): the sheep notices the wolf and runs toward the river . scene 4 ( 2 3 - 3 0 seconds ): the wolf stops at the river bank while the sheep escapes across the water ., photorealistic",
+   "instructions": [
+    {
+     "text": "Create an exactly 30-second cinematic 3D animated wildlife story featuring ONLY TWO main characters: one grey wolf and one white sheep",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "CHARACTER CONSISTENCY (VERY IMPORTANT):",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "WOLF: One medium-sized grey wolf, dark grey fur, white chest, yellow eyes, pointed ears, long bushy tail",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "Keep exactly the same wolf in every scene",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "SHEEP: One small white sheep, fluffy white wool, pink face, black eyes",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "Keep exactly the same sheep in every scene",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "Maintain the exact same environment and lighting throughout",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "SCENE 1 (0-7 seconds): Wide cinematic establishing shot of the beautiful green meadow",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "The white sheep is peacefully eating fresh green grass",
+     "status": "partial",
+     "reaches_model": false
+    },
+    {
+     "text": "SCENE 2 (7-15 seconds): The grey wolf slowly appears from behind a tree in the background",
+     "status": "planned",
+     "reaches_model": false
+    },
+    {
+     "text": "SCENE 3 (15-23 seconds): The sheep notices the wolf and runs toward the river",
+     "status": "planned",
+     "reaches_model": false
+    },
+    {
+     "text": "SCENE 4 (23-30 seconds): The wolf stops at the river bank while the sheep escapes across the water",
+     "status": "partial",
+     "reaches_model": false
+    }
+   ],
+   "limitations": [
+    "The model's text limit cuts off: 'The white sheep is peacefully eating fresh green grass'; 'SCENE 2 (7-15 seconds): The grey wolf slowly appears from behind a tree in the background'; 'SCENE 3 (15-23 seconds): The sheep notices the wolf and runs toward the river'; 'SCENE 4 (23-30 seconds): The wolf stops at the river bank while the sheep escapes across the water'. Shorten the prompt or move key details earlier."
+   ]
+  },
+  "rabbit_story": {
+   "chars": 684,
+   "clip_tokens": 140,
+   "umt5_tokens": 155,
+   "scenes": 1,
+   "scene_descriptions_chars": [
+    600
+   ],
+   "scene_description_truncated_at_600": true,
+   "video_prompts": [
+    {
+     "text": "Title: The Brave Little Rabbit. Once upon a time, there was a little rabbit named Ruby who lived in a beautiful forest. One day, Ruby heard a tiny bird crying near a river. The bird had fallen from its nest and couldn't fly. Ruby wanted to help, but the river was deep and dangerous. She quickly called her forest friends. A clever monkey brought a long branch, and a strong elephant carefully lifted the bird. Together, they saved the little bird. The bird happily flew back to its mother. All the animals praised Ruby for her kindness. Ruby smiled and said, \"Even the smallest animal can make a big. Characters: little rabbit; tiny bird; clever monkey; strong elephant. Setting: forest. Style: cinematic.",
+     "umt5_tokens": 170
+    }
+   ],
+   "image_prompt_clip_tokens": 142,
+   "image_prompt_clip_kept": "title : the brave little rabbit once upon a time , there was a little rabbit named ruby who lived in a beautiful forest . one day , ruby heard a tiny bird crying near a river . the bird had fallen from its nest and couldn 't fly . ruby wanted to help , but the river was deep and dangerous . she quickly called her forest friends . a clever monkey brought a",
+   "image_prompt_clip_dropped": "long branch , and a strong elephant carefully lifted the bird . together , they saved the little bird ! the bird happily flew back to its mother . all the animals praised ruby for her kindness . ruby smiled and said , \" even the smallest animal can make a big difference !\" moral : kindness and teamwork can make the impossible possible ., photorealistic",
+   "instructions": [
+    {
+     "text": "Title: The Brave Little Rabbit",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "Once upon a time, there was a little rabbit named Ruby who lived in a beautiful forest",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "One day, Ruby heard a tiny bird crying near a river",
+     "status": "planned",
+     "reaches_model": true
+    },
+    {
+     "text": "The bird had fallen from its nest and couldn't fly",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "Ruby wanted to help, but the river was deep and dangerous",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "She quickly called her forest friends",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "A clever monkey brought a long branch, and a strong elephant carefully lifted the bird",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "Together, they saved the little bird",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "The bird happily flew back to its mother",
+     "status": "partial",
+     "reaches_model": true
+    },
+    {
+     "text": "All the animals praised Ruby for her kindness",
+     "status": "unplanned",
+     "reaches_model": true
+    },
+    {
+     "text": "Ruby smiled and said, \"Even the smallest animal can make a big difference!\"",
+     "status": "unplanned",
+     "reaches_model": false
+    },
+    {
+     "text": "Moral: Kindness and teamwork can make the impossible possible",
+     "status": "unplanned",
+     "reaches_model": false
+    }
+   ],
+   "limitations": [
+    "Readable text, signs and logos are not reliably rendered.",
+    "The model's text limit cuts off: 'Ruby smiled and said, \"Even the smallest animal can make a big difference!\"'; 'Moral: Kindness and teamwork can make the impossible possible'. Shorten the prompt or move key details earlier."
+   ]
+  },
+  "classroom": {
+   "chars": 58,
+   "clip_tokens": 13,
+   "umt5_tokens": 14,
+   "scenes": 1,
+   "scene_descriptions_chars": [
+    57
+   ],
+   "scene_description_truncated_at_600": false,
+   "video_prompts": [
+    {
+     "text": "A teacher standing in front of 10 students in a classroom. Characters: students; teacher. Setting: classroom. Style: cinematic.",
+     "umt5_tokens": 30
+    }
+   ],
+   "image_prompt_clip_tokens": 22,
+   "image_prompt_clip_kept": "a teacher standing in front of 1 0 students in a classroom ., one teacher , 1 0 students , photorealistic",
+   "image_prompt_clip_dropped": "",
+   "instructions": [
+    {
+     "text": "A teacher standing in front of 10 students in a classroom",
+     "status": "planned",
+     "reaches_model": true
+    }
+   ],
+   "limitations": [
+    "Exact count (10 students): image and video models approximate groups larger than about 4; expect roughly this many, not an exact number."
+   ]
+  }
+ }
+}

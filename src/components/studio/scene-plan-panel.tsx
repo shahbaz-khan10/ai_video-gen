@@ -1,14 +1,50 @@
 "use client";
 
-import { AlertTriangle, CheckCircle2, CircleDashed, CircleHelp, Clapperboard, Plus, Trash2 } from "lucide-react";
+import { AlertTriangle, Ban, CheckCircle2, CircleDashed, Clapperboard, Plus, Scissors, Trash2 } from "lucide-react";
 import { cn } from "@/lib/cn";
-import type { GenerationPlan, SceneInput } from "@/types/api";
+import type { CompiledPrompt, GenerationPlan, InstructionStatus, SceneInput } from "@/types/api";
 
-const STATUS = {
-  planned: { icon: CheckCircle2, className: "text-emerald-300", label: "Understood" },
-  partial: { icon: CircleDashed, className: "text-amber-300", label: "Partly understood" },
-  unplanned: { icon: CircleHelp, className: "text-red-300", label: "Not understood" },
+const STATUS: Record<InstructionStatus, { icon: typeof CheckCircle2; className: string; label: string }> = {
+  included: { icon: CheckCircle2, className: "text-emerald-300", label: "Understood and included" },
+  compressed: { icon: CircleDashed, className: "text-amber-300", label: "Understood but compressed" },
+  unsupported: { icon: Ban, className: "text-fg-subtle", label: "Not supported by the model" },
+  omitted_budget: { icon: Scissors, className: "text-red-300", label: "Not included because of the token budget" },
+};
+
+const COMPONENT_TONE = {
+  included: "text-fg-muted",
+  compressed: "text-amber-300",
+  omitted: "text-red-300 line-through",
 } as const;
+
+/** The exact prompt a model receives, with its measured token count and what was compressed or left out. */
+function CompiledPromptView({ prompt }: { prompt: CompiledPrompt }) {
+  const changed = prompt.components.filter((c) => c.status !== "included");
+  return (
+    <details className="rounded-lg border border-line bg-ink-950 p-2.5 text-xs">
+      <summary className="flex cursor-pointer flex-wrap items-center justify-between gap-2 text-fg">
+        <span className="capitalize">{prompt.target}</span>
+        <span className="font-mono text-[10px] text-fg-subtle">
+          {prompt.tokens} / {prompt.budget} tokens · {prompt.model}
+          {prompt.measured ? "" : " · estimated"}
+          {changed.length ? ` · ${changed.length} shortened` : ""}
+        </span>
+      </summary>
+      <p className="mt-2 whitespace-pre-wrap font-mono text-[11px] leading-relaxed text-fg-muted">{prompt.text}</p>
+      <ul className="mt-2 flex flex-wrap gap-1.5">
+        {prompt.components.map((c) => (
+          <li
+            key={c.name}
+            title={c.status === "included" ? c.text : `Full: ${c.full_text}`}
+            className={cn("rounded border border-line px-1.5 py-0.5 font-mono text-[10px]", COMPONENT_TONE[c.status])}
+          >
+            {c.name}: {c.status}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
 
 type ScenePlanPanelProps = {
   plan: GenerationPlan;
@@ -69,15 +105,19 @@ export function ScenePlanPanel({ plan, scenes, totalSeconds, onScenesChange }: S
       <div>
         <p className="text-xs text-fg-subtle">Your instructions</p>
         <ul className="mt-1.5 flex flex-col gap-1.5">
-          {plan.instructions.map((ins) => {
-            const s = STATUS[ins.status];
+          {plan.instructions.map((ins, k) => {
+            const s = STATUS[ins.status] ?? STATUS.included;
             const Icon = s.icon;
             return (
-              <li key={ins.text} className="flex gap-2 text-xs text-fg-muted">
-                <Icon className={cn("mt-0.5 size-3.5 shrink-0", s.className)} aria-label={s.label} />
+              <li key={`${k}-${ins.text}`} className="flex gap-2 text-xs text-fg-muted">
+                <Icon className={cn("mt-0.5 size-3.5 shrink-0", s.className)} aria-hidden />
                 <span>
-                  {ins.text}
-                  {!ins.reaches_model && <span className="text-red-300"> · cut off by the model&apos;s text limit</span>}
+                  <span className="text-fg">{ins.text}</span>
+                  <span className={cn("block text-[11px]", s.className)}>
+                    {s.label}
+                    {ins.targets && ins.targets.length > 0 && ins.status !== "unsupported" ? ` · ${ins.targets.join(", ")}` : ""}
+                  </span>
+                  {ins.note && <span className="block text-[11px] text-fg-subtle">{ins.note}</span>}
                 </span>
               </li>
             );
@@ -157,11 +197,26 @@ export function ScenePlanPanel({ plan, scenes, totalSeconds, onScenesChange }: S
         </div>
       )}
 
-      {plan.model_prompt && !scenes && (
-        <details className="text-xs">
-          <summary className="cursor-pointer text-fg-subtle">Exact prompt sent to the model</summary>
-          <p className="mt-1.5 whitespace-pre-wrap font-mono text-[11px] text-fg-muted">{plan.model_prompt}</p>
-        </details>
+      {plan.compiled && plan.compiled.length > 0 ? (
+        <div>
+          <p className="text-xs text-fg-subtle">
+            Exact prompt{plan.compiled.length > 1 ? "s" : ""} sent to the model
+            {scenes ? " (scene edits are compiled again when you generate)" : ""}
+          </p>
+          <div className="mt-1.5 flex flex-col gap-1.5">
+            {plan.compiled.map((p) => (
+              <CompiledPromptView key={p.target} prompt={p} />
+            ))}
+          </div>
+        </div>
+      ) : (
+        plan.model_prompt &&
+        !scenes && (
+          <details className="text-xs">
+            <summary className="cursor-pointer text-fg-subtle">Exact prompt sent to the model</summary>
+            <p className="mt-1.5 whitespace-pre-wrap font-mono text-[11px] text-fg-muted">{plan.model_prompt}</p>
+          </details>
+        )
       )}
     </section>
   );

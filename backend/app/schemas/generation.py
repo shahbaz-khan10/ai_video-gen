@@ -14,7 +14,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator, model_valida
 
 from app.schemas.scene_plan import ScenePlan
 
-PROMPT_MAX_CHARS = 1000
+# Long, structured prompts (character sheets, SCENE 1..N) are compiled into per-scene prompts, so the limit is
+# about what a person writes, not the model's text encoder. 4000 chars is ~1000 UMT5 tokens for the whole story.
+PROMPT_MAX_CHARS = 4000
 MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024
 DURATION_OPTIONS_SECONDS = (4, 6, 8)
 DEFAULT_DURATION_SECONDS = 6

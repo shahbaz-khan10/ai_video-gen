@@ -50,7 +50,7 @@ def test_info_lists_modes_and_text_to_image_availability(client: TestClient) -> 
     assert body["aspect_ratios"] == ["16:9", "9:16", "1:1"]
     assert "cinematic" in body["styles"]
     limits = body["limits"]
-    assert limits["prompt_max_chars"] == 1000
+    assert limits["prompt_max_chars"] == 4000
     assert limits["duration_options_seconds"] == [4, 6, 8]
     assert limits["source_image_types"] == ["image/png", "image/jpeg", "image/webp"]
     assert limits["image_steps"] == [1, 2, 4]

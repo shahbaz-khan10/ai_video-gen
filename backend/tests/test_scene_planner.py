@@ -128,7 +128,7 @@ def test_every_classroom_clause_is_planned_and_reaches_the_model() -> None:
     plan = RulePlanner.plan(CLASSROOM)
     prompt = ", ".join(build_image_prompt_parts(plan, "photorealistic"))
     checked = validate(plan, mode="text-to-image", model_prompt=prompt)
-    assert [i.status for i in checked.instructions] == ["planned"] * 5
+    assert [i.status for i in checked.instructions] == ["included"] * 5
     assert all(i.reaches_model for i in checked.instructions)
     assert checked.model_prompt.startswith(CLASSROOM)  # the user's words are never rewritten or dropped
 
@@ -150,13 +150,14 @@ def test_text_limit_cut_is_reported() -> None:
     checked = validate(plan, mode="text-to-image", model_prompt=FOREST, fits=lambda clause: "camera" not in clause)
     cut = [i for i in checked.instructions if not i.reaches_model]
     assert [i.text for i in cut] == ["The camera slowly follows him from behind"]
-    assert any("text limit cuts off" in note for note in checked.limitations)
+    # Users are never told to shorten their prompt; the compiler reports per-instruction statuses instead.
+    assert not any("Shorten the prompt" in note for note in checked.limitations)
 
 
 def test_unplanned_clause_is_flagged() -> None:
     plan = RulePlanner.plan("A red kite. Quantum ripples shimmer.")
     checked = validate(plan, mode="text-to-image", model_prompt=plan.original_prompt)
-    assert any(i.status == "unplanned" and "Quantum" in i.text for i in checked.instructions)
+    assert any(i.status == "unsupported" and "Quantum" in i.text for i in checked.instructions)
 
 
 # --- model prompts ----------------------------------------------------------------------------

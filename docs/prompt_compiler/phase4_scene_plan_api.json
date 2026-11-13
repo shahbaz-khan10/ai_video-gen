@@ -1,0 +1,223 @@
+{
+ "original_prompt": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds.\n\nA white sheep is peacefully eating fresh green grass.\n\nA grey wolf slowly appears from behind a tree in the background.\n\nMaintain the same environment, character appearance and lighting throughout.\n\nCreate a cinematic multi-scene story.",
+ "planner": "rules+compiler",
+ "main_subject": "white sheep",
+ "people_count": null,
+ "characters": [
+  {
+   "id": "sheep",
+   "kind": "animal",
+   "count": 1,
+   "description": "white sheep",
+   "age": null,
+   "clothing": null,
+   "position": null,
+   "action": "eating fresh green grass"
+  },
+  {
+   "id": "wolf",
+   "kind": "animal",
+   "count": 1,
+   "description": "grey wolf",
+   "age": null,
+   "clothing": null,
+   "position": "behind a tree in the background",
+   "action": null
+  }
+ ],
+ "objects": [
+  {
+   "name": "tree",
+   "position": "in the background"
+  },
+  {
+   "name": "trees",
+   "position": null
+  },
+  {
+   "name": "pine trees",
+   "position": null
+  }
+ ],
+ "environment": {
+  "location": "mountains",
+  "setting": "outdoor",
+  "background": [
+   "river",
+   "meadow",
+   "countryside",
+   "trees",
+   "pine trees"
+  ],
+  "weather": null,
+  "time_of_day": null,
+  "lighting": null
+ },
+ "camera": {
+  "shot_type": null,
+  "angle": "from behind",
+  "movement": null
+ },
+ "style": "cinematic",
+ "scenes": [
+  {
+   "index": 1,
+   "description": "A white sheep is peacefully eating fresh green grass",
+   "characters": [
+    "sheep"
+   ],
+   "action": null,
+   "camera": null,
+   "duration_seconds": 7.5
+  },
+  {
+   "index": 2,
+   "description": "A grey wolf slowly appears from behind a tree in the background",
+   "characters": [
+    "wolf",
+    "sheep"
+   ],
+   "action": null,
+   "camera": null,
+   "duration_seconds": 7.5
+  }
+ ],
+ "instructions": [
+  {
+   "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds.",
+   "covered_by": [],
+   "reaches_model": true,
+   "status": "included",
+   "note": null,
+   "targets": [
+    "scene 1",
+    "scene 2"
+   ]
+  },
+  {
+   "text": "A white sheep is peacefully eating fresh green grass.",
+   "covered_by": [],
+   "reaches_model": true,
+   "status": "included",
+   "note": null,
+   "targets": [
+    "scene 1"
+   ]
+  },
+  {
+   "text": "A grey wolf slowly appears from behind a tree in the background.",
+   "covered_by": [],
+   "reaches_model": true,
+   "status": "included",
+   "note": null,
+   "targets": [
+    "scene 2"
+   ]
+  },
+  {
+   "text": "Maintain the same environment, character appearance and lighting throughout.",
+   "covered_by": [],
+   "reaches_model": true,
+   "status": "included",
+   "note": "Applied by repeating the same character and setting descriptions in every clip prompt.",
+   "targets": [
+    "scene 1",
+    "scene 2"
+   ]
+  },
+  {
+   "text": "Create a cinematic multi-scene story.",
+   "covered_by": [],
+   "reaches_model": true,
+   "status": "included",
+   "note": "Style and characters are taken from this request.",
+   "targets": []
+  }
+ ],
+ "limitations": [
+  "Scenes are separate clips joined with cuts; the same character can still change slightly between scenes."
+ ],
+ "model_prompt": "A white sheep is peacefully eating fresh green grass. Characters: white sheep. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots. | A grey wolf slowly appears from behind a tree in the background. Characters: grey wolf; white sheep. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+ "compiled": [
+  {
+   "target": "scene 1",
+   "model": "umt5 (Wan2.1)",
+   "text": "A white sheep is peacefully eating fresh green grass. Characters: white sheep. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+   "tokens": 96,
+   "budget": 511,
+   "measured": true,
+   "components": [
+    {
+     "name": "action",
+     "status": "included",
+     "text": "A white sheep is peacefully eating fresh green grass",
+     "full_text": "A white sheep is peacefully eating fresh green grass"
+    },
+    {
+     "name": "characters",
+     "status": "included",
+     "text": "white sheep",
+     "full_text": "white sheep"
+    },
+    {
+     "name": "setting",
+     "status": "included",
+     "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds",
+     "full_text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds"
+    },
+    {
+     "name": "style",
+     "status": "included",
+     "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+     "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+    },
+    {
+     "name": "continuity",
+     "status": "included",
+     "text": "the same characters, setting and lighting as the other shots",
+     "full_text": "the same characters, setting and lighting as the other shots"
+    }
+   ]
+  },
+  {
+   "target": "scene 2",
+   "model": "umt5 (Wan2.1)",
+   "text": "A grey wolf slowly appears from behind a tree in the background. Characters: grey wolf; white sheep. Setting: A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain. Continuity: the same characters, setting and lighting as the other shots.",
+   "tokens": 100,
+   "budget": 511,
+   "measured": true,
+   "components": [
+    {
+     "name": "action",
+     "status": "included",
+     "text": "A grey wolf slowly appears from behind a tree in the background",
+     "full_text": "A grey wolf slowly appears from behind a tree in the background"
+    },
+    {
+     "name": "characters",
+     "status": "included",
+     "text": "grey wolf; white sheep",
+     "full_text": "grey wolf; white sheep"
+    },
+    {
+     "name": "setting",
+     "status": "included",
+     "text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds",
+     "full_text": "A beautiful green countryside meadow surrounded by tall pine trees, distant green mountains, a small flowing river, colorful wildflowers, soft sunlight and a blue sky with a few white clouds"
+    },
+    {
+     "name": "style",
+     "status": "included",
+     "text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain",
+     "full_text": "cinematic film still, anamorphic lens, dramatic motivated lighting, film grain"
+    },
+    {
+     "name": "continuity",
+     "status": "included",
+     "text": "the same characters, setting and lighting as the other shots",
+     "full_text": "the same characters, setting and lighting as the other shots"
+    }
+   ]
+  }
+ ]
+}

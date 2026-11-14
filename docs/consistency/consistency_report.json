@@ -1,0 +1,76 @@
+{
+ "frames": 49,
+ "size": "576x320",
+ "scenes": [
+  "a 30-year-old male news reporter with short dark brown hair, clean-shaven, wearing a dark grey jacket over a light blue collared shirt stands in the middle of a destroyed city, buildings collapsing, cars burning, dark clouds and huge explosions in the background. Ultra-realistic cinematic live-action footage, handheld camera.",
+  "Close-up of a 30-year-old male news reporter with short dark brown hair, clean-shaven, wearing a dark grey jacket over a light blue collared shirt holding a professional camera and speaking into it, the destroyed city burning behind him. Ultra-realistic cinematic live-action footage, handheld camera.",
+  "A giant explosion behind a 30-year-old male news reporter with short dark brown hair, clean-shaven, wearing a dark grey jacket over a light blue collared shirt; he turns around in shock, then looks back at the camera, smoke and fire around. Ultra-realistic cinematic live-action footage, handheld camera."
+ ],
+ "methods": {
+  "fastwan_prompt_only": {
+   "load_seconds": 54.4,
+   "clips": [
+    {
+     "scene": 1,
+     "seconds": 33.6,
+     "peak_vram_gb": 4.9
+    },
+    {
+     "scene": 2,
+     "seconds": 26.3,
+     "peak_vram_gb": 4.91
+    },
+    {
+     "scene": 3,
+     "seconds": 25.5,
+     "peak_vram_gb": 4.91
+    }
+   ],
+   "peak_rss_gib": 12.37
+  },
+  "vace_reference": {
+   "load_seconds": 43.9,
+   "steps": 20,
+   "guidance": 5.0,
+   "clips": [
+    {
+     "scene": 1,
+     "seconds": 267.5,
+     "peak_vram_gb": 6.4
+    },
+    {
+     "scene": 2,
+     "seconds": 263.9,
+     "peak_vram_gb": 6.4
+    },
+    {
+     "scene": 3,
+     "seconds": 261.3,
+     "peak_vram_gb": 6.4
+    }
+   ],
+   "peak_rss_gib": 15.17
+  },
+  "fastwan_same_seed": {
+   "load_seconds": 45.8,
+   "clips": [
+    {
+     "scene": 1,
+     "seconds": 26.6,
+     "peak_vram_gb": 4.9
+    },
+    {
+     "scene": 2,
+     "seconds": 25.7,
+     "peak_vram_gb": 4.91
+    },
+    {
+     "scene": 3,
+     "seconds": 25.4,
+     "peak_vram_gb": 4.91
+    }
+   ],
+   "peak_rss_gib": 12.34
+  }
+ }
+}

@@ -300,8 +300,11 @@ def test_long_video_is_assembled_from_real_clips_with_exact_duration(
     assert done["video"]["num_frames"] == 15 * 16 and done["video"]["duration_seconds"] == 15.0
     assert done["clips_completed"] == done["clips_total"] == len(video_engine.calls)
     assert all(s["status"] == "completed" for s in done["scenes"])
-    # Each clip is its own generation (distinct seeds), never a repeated or looped clip.
-    assert len({c.seed for c in video_engine.calls}) == len(video_engine.calls)
+    # Each clip is its own generation, never a repeated or looped clip: within a scene seeds differ, and every
+    # scene uses its own prompt. Scenes share a starting seed so the character stays more alike.
+    calls = [(c.prompt, c.seed) for c in video_engine.calls]
+    assert len(set(calls)) == len(calls)
+    assert len({c.seed for c in video_engine.calls}) < len(video_engine.calls) or len(done["scenes"]) == 1
     assert all(c.num_frames <= 81 for c in video_engine.calls)
     parts = settings.video_output_dir / "parts"
     assert not parts.exists() or not any(parts.iterdir())  # temporary clips cleaned up

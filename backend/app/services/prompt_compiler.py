@@ -33,6 +33,7 @@ from app.schemas.scene_plan import (
 from app.services.scene_planner import (
     ANIMAL_FORMS,
     CAMERA_MOVES,
+    CLOTHING,
     LIGHTING,
     NOUN_RE,
     PERSON_FORMS,
@@ -51,6 +52,38 @@ from app.services.scene_planner import (
 )
 
 Measure = Callable[[str], int]
+
+# Video style words. The image styles say "film still", "photograph", "85mm portrait lens": measured on FastWan
+# (docs/motion) they keep people static and framed chest-up. These ask for motion instead.
+VIDEO_STYLE_PROMPTS: dict[str, str] = {
+    "cinematic": "cinematic video, smooth natural motion, realistic movement, dramatic motivated lighting, film grain",
+    "dreamlike": "dreamlike video, soft bloom, pastel haze, slow floating motion",
+    "neon-noir": "neon noir video, wet reflective streets, magenta and cyan neon, deep shadows, natural motion",
+    "documentary": "documentary footage, natural light, true-to-life colour, handheld natural motion",
+    "anime": "anime animation, clean linework, luminous sky, vibrant colour, fluid motion",
+    "golden-hour": "golden hour video, low warm sunlight, long shadows, natural motion",
+    "photorealistic": "photorealistic live-action video, natural skin texture, realistic movement, authentic lighting",
+    "portrait": "live-action video, soft professional lighting, natural skin tone, subtle natural motion",
+    "group-photo": "live-action video, wide angle, every person in focus, natural movement",
+    "street": "street documentary video, candid handheld camera, natural daylight, realistic urban motion",
+}
+# Actions that move the whole body. Without a shot named by the user, FastWan frames people chest-up and
+# they barely move; "wide full-body shot" first in the prompt gave head-to-feet framing and visible running
+# (docs/motion, V3).
+LOCOMOTION = re.compile(
+    r"\b(?:walk|walks|walking|run|runs|running|jog|jogs|jogging|sprint\w*|jump\w*|dance|dances|dancing|climb\w*|"
+    r"step|steps|stepping|chase\w*|flee\w*|crawl\w*|march\w*|ride|rides|riding|swim\w*|skat\w*|cross\w*|"
+    r"enter\w*|leav\w*|kick\w*|fight\w*|fall\w*|stroll\w*|wander\w*|rush\w*|hurr\w*)\b",
+    re.IGNORECASE,
+)
+FULL_BODY = "Wide full-body shot, the whole figure from head to feet in frame, natural movement"
+LOOK_VERB = re.compile(r"\b(?:wears|wear|is wearing|are wearing|dressed in|has|have|with (?:long|short|curly|straight|dark|blonde|black|brown|red|grey|gray|white) \w+)\b", re.IGNORECASE)
+# Verbs that make a sentence a moment of the story even if it also mentions clothes.
+ACTION_VERB = re.compile(
+    LOCOMOTION.pattern[:-3] + r"|holds?|holding|picks?|opens?|closes?|looks?|turns?|smiles?|speaks?|says?|"
+    r"throws?|catches?|eats?|drinks?|reads?|writes?|sits?|sitting|stands up|lies|falls?|cries|laughs?)\b",
+    re.IGNORECASE,
+)
 
 # --- segment classification --------------------------------------------------------------------
 
@@ -140,6 +173,7 @@ class Segment:
     unsupported: list[str] = field(default_factory=list)  # parts no model can show (quoted speech, text)
     skipped: str | None = None  # deliberately not used for this target, and why
     global_: bool = False  # from a requirements section: applies to every scene, never to one moment
+    absorbed: bool = False  # became part of a character's appearance (repeated in every scene instead)
 
 
 @dataclass
@@ -288,7 +322,9 @@ def _classify(sentence: str, scene: int | None, names: set[str] | frozenset[str]
     refers = noun or named or re.match(r"^(?:[A-Z][a-z]+(?: [a-z]+){0,3},\s*)?(?:he|she|it|they|together|both|all the)\b", content, re.IGNORECASE)
     if not refers:
         return Segment(text, "environment", content, scene=scene, unsupported=unsupported)
-    if DESCRIPTIVE.search(content):
+    if DESCRIPTIVE.search(content) or (LOOK_VERB.search(content) and not ACTION_VERB.search(content)):
+        # "A young woman with long black hair wears a red coat" is how she looks, not a moment: it must reach
+        # every scene (measured: as a scene of its own, the coat changed in the other scenes).
         return Segment(text, "description", content, scene=scene, character=noun, unsupported=unsupported)
     return Segment(text, "action", content, scene=scene, character=noun, unsupported=unsupported)
 
@@ -310,7 +346,17 @@ def build_cast(prompt: str, segments: list[Segment]) -> tuple[dict[str, CastMemb
         if before and before in cast:
             names[m.group(1)] = before
             cast[before].names.append(m.group(1))
+    last: str | None = None  # the character a following "He has… / She wears…" line is about
     for seg in segments:
+        refs = _refs(seg.content, cast, names) if seg.content else []
+        if seg.kind == "description" and not refs and last and PRONOUN_START.match(seg.content):
+            # "He has short dark hair and wears a grey jacket" describes the last character: it is their look.
+            look = re.sub(r"^(?:he|she|it|they)\s+(?:has|have|is|are)?\s*", "", seg.content, flags=re.IGNORECASE)
+            cast[last].appearance.append(_appearance(look))
+            seg.character, seg.absorbed = last, True
+            continue
+        if refs:
+            last = refs[0]
         if seg.kind == "sheet" and seg.character:
             member = cast.setdefault(seg.character, CastMember(id=seg.character, label=seg.character))
             member.appearance.append(seg.content.rstrip("."))
@@ -321,6 +367,7 @@ def build_cast(prompt: str, segments: list[Segment]) -> tuple[dict[str, CastMemb
                 member.label = label.lower()
         elif seg.kind == "description" and seg.character and seg.character in cast:
             cast[seg.character].appearance.append(_appearance(seg.content))
+            seg.absorbed = True
     for member in cast.values():  # "small white sheep - One small white sheep, fluffy wool" -> "fluffy wool"
         cleaned = []
         for a in member.appearance:
@@ -532,7 +579,7 @@ def _render(components: list[Component]) -> str:
     for c in components:
         if not c.text:
             continue
-        parts.append(c.text if c.name == "action" else f"{c.name.capitalize()}: {c.text}")
+        parts.append(c.text if c.name in ("action", "framing") else f"{c.name.capitalize()}: {c.text}")
     return ". ".join(p.rstrip(".") for p in parts) + "."
 
 
@@ -554,7 +601,7 @@ def compile_targets(
     budget: int,
     tokenizer_name: str,
     measured: bool,
-) -> tuple[list[Draft], list[CompiledPrompt], list[Segment]]:
+) -> tuple[list[Draft], list[CompiledPrompt], list[Segment], dict[str, CastMember]]:
     segments = segment(prompt)
     cast, names = build_cast(prompt, segments)
     long_video = mode == "text-to-video" and (duration_seconds or 0) > 5
@@ -630,11 +677,17 @@ def compile_targets(
         # Details written right after the action ("Behind him, the sky turns blood red") belong to this moment.
         details = " ".join(
             s.content.rstrip(".") + "." for s in d.segments
-            if s.kind in ("environment", "description") and s.content and s.content not in d.action
+            if s.kind in ("environment", "description") and s.content and s.content not in d.action and not s.absorbed
         ) or None
+        # Full-body framing first (early words weigh most) when the body moves and no shot was asked for.
+        shot_given = bool(
+            _first(SHOTS, " ".join(s.content for s in d.segments) + " " + (d.camera or "") + " " + (global_camera or ""))
+        )
+        framing = FULL_BODY if mode == "text-to-video" and not shot_given and LOCOMOTION.search(d.action) else None
         components = [
             c
             for c in (
+                _component("framing", framing, 3),
                 _component("action", d.action, 0, required=True),
                 _component("characters", characters, 1),
                 _component("details", details, 2),
@@ -666,7 +719,7 @@ def compile_targets(
                 components=[PromptComponent(name=c.name, status=c.status, text=c.text, full_text=c.variants[0]) for c in components],
             )
         )
-    return drafts, targets, segments
+    return drafts, targets, segments, cast
 
 
 def drafts_contain(drafts: list[Draft], seg: Segment) -> bool:
@@ -838,7 +891,7 @@ def compile_plan(
     measured: bool,
 ) -> ScenePlan:
     """The full plan: extraction (characters, place, camera), scenes, compiled prompts and instruction report."""
-    drafts, targets, segments = compile_targets(
+    drafts, targets, segments, cast = compile_targets(
         prompt, mode=mode, style_text=style_text, style_name=style_name, duration_seconds=duration_seconds,
         user_scenes=user_scenes, measure=measure, budget=budget, tokenizer_name=tokenizer_name, measured=measured,
     )
@@ -865,7 +918,14 @@ def compile_plan(
         "movement": _first(CAMERA_MOVES, scene_text),
         "angle": base.camera.angle if base.camera.angle and "behind" not in base.camera.angle else None,
     })
-    plan = base.model_copy(update={"scenes": scenes, "planner": "rules+compiler", "environment": environment, "camera": camera})
+    characters = []
+    for c in base.characters:  # clothing written in a separate "He wears…" line counts as described
+        member = cast.get(_character_noun(c.description or c.id) or c.id)
+        worn = next((m.group(1) for a in (member.appearance if member else []) for m in [CLOTHING.search(a)] if m), None)
+        characters.append(c.model_copy(update={"clothing": c.clothing or worn}) if worn else c)
+    plan = base.model_copy(update={
+        "scenes": scenes, "planner": "rules+compiler", "environment": environment, "camera": camera, "characters": characters,
+    })
     instructions = report_instructions(segments, targets, mode=mode, duration_seconds=duration_seconds)
     limitations = limitations_for(plan, mode=mode)
     over = [t for t in targets if any(c.status == "omitted" for c in t.components)]

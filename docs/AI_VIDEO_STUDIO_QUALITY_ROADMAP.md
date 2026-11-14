@@ -214,6 +214,58 @@ Each phase ends with real generations on this PC; a phase is complete only when 
 
 **Still open in Phase 0:** GPU worker in a separate process with a watchdog, SQLite job persistence/resume, retry re-test with a real failure.
 
+### 2026-11-14 — Phase 3 (character consistency): benchmark and decision
+
+Evidence in `docs/consistency/`.
+
+**Reference image + Wan VACE 1.3B vs prompt-only FastWan** (same three Doomsday scene texts with an explicit look, same seeds, 576×320, 49 frames; reference portrait made with RealVisXL):
+
+| Method | Time per clip | Peak VRAM | Process RAM | Same clothes | Same face | Picture |
+| --- | --- | --- | --- | --- | --- | --- |
+| FastWan, prompt only | 25.5–33.6 s | 4.9 GB | 12.4 GiB | yes (all 3) | partly | bright, sharp |
+| VACE 1.3B + reference image (20 steps, CFG 5) | 261–268 s (~8×) | 6.4 GB | 15.2 GiB | yes (all 3) | slightly closer, not reliably | dark, small figure, less detail |
+
+**Decision:** VACE reference conditioning is **not enabled** — 8× slower and visibly worse pictures for no reliable identity gain on this GPU/model size.
+
+**What did work (real 30 s videos of the user's Doomsday prompt, `doomsday_consistency_compare.png`):**
+
+| Run | Clothes across 6 scenes | Face/hair | Time |
+| --- | --- | --- | --- |
+| Before (per-scene seeds) | suit and tie / jackets mixed | different man per scene | ~5.5 min |
+| A: same starting seed for every scene | mostly dark jacket, tie in some | more alike | 4 min 37 s |
+| **B: same seed + one line "He has short dark brown hair and wears a dark grey jacket over a light blue collared shirt"** | **grey jacket + light-blue shirt in all 6** | **same hair, close face** | 4 min 36 s |
+
+Changes made:
+- Every scene starts from the same seed (clips inside a scene still differ) — `generation_service.py`.
+- A "He/She has … wears …" line is attached to the character it refers to and repeated in every scene's prompt (previously it stayed in one scene only) — `prompt_compiler.py`.
+- When a person has no clothing or hair described, the plan now says so and gives an example line to add; `wears` is recognised as clothing.
+- Video limitations corrected: no false "negative prompt" claim for FastWan; dialogue quotes are not "readable text"; silent video stated explicitly.
+
+Status: consistency **improved, not solved** — clothing and overall look now hold when described; exact facial identity still varies slightly between scenes.
+
+### 2026-11-14 — Framing and motion ("only half body, people don't move")
+
+User report: people are shown chest-up and barely move; background motion looks unnatural. Evidence in `docs/motion/`.
+
+**Root cause:** video prompts reused the *image* style words ("cinematic **film still**", "raw **photograph**", "**85mm portrait lens**, shallow depth of field"), and when no shot is named FastWan defaults to a chest-up medium shot.
+
+**Benchmark** (FastWan, same seed 4242, 49 frames; walk / step back / run prompts):
+
+| Variant | Framing (manual review) | Motion energy |
+| --- | --- | --- |
+| V0 current | chest-up, standing still in all three | 3.15 / 5.12 / 5.86 |
+| V1 video style words only | unchanged | 3.28 / 5.52 / 5.62 |
+| V2 + "wide shot, full body" at the end | walk: to the knees; run: full body running | 3.43 / 5.29 / 5.92 |
+| **V3 framing first** | walk: to the knees, walking; **run: head to feet, running** | 3.36 / 4.43 / 4.79 |
+
+(Motion energy differences are small and include camera motion; the framing change is the visible effect.)
+
+**Changes:** separate video style words without "still/photograph/portrait lens" (`VIDEO_STYLE_PROMPTS`); "Wide full-body shot … natural movement" placed first when a scene's action moves the body and the user named no shot; a sentence that only describes the look ("A young woman with long black hair wears a red coat") is appearance repeated in every scene, not a scene of its own (found by the real run: as its own scene, the coat changed in the other scenes).
+
+**App acceptance run** (15 s, 3 scenes, "woman in a red coat walks… stops at a crosswalk… runs across"): red coat and long black hair in every scene, same-looking woman, walking along a sunset street, natural parked cars/trees; framed to the knees rather than head to feet; the "runs" scene looks like brisk walking. 2 min 41 s. Backend tests: **254 passed**.
+
+Status: **improved, not solved** — wider framing and visible walking; full head-to-feet framing and vigorous actions (running, fighting) remain weak on the 1.3B model.
+
 ## 11. What happens next
 
 Phase 0 (stability) first, because every later test depends on runs that do not stall. No model is downloaded until Phase 3/4 benchmarks with models already on disk are done and the download is approved.

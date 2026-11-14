@@ -44,7 +44,7 @@ from app.schemas.generation import (
 from app.schemas.scene_plan import SceneBeat, ScenePlan
 from app.services.image_engine import STYLE_PROMPTS, EngineError, EngineStatus, ImageEngine, ImageParams
 from app.services.long_video import CROSSFADE_FRAMES, SCENE_CUT_FRAMES, join_clips, plan_clips, scene_durations
-from app.services.prompt_compiler import compile_plan
+from app.services.prompt_compiler import VIDEO_STYLE_PROMPTS, compile_plan
 from app.services.prompt_tokens import CLIP_MAX_TOKENS, UMT5_MAX_TOKENS, count_tokens, load_tokenizer
 from app.services.image_storage import ImageStorage
 from app.services.video_engine import VideoEngine, VideoEngineError, VideoParams
@@ -293,7 +293,8 @@ class GenerationService:
         return compile_plan(
             prompt,
             mode=mode,
-            style_text=STYLE_PROMPTS.get(style),
+            # Video prompts use motion wording; "film still"/"photograph" kept people static (docs/motion).
+            style_text=(VIDEO_STYLE_PROMPTS.get(str(style)) if mode != "text-to-image" else None) or STYLE_PROMPTS.get(style),
             style_name=style,
             duration_seconds=duration,
             user_scenes=user_scenes,
@@ -518,8 +519,10 @@ class GenerationService:
                                     height=s.height,
                                     num_frames=frames,
                                     num_inference_steps=s.steps,
-                                    # Distinct but reproducible noise per clip.
-                                    seed=(s.seed + scene.index * 1000 + k) % (MAX_SEED + 1),
+                                    # Every scene starts from the same noise: with the same character text this
+                                    # keeps the person more alike across scenes (benchmark 2026-11-14,
+                                    # docs/consistency). Clips within a scene still differ (k), so nothing repeats.
+                                    seed=(s.seed + k) % (MAX_SEED + 1),
                                     fps=s.fps,
                                 ),
                                 deadline=time.monotonic() + self.settings.video_timeout_seconds,

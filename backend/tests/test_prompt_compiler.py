@@ -116,7 +116,7 @@ def test_long_scene_text_is_never_cut_at_600_characters() -> None:
     long_action = "A white sheep walks slowly across the meadow " + "and looks around carefully " * 40
     plan = video(long_action.strip() + ".", seconds=5)
     assert len(plan.scenes[0].description) > 600
-    assert plan.compiled[0].text.startswith(plan.scenes[0].description[:600])
+    assert plan.scenes[0].description[:600] in plan.compiled[0].text
 
 
 # --- narrative stories ---------------------------------------------------------------------------------
@@ -137,9 +137,11 @@ def test_narrative_story_becomes_scenes_with_names_and_pronouns_resolved() -> No
 
 def test_it_starts_a_new_scene_and_becomes_the_animal() -> None:
     plan = video("A cat sleeps on a sofa. It wakes up and stretches. It walks to the window.", seconds=15)
-    assert [c.text.split(".")[0] for c in plan.compiled] == [
-        "A cat sleeps on a sofa", "The cat wakes up and stretches", "The cat walks to the window",
-    ]
+    from app.services.prompt_compiler import FULL_BODY
+
+    actions = [c.text.removeprefix(FULL_BODY + ". ").split(".")[0] for c in plan.compiled]
+    assert actions == ["A cat sleeps on a sofa", "The cat wakes up and stretches", "The cat walks to the window"]
+    assert plan.compiled[2].text.startswith(FULL_BODY)  # walking: whole body in frame
 
 
 def test_edited_scenes_keep_the_global_environment_and_characters() -> None:
@@ -294,3 +296,47 @@ def test_camera_directions_and_scene_details_are_used() -> None:
     for start in ("The camera moves closer", "The camera shakes", "Handheld live-reporting", "Behind him, the sky"):
         assert _status(plan, start).status in ("included", "compressed"), start
     assert not [i.text for i in plan.instructions if (i.note or "").startswith("Could not")]
+
+
+def test_a_he_wears_line_becomes_the_look_in_every_scene() -> None:
+    prompt = DOOMSDAY.replace(
+        "He is holding a professional camera",
+        "He has short dark brown hair and wears a dark grey jacket over a light blue collared shirt. "
+        "He is holding a professional camera", 1,
+    )
+    plan = video(prompt, seconds=30)
+    assert all("dark grey jacket over a light blue collared shirt" in p.text for p in plan.compiled)
+    assert plan.characters[0].clothing
+    assert not any("No clothing or hair" in l for l in plan.limitations)
+    assert any("No clothing or hair" in l for l in video(DOOMSDAY, seconds=30).limitations)
+
+
+def test_moving_bodies_get_full_body_framing_first_unless_a_shot_is_given() -> None:
+    walk = video("A young woman in a red coat walks along a busy city street.", seconds=5).compiled[0].text
+    assert walk.startswith("Wide full-body shot")
+    still = video("A young woman in a red coat sits on a bench.", seconds=5).compiled[0].text
+    assert not still.startswith("Wide full-body shot")
+    close = video("Close-up of a man running in the rain.", seconds=5).compiled[0].text
+    assert "full-body" not in close
+    image = image_plan = compile_plan("A man runs across a field.", mode="text-to-image", style_text="photo", measure=words,
+                                      budget=75, tokenizer_name="words", measured=False).compiled[0].text
+    assert "full-body" not in image
+
+
+def test_video_styles_do_not_ask_for_stills_or_portrait_lenses() -> None:
+    from app.services.prompt_compiler import VIDEO_STYLE_PROMPTS
+
+    for text in VIDEO_STYLE_PROMPTS.values():
+        assert not re.search(r"\bstill\b|photograph|portrait lens|85mm", text), text
+
+
+def test_a_look_sentence_is_appearance_in_every_scene_not_a_scene() -> None:
+    plan = video(
+        "A young woman with long black hair wears a red coat and black boots. She walks along a busy city street at "
+        "sunset. She stops at a crosswalk and looks around. She runs across the street as the light turns green.",
+        seconds=15,
+    )
+    assert len(plan.compiled) == 3
+    for p in plan.compiled:
+        assert "red coat and black boots" in p.text and "long black hair" in p.text
+    assert plan.compiled[0].text.startswith("Wide full-body shot")

@@ -1,0 +1,86 @@
+[
+ {
+  "prompt": "walk",
+  "variant": "V0",
+  "seconds": 27.6,
+  "motion_energy": 3.15,
+  "text": "A young woman with long black hair wearing a red coat walks along a busy city street. Characters: young woman. Setting: city. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain."
+ },
+ {
+  "prompt": "walk",
+  "variant": "V1",
+  "seconds": 26.4,
+  "motion_energy": 3.28,
+  "text": "A young woman with long black hair wearing a red coat walks along a busy city street. Characters: young woman. Setting: city. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ },
+ {
+  "prompt": "walk",
+  "variant": "V2",
+  "seconds": 26.3,
+  "motion_energy": 3.43,
+  "text": "A young woman with long black hair wearing a red coat walks along a busy city street. Characters: young woman. Setting: city. Camera: wide shot, full body visible from head to feet. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ },
+ {
+  "prompt": "reporter_back",
+  "variant": "V0",
+  "seconds": 26.4,
+  "motion_energy": 5.12,
+  "text": "A terrified 30-year-old male reporter with short dark brown hair, wearing a dark grey jacket over a light blue shirt, steps backward as a huge dark cloud approaches over a burning city. Characters: terrified 30-year-old male reporter. Setting: city. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain."
+ },
+ {
+  "prompt": "reporter_back",
+  "variant": "V1",
+  "seconds": 26.1,
+  "motion_energy": 5.52,
+  "text": "A terrified 30-year-old male reporter with short dark brown hair, wearing a dark grey jacket over a light blue shirt, steps backward as a huge dark cloud approaches over a burning city. Characters: terrified 30-year-old male reporter. Setting: city. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ },
+ {
+  "prompt": "reporter_back",
+  "variant": "V2",
+  "seconds": 26.1,
+  "motion_energy": 5.29,
+  "text": "A terrified 30-year-old male reporter with short dark brown hair, wearing a dark grey jacket over a light blue shirt, steps backward as a huge dark cloud approaches over a burning city. Characters: terrified 30-year-old male reporter. Setting: city. Camera: wide shot, full body visible from head to feet. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ },
+ {
+  "prompt": "run",
+  "variant": "V0",
+  "seconds": 26.1,
+  "motion_energy": 5.86,
+  "text": "A man in a blue tracksuit runs across a wet football field in the rain. Characters: man. Setting: field. Style: cinematic film still, anamorphic lens, dramatic motivated lighting, film grain."
+ },
+ {
+  "prompt": "run",
+  "variant": "V1",
+  "seconds": 25.8,
+  "motion_energy": 5.62,
+  "text": "A man in a blue tracksuit runs across a wet football field in the rain. Characters: man. Setting: field. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ },
+ {
+  "prompt": "run",
+  "variant": "V2",
+  "seconds": 25.9,
+  "motion_energy": 5.92,
+  "text": "A man in a blue tracksuit runs across a wet football field in the rain. Characters: man. Setting: field. Camera: wide shot, full body visible from head to feet. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ },
+ {
+  "prompt": "walk",
+  "variant": "V3",
+  "seconds": 27.3,
+  "motion_energy": 3.36,
+  "text": "Wide full-body shot, the whole figure from head to feet in frame, natural movement. A young woman with long black hair wearing a red coat walks along a busy city street. Characters: young woman. Setting: city. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ },
+ {
+  "prompt": "reporter_back",
+  "variant": "V3",
+  "seconds": 26.3,
+  "motion_energy": 4.43,
+  "text": "Wide full-body shot, the whole figure from head to feet in frame, natural movement. A terrified 30-year-old male reporter with short dark brown hair, wearing a dark grey jacket over a light blue shirt, steps backward as a huge dark cloud approaches over a burning city. Characters: terrified 30-year-old male reporter. Setting: city. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ },
+ {
+  "prompt": "run",
+  "variant": "V3",
+  "seconds": 26.3,
+  "motion_energy": 4.79,
+  "text": "Wide full-body shot, the whole figure from head to feet in frame, natural movement. A man in a blue tracksuit runs across a wet football field in the rain. Characters: man. Setting: field. Style: cinematic video, smooth natural motion, realistic movement, dramatic lighting, film grain."
+ }
+]

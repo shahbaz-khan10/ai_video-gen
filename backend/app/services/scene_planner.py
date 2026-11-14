@@ -147,7 +147,7 @@ POSITION = re.compile(
 )
 # Clothing may contain "and" ("a white shirt and black trousers"), so it ends at the next verb instead.
 CLOTHING = re.compile(
-    r"\b(?:wearing|dressed in) ([^,.;]+?)(?=\s+(?:stands?|standing|sits?|sitting|walks?|walking|runs?|running|is|are|"
+    r"\b(?:wearing|wears|wear|dressed in) ([^,.;]+?)(?=\s+(?:stands?|standing|sits?|sitting|walks?|walking|runs?|running|is|are|"
     r"while|with|holding|teaching|dances?|dancing|looks?|looking|rides?|riding)\b|[,.;]|$)",
     re.IGNORECASE,
 )
@@ -435,14 +435,23 @@ def limitations_for(plan: ScenePlan, *, mode: str) -> list[str]:
             )
     if any(c.position and re.search(r"\b(?:left|right)\b", c.position, re.IGNORECASE) for c in plan.characters):
         limitations.append("Left/right placement is approximate.")
-    if QUOTED_TEXT.search(plan.original_prompt):
+    # Quoted lines next to "said/dialogue" are speech (reported per instruction), not text to draw.
+    drawn_text = re.search(r"\b(?:sign|text|caption|banner|logo|title card|poster|label)\b", plan.original_prompt, re.IGNORECASE)
+    if QUOTED_TEXT.search(plan.original_prompt) and (drawn_text or mode == "text-to-image"):
         limitations.append("Readable text, signs and logos are not reliably rendered.")
     negations = [m.group(1).strip() for m in NEGATION.finditer(plan.original_prompt)]
-    if negations:
+    if negations and mode == "text-to-image":
         limitations.append(
             "Negative instructions (" + ", ".join(negations) + ") are passed to the negative prompt; diffusion "
             "models can still draw them occasionally."
         )
+    elif negations:
+        limitations.append(
+            "The fast video sampler has no negative prompt: 'no …' instructions (" + ", ".join(negations) + ") are "
+            "turned into positive wording where possible (e.g. 'no cartoon' → live-action) and cannot be enforced otherwise."
+        )
+    if mode == "text-to-video" and re.search(r"\b(?:dialogue|said|says|voice|sound|music|lip[- ]?sync)\b|[\"“]", plan.original_prompt, re.IGNORECASE):
+        limitations.append("The video is silent: speech, voice, lip-sync, music and sound effects are not generated.")
     if mode == "text-to-image":
         if plan.camera.movement:
             limitations.append(f"Camera movement ('{plan.camera.movement}') cannot be shown in a still image.")
@@ -451,15 +460,14 @@ def limitations_for(plan: ScenePlan, *, mode: str) -> list[str]:
     if mode == "text-to-video" and len(plan.scenes) > 1:
         # Each clip is generated separately from text only; with nothing but "a girl" to go on, the model
         # draws a different girl every time (measured: hair, age and clothes changed between scenes).
-        vague = [
-            c.id for c in plan.characters
-            if c.kind == "person" and not c.clothing and not c.age and (c.description or c.id) == c.id
-        ]
+        # Measured (docs/consistency): with hair and clothing written out and repeated in every scene, FastWan kept
+        # the same clothes in all scenes; without them clothes and face changed from scene to scene.
+        vague = [c.id for c in plan.characters if c.kind == "person" and not c.clothing]
         if vague:
             limitations.append(
-                "No look is given for " + ", ".join(f"'{v}'" for v in vague) + ": each scene is generated separately, "
-                "so the model may draw a different-looking character every time. Describe hair, age and clothing "
-                "to keep them consistent."
+                "No clothing or hair is described for " + ", ".join(f"'{v}'" for v in vague) + ": each scene is "
+                "generated separately, so the model may draw a different-looking character every time. Add a line "
+                "such as 'He has short dark hair and wears a grey jacket over a blue shirt' to keep them consistent."
             )
         limitations.append(
             "Scenes are separate clips joined with cuts; the same character can still change slightly between scenes."

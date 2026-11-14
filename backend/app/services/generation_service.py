@@ -110,6 +110,9 @@ class GenerationService:
         self.store = store or JobStore()
         self.storage = ImageStorage(settings.image_output_dir)
         self.video_storage = VideoStorage(settings.video_output_dir)
+        swept = self.video_storage.sweep_temp()  # no job can be running yet
+        if swept:
+            logger.info("Removed %d unfinished video file(s) left by a previous run", swept)
         self._executor = ThreadPoolExecutor(
             max_workers=max(settings.image_max_concurrent_jobs, settings.video_max_concurrent_jobs),
             thread_name_prefix="generation",

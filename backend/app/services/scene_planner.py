@@ -50,6 +50,16 @@ PERSON_NOUNS = {
     "son": "sons", "daughter": "daughters", "brother": "brothers", "sister": "sisters", "king": "kings",
     "queen": "queens", "warrior": "warriors", "astronaut": "astronauts", "pilot": "pilots", "monk": "monks",
     "priest": "priests", "imam": "imams", "child labourer": "child labourers", "family member": "family members",
+    "reporter": "reporters", "journalist": "journalists", "presenter": "presenters", "anchor": "anchors",
+    "host": "hosts", "cameraman": "cameramen", "photographer": "photographers", "firefighter": "firefighters",
+    "detective": "detectives", "survivor": "survivors", "hero": "heroes", "villain": "villains",
+    "stranger": "strangers", "traveler": "travelers", "traveller": "travellers", "explorer": "explorers",
+    "hunter": "hunters", "artist": "artists", "painter": "painters", "boss": "bosses", "employee": "employees",
+    "manager": "managers", "passenger": "passengers", "captain": "captains", "sailor": "sailors",
+    "knight": "knights", "wizard": "wizards", "witch": "witches", "prince": "princes", "princess": "princesses",
+    "cowboy": "cowboys", "robot": "robots", "alien": "aliens", "zombie": "zombies", "lady": "ladies",
+    "gentleman": "gentlemen", "teenager": "teenagers", "toddler": "toddlers", "athlete": "athletes",
+    "boxer": "boxers", "climber": "climbers", "biker": "bikers", "scientist": "scientists",
 }
 GROUP_NOUNS = {"crowd", "audience", "family", "team", "class", "group", "army", "people"}
 ANIMAL_NOUNS = {
@@ -165,7 +175,7 @@ ANIMAL_FORMS = _plural_forms(ANIMAL_NOUNS)
 NUMBER_RE = r"\d+|" + "|".join(sorted(NUMBER_WORDS, key=len, reverse=True))
 NOUN_RE = "|".join(sorted({*PERSON_FORMS, *ANIMAL_FORMS}, key=len, reverse=True))
 COUNTED = re.compile(rf"\b(?:a\s+)?({NUMBER_RE})\s+(?:of\s+)?((?:[a-z-]+\s+){{0,2}}?)({NOUN_RE})\b", re.IGNORECASE)
-SINGLE = re.compile(rf"\b(a|an)\s+((?:[a-z-]+\s+){{0,2}}?)({NOUN_RE})\b", re.IGNORECASE)
+SINGLE = re.compile(rf"\b(a|an)\s+((?:[\w-]+\s+){{0,3}}?)({NOUN_RE})\b", re.IGNORECASE)
 
 
 def _first(patterns: dict[str, str], text: str) -> str | None:

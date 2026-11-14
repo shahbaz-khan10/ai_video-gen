@@ -85,6 +85,16 @@ class Settings(BaseSettings):
         "Wan-AI/Wan2.1-VACE-1.3B-diffusers", validation_alias=_image_env("VIDEO_CONTINUITY_MODEL_ID")
     )
     video_fps: int = Field(16, ge=8, le=30, validation_alias=_image_env("VIDEO_FPS"))
+    # VAE decode precision. Measured on the RTX 3050 (docs/speed): bf16 decodes a Draft clip in 15.8 s instead of
+    # 39.9 s (fp32 tiled) and a 480p clip in 56 s instead of 97 s, PSNR 57 dB vs fp32 (no visible difference).
+    video_vae_dtype: Literal["bfloat16", "float32"] = Field("bfloat16", validation_alias=_image_env("VIDEO_VAE_DTYPE"))
+    # Free memory required before the video model loads / before each clip. Measured: the loaded model uses
+    # 14.2 GiB of process RAM and 3.4 GB of VRAM; a 480p clip peaks at ~5 GB of VRAM in total.
+    video_min_free_ram_gib: float = Field(15.0, ge=0, le=64, validation_alias=_image_env("VIDEO_MIN_FREE_RAM_GIB"))
+    video_min_free_vram_gib: float = Field(4.0, ge=0, le=48, validation_alias=_image_env("VIDEO_MIN_FREE_VRAM_GIB"))
+    video_min_free_vram_per_clip_gib: float = Field(
+        1.8, ge=0, le=48, validation_alias=_image_env("VIDEO_MIN_FREE_VRAM_PER_CLIP_GIB")
+    )
     # A language-model scene planner (Qwen3-1.7B, app/services/llm_planner.py) was evaluated and is NOT wired
     # in: on this CPU it took 77-174 s per prompt and was no better than the rule planner on the benchmark
     # prompts. It is only used by scripts/benchmark_vace_planner.py.

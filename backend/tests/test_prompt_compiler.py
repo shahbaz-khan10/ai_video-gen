@@ -215,3 +215,82 @@ def test_real_tokenizers_keep_every_prompt_within_budget(prompt: str) -> None:
                          measure=lambda t: count_tokens(clip, t), budget=CLIP_MAX_TOKENS - 2,
                          tokenizer_name="clip", measured=True)
     assert iplan.compiled[0].tokens == count_tokens(clip, iplan.compiled[0].text) <= CLIP_MAX_TOKENS - 2
+
+
+# --- user prompt with markdown sections, multi-line dialogue and visual requirements --------------------
+
+DOOMSDAY = """**VIDEO TITLE: DOOMSDAY – LIVE REVIEW**
+
+A terrified 30-year-old male reporter is standing in the middle of a destroyed city. Buildings are collapsing, cars are burning, dark clouds cover the sky, and huge explosions are visible in the background. He is holding a professional camera and speaking directly into it.
+
+**Dialogue:**
+"Guys, I can't believe what I'm witnessing right now.
+The entire world is falling apart!"
+
+The camera moves closer to his face. Behind him, the sky turns blood red, massive lightning strikes the ground, people are running in panic, and dust fills the atmosphere.
+
+**Dialogue:**
+"This is not a movie, this is happening right now!
+There is destruction everywhere, and nobody knows where to go!"
+
+A giant explosion occurs behind the reporter. He turns around in shock, then looks back at the camera. The camera shakes realistically.
+
+**Dialogue:**
+"Look behind me!
+The buildings are disappearing, the ground is shaking, and this might actually be the end!"
+
+The reporter steps backward as a huge dark cloud approaches. His voice becomes emotional and frightened. The camera captures the burning city behind him.
+
+**Dialogue:**
+"If this is my last broadcast, remember what you're seeing.
+This is the most terrifying day in human history!"
+
+**VISUAL REQUIREMENTS:**
+Ultra-realistic cinematic 4K quality.
+Same male reporter, same face, same clothes throughout.
+Natural English lip-sync and realistic facial expressions.
+Realistic destruction, fire, smoke, lightning and explosions.
+Handheld live-reporting camera movement.
+Dramatic cinematic sound effects.
+No cartoon visuals, no face changes, no character changes.
+Total duration exactly 30 seconds."""
+
+
+def _status(plan, start: str):
+    return next(i for i in plan.instructions if i.text.lstrip('"').startswith(start))
+
+
+def test_markdown_sections_dialogue_and_requirements_are_classified() -> None:
+    plan = video(DOOMSDAY, seconds=30)
+    assert _status(plan, "VIDEO TITLE").status == "unsupported"
+    dialogue = [i for i in plan.instructions if i.text.startswith('"')]
+    assert len(dialogue) == 4  # each two-line quote is one instruction
+    assert all(i.status == "unsupported" and "silent" in i.note for i in dialogue)
+    assert "speech" in _status(plan, "Dialogue").note
+    assert _status(plan, "Dramatic cinematic sound effects").status == "unsupported"
+    assert "silent" in _status(plan, "His voice becomes").note
+    duration = _status(plan, "Total duration exactly 30 seconds")
+    assert duration.status == "included" and "matches" in duration.note
+
+
+def test_visual_requirements_reach_every_scene() -> None:
+    plan = video(DOOMSDAY, seconds=30)
+    assert len(plan.compiled) >= 4
+    for p in plan.compiled:
+        assert "Realistic destruction, fire, smoke, lightning and explosions" in p.text
+        assert "live-action footage" in p.text and "Ultra-realistic" in p.text and "4K" not in p.text
+        assert "reporter" in p.text
+    assert _status(plan, "No cartoon visuals").status == "included"
+    assert "4K" in _status(plan, "Ultra-realistic cinematic 4K quality").note or "832" in _status(plan, "Ultra-realistic cinematic 4K quality").note
+    lips = _status(plan, "Natural English lip-sync")
+    assert lips.status == "compressed" and "realistic facial expressions" in " ".join(p.text for p in plan.compiled)
+
+
+def test_camera_directions_and_scene_details_are_used() -> None:
+    plan = video(DOOMSDAY, seconds=30)
+    text = " | ".join(p.text for p in plan.compiled)
+    assert "moves closer to his face" in text and "shakes realistically" in text
+    assert "the sky turns blood red" in text  # detail after an action is part of that scene
+    for start in ("The camera moves closer", "The camera shakes", "Handheld live-reporting", "Behind him, the sky"):
+        assert _status(plan, start).status in ("included", "compressed"), start
+    assert not [i.text for i in plan.instructions if (i.note or "").startswith("Could not")]

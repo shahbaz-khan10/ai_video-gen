@@ -129,6 +129,7 @@ class WanVideoEngine:
         self._pipe: Any = None
         self._device: str | None = None
         self._optimizations: list[str] = []
+        self._prompt_cache: dict[tuple[str, bool], tuple[Any, Any]] = {}
         self._loading = False
         self._load_error: VideoEngineError | None = None
 
@@ -206,6 +207,7 @@ class WanVideoEngine:
             if self._pipe is not None:
                 return
             self.ensure_can_accept()
+            self._preflight_load()
             self._loading = True
             self._load_error = None
             started = time.monotonic()
@@ -241,8 +243,10 @@ class WanVideoEngine:
         hub = {"cache_dir": str(self._cache_dir), "local_files_only": True}
 
         try:
-            # Wan's reference code keeps the VAE in float32; bf16 VAEs produce colour artefacts.
-            vae = AutoencoderKLWan.from_pretrained(self._base_id, subfolder="vae", dtype=torch.float32, **hub)
+            # Wan's reference code keeps the VAE in float32 and warns about bf16 colour artefacts; on this GPU
+            # bf16 measured PSNR 57 dB vs fp32 with no visible difference, at 2.5x (Draft) / 1.7x (480p) speed.
+            vae_dtype = torch.bfloat16 if self._settings.video_vae_dtype == "bfloat16" and device == "cuda" else torch.float32
+            vae = AutoencoderKLWan.from_pretrained(self._base_id, subfolder="vae", dtype=vae_dtype, **hub)
             extra: dict[str, Any] = {}
             if self._fast:
                 from diffusers import WanTransformer3DModel
@@ -260,7 +264,7 @@ class WanVideoEngine:
             pipe.scheduler.config, flow_shift=self._settings.video_flow_shift
         )
 
-        optimizations = [f"{str(compute_dtype).removeprefix('torch.')} transformer", "fp32 VAE"]
+        optimizations = [f"{str(compute_dtype).removeprefix('torch.')} transformer", f"{str(vae.dtype).removeprefix('torch.')} VAE"]
         if self._fast:
             optimizations.insert(0, "3-step DMD sampling, no CFG")
         if device == "cuda":
@@ -280,8 +284,7 @@ class WanVideoEngine:
                     retryable=True,
                 ) from None
             if self._settings.video_enable_vae_tiling and hasattr(pipe.vae, "enable_tiling"):
-                pipe.vae.enable_tiling()
-                optimizations.append("VAE tiling")
+                optimizations.append("VAE tiling above Draft size")
         pipe.set_progress_bar_config(disable=True)
         self._device = device
         self._optimizations = optimizations
@@ -293,22 +296,66 @@ class WanVideoEngine:
                 return
             self._pipe = None
             self._optimizations = []
+            self._prompt_cache.clear()
             self._release()
             logger.info("Video model unloaded to free memory")
 
     @staticmethod
     def _release() -> None:
-        gc.collect()
-        try:
-            import torch
+        from app.services import memory
 
-            if torch.cuda.is_available():
-                torch.cuda.empty_cache()
-        except ImportError:
-            pass
-        except RuntimeError as exc:
-            # After a CUDA driver error even freeing the cache fails; don't let that hide the real error.
-            logger.warning("Could not free GPU memory: %s", exc)
+        memory.release()
+
+    def _preflight_load(self) -> None:
+        """Fail fast with a clear message instead of letting the VM swap and the GPU stall (measured)."""
+        if self._settings.video_device == "cpu":
+            return
+        from app.services import memory
+
+        problem = memory.check_room(
+            ram_gib=self._settings.video_min_free_ram_gib,
+            vram_gib=self._settings.video_min_free_vram_gib,
+            what="the video model",
+        )
+        if problem:
+            raise VideoEngineError("out_of_memory", problem, retryable=True)
+
+    def _preflight_clip(self) -> None:
+        from app.services import memory
+
+        problem = memory.check_room(ram_gib=0, vram_gib=self._settings.video_min_free_vram_per_clip_gib, what="a clip")
+        if problem:
+            raise VideoEngineError("gpu_out_of_memory", problem, retryable=True)
+
+    def _configure_vae(self, pipe: Any, width: int, height: int) -> None:
+        """Untiled decode is fastest when it fits (Draft); larger sizes decode in tiles (measured: untiled bf16
+        at 480p needs 7.3 GB and is 4.7x slower than tiled)."""
+        vae = pipe.vae
+        if not hasattr(vae, "enable_tiling"):
+            return
+        if self._settings.video_enable_vae_tiling and width * height > DRAFT_MAX_PIXELS:
+            vae.enable_tiling()
+        else:
+            vae.disable_tiling()
+
+    def _encode(self, pipe: Any, prompt: str) -> tuple[Any, Any]:
+        """Text embeddings, cached per prompt: every clip of a scene shares one prompt (6 s of CPU each)."""
+        key = (prompt, self._fast)
+        if key in self._prompt_cache:
+            return self._prompt_cache[key]
+        prompt_embeds, negative_embeds = pipe.encode_prompt(
+            prompt=prompt,
+            negative_prompt=None if self._fast else WAN_NEGATIVE_PROMPT,
+            do_classifier_free_guidance=not self._fast,
+            num_videos_per_prompt=1,
+            max_sequence_length=MAX_TEXT_TOKENS,
+            device=pipe.text_encoder.device,
+            dtype=pipe.transformer.dtype,
+        )
+        if len(self._prompt_cache) >= 8:
+            self._prompt_cache.pop(next(iter(self._prompt_cache)))
+        self._prompt_cache[key] = (prompt_embeds, negative_embeds)
+        return prompt_embeds, negative_embeds
 
     # --- inference ----------------------------------------------------------------
 
@@ -332,16 +379,11 @@ class WanVideoEngine:
             with torch.inference_mode():
                 # Encode on the text encoder's own device (CPU by default), then move the embeddings to the GPU.
                 # 512 tokens is Wan's training length; the Diffusers default (226) would cut long scene prompts.
-                text_device = pipe.text_encoder.device
-                prompt_embeds, negative_embeds = pipe.encode_prompt(
-                    prompt=params.prompt,
-                    negative_prompt=None if self._fast else WAN_NEGATIVE_PROMPT,
-                    do_classifier_free_guidance=not self._fast,
-                    num_videos_per_prompt=1,
-                    max_sequence_length=MAX_TEXT_TOKENS,
-                    device=text_device,
-                    dtype=pipe.transformer.dtype,
-                )
+                self._preflight_clip()
+                if time.monotonic() > deadline:
+                    raise VideoEngineError("generation_timeout", "Video generation took too long and was stopped.", retryable=True)
+                prompt_embeds, negative_embeds = self._encode(pipe, params.prompt)
+                self._configure_vae(pipe, params.width, params.height)
                 generator = torch.Generator(device="cpu").manual_seed(params.seed)
                 if self._fast:
                     frames = _dmd_sample(pipe, prompt_embeds.to(device), params, generator, deadline, device)
@@ -388,6 +430,7 @@ class WanVideoEngine:
             logger.error("CUDA error during video generation: %s", exc)
             self._pipe = None
             self._optimizations = []
+            self._prompt_cache.clear()
             raise VideoEngineError(
                 "gpu_error",
                 "The GPU driver reported an error (on Windows this is often a GPU reset when video memory is nearly "
@@ -400,6 +443,7 @@ class WanVideoEngine:
 
 
 MAX_TEXT_TOKENS = 512
+DRAFT_MAX_PIXELS = 576 * 320  # Draft sizes (576x320, 320x576, 416x416) decode untiled
 # FastWan's distillation timesteps (FastVideo's ``--dmd-denoising-steps``).
 DMD_TIMESTEPS = (1000, 757, 522)
 
@@ -432,12 +476,14 @@ def _dmd_sample(pipe: Any, prompt_embeds: Any, params: VideoParams, generator: A
             latents = (1 - next_sigma) * clean + next_sigma * noise
         else:
             latents = clean
+    if time.monotonic() > deadline:
+        raise VideoEngineError("generation_timeout", "Video generation took too long and was stopped.", retryable=True)
     vae = pipe.vae
     z_dim = vae.config.z_dim
     mean = torch.tensor(vae.config.latents_mean).view(1, z_dim, 1, 1, 1).to(device, torch.float32)
     std = torch.tensor(vae.config.latents_std).view(1, z_dim, 1, 1, 1).to(device, torch.float32)
     video = vae.decode((latents * std + mean).to(vae.dtype), return_dict=False)[0]
-    return pipe.video_processor.postprocess_video(video, output_type="np")[0]
+    return pipe.video_processor.postprocess_video(video.float(), output_type="np")[0]
 
 
 def write_mp4(frames: Any, path: Path, fps: int) -> None:

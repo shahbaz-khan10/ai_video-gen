@@ -399,3 +399,15 @@ def test_video_jobs_carry_the_exact_model_prompt(vclient: TestClient, video_engi
     sent = video_engine.calls[0].prompt
     assert sent == job["plan"]["model_prompt"]
     assert sent.startswith("Waves rolling onto a beach at sunset.") and "anime" in sent  # style now reaches video
+
+
+def test_startup_removes_half_written_videos_but_keeps_finished_ones(settings: Settings, engine: FakeImageEngine) -> None:
+    out = settings.video_output_dir
+    out.mkdir(parents=True, exist_ok=True)
+    orphan = out / ".11111111-1111-4111-8111-111111111111.part.mp4"
+    orphan.write_bytes(b"partial")
+    finished = out / "22222222-2222-4222-8222-222222222222.mp4"
+    finished.write_bytes(b"done")
+    with TestClient(create_app(settings, engine=engine, video_engine=FakeVideoEngine())):
+        pass
+    assert not orphan.exists() and finished.exists()

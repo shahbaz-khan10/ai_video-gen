@@ -59,7 +59,39 @@ SECONDS_RANGE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds)?\s*(?:-|�
 SECONDS_SINGLE = re.compile(r"(\d+(?:\.\d+)?)\s*(?:s|sec|secs|seconds)\b", re.IGNORECASE)
 LIST_NUMBER = re.compile(r"^\s*(?:\d{1,2}[.)]|[-*•])\s+")
 LABEL = re.compile(r"^\s*([A-Za-z][A-Za-z \-]{1,30}?)\s*(?:\([^)]*\))?\s*:\s*(.*)$")
-TITLE = re.compile(r"^\s*title\s*:", re.IGNORECASE)
+TITLE = re.compile(r"^\s*(?:video\s+|story\s+|film\s+)?title\s*:", re.IGNORECASE)
+MARKDOWN = re.compile(r"\*\*|__|`|^#{1,6}\s*")
+DIALOGUE_HEAD = re.compile(r"^(?:dialogue|dialog|speech|voice[- ]?over|narration|lines|script|says)\b", re.IGNORECASE)
+REQUIREMENTS_HEAD = re.compile(r"\b(?:requirements?|visual style|style|quality|notes?|rules|technical|instructions?)\b", re.IGNORECASE)
+OPEN_QUOTES = "\"“"
+# Things a silent video cannot contain. "speaking into the camera" is visible, "a frightened voice" is not.
+AUDIO = re.compile(
+    r"\b(?:sound effects?|sounds?|music|soundtrack|audio|voices?|lip[- ]?sync(?:ed|ing)?|narration|narrator|"
+    r"accent|tone of voice|ambient noise)\b",
+    re.IGNORECASE,
+)
+CAMERA_SENTENCE = re.compile(
+    r"^(?:the\s+)?camera\b|\b(?:handheld|hand-held|close[- ]?up|zoom(?:s|ing)? (?:in|out)|dolly|tracking shot|"
+    r"camera (?:movement|moves|shakes|captures|pans|tilts|follows|zooms|pushes|pulls|cuts))\b",
+    re.IGNORECASE,
+)
+QUALITY = re.compile(
+    r"\b(?:ultra[- ]?realistic|hyper[- ]?realistic|photo[- ]?realistic|realistic|lifelike|4k|8k|uhd|full hd|hd|"
+    r"high[- ](?:quality|resolution|detail)|cinematic|quality|detailed|sharp|film grain)\b",
+    re.IGNORECASE,
+)
+RESOLUTION_ASK = re.compile(r"\b(?:4k|8k|uhd|full hd|1080p|2160p|1440p|720p)\b", re.IGNORECASE)
+NEGATIVE_START = re.compile(r"^(?:no|without|avoid|never|don'?t|do not)\b", re.IGNORECASE)
+NEGATIVE_POSITIVE = {  # what a "no ..." becomes when the sampler has no negative prompt (FastWan)
+    r"cartoon|animated|animation|anime|drawing|cgi|3d render": "live-action footage",
+    r"blur|blurry": "sharp focus",
+}
+NEGATIVE_CONTINUITY = re.compile(r"\b(?:face|character|person|people|outfit|clothes|clothing)\s+(?:changes?|swaps?)\b", re.IGNORECASE)
+DURATION_LINE = re.compile(
+    r"\b(?:total\s+)?(?:duration|length|runtime)\b[^.]*?\d+\s*(?:s|sec|secs|seconds|minutes?)\b"
+    r"|^\s*(?:exactly\s+)?\d+\s*[- ]?(?:second|minute)s?(?:\s+(?:long|video|clip))?\s*\.?$",
+    re.IGNORECASE,
+)
 MORAL = re.compile(r"^\s*(?:moral|lesson|message)(?: of the story)?\s*[:\-–]", re.IGNORECASE)
 CONTINUITY = re.compile(
     r"\b(?:maintain|keep|preserve|consistent|consistency|identical|unchanged)\b.*"
@@ -107,6 +139,7 @@ class Segment:
     character: str | None = None  # character a sheet or description is about
     unsupported: list[str] = field(default_factory=list)  # parts no model can show (quoted speech, text)
     skipped: str | None = None  # deliberately not used for this target, and why
+    global_: bool = False  # from a requirements section: applies to every scene, never to one moment
 
 
 @dataclass
@@ -143,12 +176,23 @@ def _character_noun(text: str) -> str | None:
 
 
 def segment(prompt: str) -> list[Segment]:
+    """Lines and sentences of the prompt, classified. Understands markdown, section headings ("Dialogue:",
+    "Visual requirements:"), quotes that span lines, SCENE markers and numbered character sheets."""
     names = set(NAMED.findall(prompt))
     segments: list[Segment] = []
     scene: int | None = None
+    section: str | None = None  # "dialogue" | "requirements" | None
+    quote: list[str] = []  # lines of a quotation still open
     for raw_line in prompt.replace("\r\n", "\n").split("\n"):
-        line = LIST_NUMBER.sub("", raw_line.strip())
+        line = LIST_NUMBER.sub("", MARKDOWN.sub("", raw_line).strip()).strip()
         if not line:
+            continue
+        if quote:  # inside a quotation that started on an earlier line
+            quote.append(line)
+            if any(q in line for q in "\"”"):
+                text = " ".join(quote)
+                segments.append(Segment(text, "dialogue", "", scene=scene, unsupported=[text]))
+                quote = []
             continue
         if TITLE.match(line):
             segments.append(Segment(line, "title", "", unsupported=[line]))
@@ -156,6 +200,22 @@ def segment(prompt: str) -> list[Segment]:
         if MORAL.match(line):
             segments.append(Segment(line, "moral", "", unsupported=[line]))
             continue
+        label = LABEL.match(line.rstrip("."))
+        if label and not label.group(2) and not _character_noun(label.group(1)):
+            section = "dialogue" if DIALOGUE_HEAD.match(label.group(1)) else (
+                "requirements" if REQUIREMENTS_HEAD.search(label.group(1)) else None
+            )
+            segments.append(Segment(line, "heading", "", scene=scene, character=section))
+            continue
+        if line[0] in OPEN_QUOTES:  # a spoken line, possibly continuing on the next lines
+            closes = line.count("\"") >= 2 or "”" in line
+            if closes:
+                segments.append(Segment(line, "dialogue", "", scene=scene, unsupported=[line]))
+            else:
+                quote = [line]
+            continue
+        if section == "dialogue":
+            section = None  # narration resumes after the quoted lines
         for sentence in re.split(r"(?<=[.!?])\s+(?=[A-Z\"“(])", line):
             sentence = sentence.strip()
             if not sentence:
@@ -164,6 +224,7 @@ def segment(prompt: str) -> list[Segment]:
             seconds = None
             if mark:
                 scene = int(mark.group(1))
+                section = None
                 timing = mark.group(2) or ""
                 rng = SECONDS_RANGE.search(timing)
                 single = SECONDS_SINGLE.search(timing)
@@ -173,7 +234,12 @@ def segment(prompt: str) -> list[Segment]:
                 if not rest:
                     continue
                 sentence = rest
-            segments.append(_classify(sentence, scene, names))
+            seg = _classify(sentence, scene, names)
+            seg.global_ = section == "requirements"
+            segments.append(seg)
+    if quote:
+        text = " ".join(quote)
+        segments.append(Segment(text, "dialogue", "", scene=scene, unsupported=[text]))
     return segments
 
 
@@ -195,8 +261,26 @@ def _classify(sentence: str, scene: int | None, names: set[str] | frozenset[str]
         content = SPEECH.sub("", QUOTE.sub("", content)).strip(" ,")
     elif QUOTED_TEXT.search(content):
         unsupported.append(QUOTED_TEXT.search(content).group(0))
+    if DURATION_LINE.search(content):
+        return Segment(text, "duration", content, scene=scene)
+    if NEGATIVE_START.match(content):
+        return Segment(text, "negative", content, scene=scene)
     if CONTINUITY.search(content):
         return Segment(text, "continuity", content, scene=scene, character=_character_noun(content))
+    if AUDIO.search(content):
+        # Keep the visible part: "lip-sync and realistic facial expressions" -> "realistic facial expressions".
+        parts = [p.strip(" ,.") for p in re.split(r",|\band\b", content) if p.strip(" ,.")]
+        visible = [p for p in parts if not AUDIO.search(p) and len(p.split()) > 1 and not re.match(r"^(?:natural|english|clear)\b\s*\w*$", p, re.I)]
+        heard = [p for p in parts if AUDIO.search(p)]
+        if visible:
+            return Segment(text, "quality", ", ".join(visible), scene=scene, unsupported=heard)
+        return Segment(text, "audio", "", scene=scene, unsupported=[content])
+    if CAMERA_SENTENCE.search(content) and not re.match(r"^(?:he|she|they|a|an|the)\s+(?!camera)\w+", content, re.I):
+        shot = re.sub(r"^(?:the\s+)?camera\s+", "", content, flags=re.IGNORECASE).strip()
+        return Segment(text, "camera", shot or content, scene=scene)
+    leftover = QUALITY.sub("", content)
+    if QUALITY.search(content) and len(re.findall(r"[a-z]{3,}", leftover, re.I)) <= 1:
+        return Segment(text, "quality", content, scene=scene)
     if STORY_REQUEST.match(content) and scene is None:
         return Segment(text, "request", content, scene=scene)
     noun = _character_noun(content)
@@ -332,7 +416,7 @@ def draft_scenes(
         for seg in segments:
             if seg.kind == "action":
                 drafts.append(Draft(len(drafts) + 1, seg.content.rstrip("."), [seg]))
-            elif seg.kind in ("environment", "description") and drafts:
+            elif seg.kind in ("environment", "description", "camera") and drafts and not seg.global_:
                 drafts[-1].segments.append(seg)  # detail of the moment just described
         if not drafts:
             visual = [s for s in segments if s.kind in ("environment", "description", "request")]
@@ -365,7 +449,8 @@ def draft_scenes(
         place = new_place or place
         time = _first(TIMES, text) or time
         d.place, d.time = place, time
-        d.camera = _first(SHOTS, text) or _first(CAMERA_MOVES, text)
+        shot = next((s.content for s in d.segments if s.kind == "camera"), None)
+        d.camera = shot or _first(SHOTS, text) or _first(CAMERA_MOVES, text)
     return drafts
 
 
@@ -491,7 +576,21 @@ def compile_targets(
     plan = RulePlanner.plan(prompt)
     global_text = " ".join(s.content for s in segments if s.scene is None and s.kind in ("environment", "request", "continuity"))
     lighting = ", ".join(filter(None, [_first(LIGHTING, global_text), _first(WEATHER, global_text)])) or None
-    global_camera = _first(SHOTS, global_text) or _first(CAMERA_MOVES, global_text)
+    global_camera = (
+        "; ".join(s.content for s in segments if s.kind == "camera" and not drafts_contain(drafts, s))
+        or _first(SHOTS, global_text) or _first(CAMERA_MOVES, global_text)
+    )
+    # Quality words and "no cartoon"-style requirements become part of the style (FastWan has no negative prompt).
+    quality = [re.sub(r"\s{2,}", " ", RESOLUTION_ASK.sub("", s.content)).strip(" ,.") for s in segments if s.kind == "quality"]
+    for seg in segments:
+        if seg.kind == "negative":
+            for pattern, positive in NEGATIVE_POSITIVE.items():
+                if re.search(pattern, seg.content, re.IGNORECASE):
+                    quality.append(positive)
+    quality_text = ", ".join(dict.fromkeys(q for q in quality if q))
+    if any(s.kind == "negative" and NEGATIVE_CONTINUITY.search(s.content) for s in segments):
+        continuity = True
+    style_full = ", ".join(filter(None, [style_text, quality_text])) or None
 
     targets: list[CompiledPrompt] = []
     if long_video:
@@ -528,27 +627,33 @@ def compile_targets(
             setting_bits.append(environment)
         if d.time and d.time not in " ".join(setting_bits).lower():
             setting_bits.append(d.time)
+        # Details written right after the action ("Behind him, the sky turns blood red") belong to this moment.
+        details = " ".join(
+            s.content.rstrip(".") + "." for s in d.segments
+            if s.kind in ("environment", "description") and s.content and s.content not in d.action
+        ) or None
         components = [
             c
             for c in (
                 _component("action", d.action, 0, required=True),
                 _component("characters", characters, 1),
-                _component("setting", ", ".join(setting_bits), 2),
-                _component("camera", d.camera or global_camera, 3),
-                _component("lighting", lighting if lighting and lighting.lower() not in (environment or "").lower() else None, 4),
-                _component("style", style_text, 5),
+                _component("details", details, 2),
+                _component("setting", ", ".join(setting_bits), 3),
+                _component("camera", d.camera or global_camera, 4),
+                _component("lighting", lighting if lighting and lighting.lower() not in (environment or "").lower() else None, 5),
+                _component("style", style_full, 6),
                 _component(
                     "continuity",
                     "the same characters, setting and lighting as the other shots" if long_video and (continuity or len(jobs) > 1) else None,
-                    6,
+                    7,
                 ),
             )
             if c
         ]
-        if style_text and style_name:  # the short style name is the last compression step for style
+        if style_full and style_name:  # compress style to its short name plus the user's quality words
             for c in components:
                 if c.name == "style":
-                    c.variants = [style_text, style_name]
+                    c.variants = list(dict.fromkeys([style_full, ", ".join(filter(None, [style_name, quality_text])), style_name]))
         text = _fit(components, measure, budget, _render)
         targets.append(
             CompiledPrompt(
@@ -600,7 +705,50 @@ def report_instructions(
             out.append(Instruction(text=seg.text, status="included", note=f"Scene boundary (scene {seg.scene}{seconds}).", targets=[f"scene {seg.scene}"]))
             continue
         if seg.kind == "heading":
-            out.append(Instruction(text=seg.text, status="included", note="Section heading: used to read the structure of the prompt."))
+            note = {
+                "dialogue": "Section heading: the quoted lines that follow are speech.",
+                "requirements": "Section heading: the lines that follow apply to every scene.",
+            }.get(seg.character or "", "Section heading: used to read the structure of the prompt.")
+            out.append(Instruction(text=seg.text, status="included", note=note))
+            continue
+        if seg.kind == "dialogue":
+            out.append(Instruction(
+                text=seg.text, status="unsupported", reaches_model=False,
+                note="Spoken words: the video models make silent clips and cannot render speech or lip-sync. "
+                     "The speaker's actions and expressions are kept.",
+            ))
+            continue
+        if seg.kind == "audio":
+            out.append(Instruction(
+                text=seg.text, status="unsupported", reaches_model=False,
+                note="Sound: the video models generate silent video, so voice, music and sound effects cannot be made.",
+            ))
+            continue
+        if seg.kind == "duration":
+            asked = re.search(r"(\d+)\s*[- ]?(second|sec|s|minute)", seg.content, re.IGNORECASE)
+            seconds = float(asked.group(1)) * (60 if asked and asked.group(2).lower().startswith("minute") else 1) if asked else None
+            if seconds and duration_seconds and seconds != float(duration_seconds):
+                note = f"The length comes from the Duration setting ({duration_seconds:g} s); the prompt asks for {seconds:g} s."
+            else:
+                note = "The length comes from the Duration setting" + (f" ({duration_seconds:g} s), which matches." if duration_seconds else ".")
+            out.append(Instruction(text=seg.text, status="included", note=note))
+            continue
+        if seg.kind == "negative":
+            mapped = [pos for pat, pos in NEGATIVE_POSITIVE.items() if re.search(pat, seg.content, re.IGNORECASE)]
+            keeps = bool(NEGATIVE_CONTINUITY.search(seg.content))
+            if mapped or keeps:
+                bits = []
+                if mapped:
+                    bits.append("turned into a positive instruction (" + ", ".join(mapped) + ")")
+                if keeps:
+                    bits.append("character changes are prevented by repeating the same descriptions in every clip")
+                note = "Applied: " + "; ".join(bits) + ". The fast video sampler has no negative prompt."
+                out.append(Instruction(text=seg.text, status="included", note=note, targets=[t.target for t in targets]))
+            else:
+                out.append(Instruction(
+                    text=seg.text, status="unsupported", reaches_model=False,
+                    note="The fast video sampler has no negative prompt, so 'no …' cannot be enforced; images use it as a negative prompt.",
+                ))
             continue
         if seg.kind in ("title", "moral"):
             out.append(Instruction(
@@ -639,6 +787,23 @@ def report_instructions(
             if ratio > best:
                 best_target, best = t.target, ratio
         hits = [t.target for t in targets if sum(1 for w in words if w in words_by_target[t.target] or w.rstrip("s") in words_by_target[t.target]) / len(words) >= 0.5]
+        if seg.kind == "quality":
+            note = "Added to the style of every prompt."
+            if RESOLUTION_ASK.search(seg.content):
+                note += " Resolution is limited by the model: Draft 576×320 or Quality 832×480, not 4K."
+            if seg.unsupported:
+                note += " Not possible in silent video: " + "; ".join(seg.unsupported) + "."
+            status = "compressed" if (RESOLUTION_ASK.search(seg.content) or seg.unsupported) else "included"
+            out.append(Instruction(text=seg.text, status=status, note=note, targets=hits))
+            continue
+        if seg.kind == "camera":
+            # Where it was actually used: the prompts whose camera component carries this direction.
+            used = [t.target for t in targets if any(c.name == "camera" and seg.content in c.text for c in t.components)]
+            status = "included" if used else ("omitted_budget" if budget_cut else "compressed")
+            where = "every scene" if len(used) == len(targets) > 1 else ", ".join(used)
+            note = f"Camera direction for {where}." if used else "Camera direction left out to fit the model's token budget."
+            out.append(Instruction(text=seg.text, status=status, note=note, targets=used))
+            continue
         if seg.unsupported:
             status, note = ("compressed" if best >= 0.5 else "unsupported"), (
                 "Shown without the spoken or written words, which the models cannot render: " + "; ".join(seg.unsupported)

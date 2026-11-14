@@ -53,6 +53,20 @@ class VideoStorage:
     def __init__(self, output_dir: Path) -> None:
         self.output_dir = output_dir.resolve()
 
+    def sweep_temp(self) -> int:
+        """Deletes half-written ``.<uuid>.part.mp4`` files left by a crash. Called at startup, when no job runs.
+        Finished videos and long-video clip parts (kept for resume) are never touched."""
+        removed = 0
+        if not self.output_dir.is_dir():
+            return 0
+        for path in self.output_dir.glob(".*.part.mp4"):
+            try:
+                path.unlink()
+                removed += 1
+            except OSError:
+                pass
+        return removed
+
     def temp_path(self, job_id: str) -> Path:
         """Where the engine writes; hidden and not matching FILENAME_PATTERN, so it is never served."""
         if not _JOB_ID.match(job_id):

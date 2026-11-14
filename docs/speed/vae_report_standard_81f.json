@@ -1,0 +1,30 @@
+{
+ "frames": 81,
+ "size": "576x320",
+ "load_seconds": 42.6,
+ "text_encode_seconds_cpu": 6.63,
+ "text_encode_seconds_cpu_second_call": 6.19,
+ "denoise_seconds": 19.36,
+ "vae": {
+  "fp32_untiled": {
+   "seconds": 213.63,
+   "peak_vram_gb": 6.95,
+   "psnr_vs_fp32_untiled_db": null
+  },
+  "fp32_tiled": {
+   "seconds": 39.92,
+   "peak_vram_gb": 4.57,
+   "psnr_vs_fp32_untiled_db": 57.29
+  },
+  "bf16_untiled": {
+   "seconds": 15.8,
+   "peak_vram_gb": 4.95,
+   "psnr_vs_fp32_untiled_db": 57.87
+  },
+  "bf16_tiled": {
+   "seconds": 23.36,
+   "peak_vram_gb": 3.68,
+   "psnr_vs_fp32_untiled_db": 54.43
+  }
+ }
+}

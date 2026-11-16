@@ -14,23 +14,26 @@ class _BodyTooLarge(Exception):
 class BodySizeLimitMiddleware:
     """Checks ``Content-Length`` up front and counts streamed bytes as a fallback."""
 
-    def __init__(self, app: ASGIApp, max_bytes: int) -> None:
+    def __init__(self, app: ASGIApp, max_bytes: int, path_limits: dict[str, int] | None = None) -> None:
         self.app = app
         self.max_bytes = max_bytes
+        # Larger limits for specific paths (image uploads); everything else keeps the small JSON limit.
+        self.path_limits = path_limits or {}
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
+        limit = self.path_limits.get(scope.get("path", ""), self.max_bytes)
         for name, value in scope.get("headers", []):
             if name == b"content-length":
                 try:
-                    too_large = int(value) > self.max_bytes
+                    too_large = int(value) > limit
                 except ValueError:
                     too_large = False
                 if too_large:
-                    await self._reject(send)
+                    await self._reject(send, limit)
                     return
 
         received = 0
@@ -41,7 +44,7 @@ class BodySizeLimitMiddleware:
             message = await receive()
             if message["type"] == "http.request":
                 received += len(message.get("body", b""))
-                if received > self.max_bytes:
+                if received > limit:
                     raise _BodyTooLarge
             return message
 
@@ -55,11 +58,11 @@ class BodySizeLimitMiddleware:
             await self.app(scope, limited_receive, tracking_send)
         except _BodyTooLarge:
             if not response_started:
-                await self._reject(send)
+                await self._reject(send, limit)
 
-    async def _reject(self, send: Send) -> None:
+    async def _reject(self, send: Send, limit: int) -> None:
         body = json.dumps(
-            error_body("payload_too_large", f"Request body exceeds {self.max_bytes} bytes.")
+            error_body("payload_too_large", f"Request body exceeds {limit} bytes.")
         ).encode()
         await send(
             {

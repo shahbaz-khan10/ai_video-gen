@@ -18,8 +18,6 @@ from app.schemas.scene_plan import ScenePlan
 # about what a person writes, not the model's text encoder. 4000 chars is ~1000 UMT5 tokens for the whole story.
 PROMPT_MAX_CHARS = 4000
 MAX_SOURCE_IMAGE_BYTES = 10 * 1024 * 1024
-DURATION_OPTIONS_SECONDS = (4, 6, 8)
-DEFAULT_DURATION_SECONDS = 6
 MAX_SEED = 2**32 - 1
 IMAGE_STEP_OPTIONS = (1, 2, 4)
 
@@ -53,7 +51,6 @@ class VisualStyle(StrEnum):
     STREET = "street"
 
 
-DurationSeconds = Literal[4, 6, 8]
 # Values the UI may send; the engine clamps them to what the chosen model supports.
 ImageSteps = Literal[1, 2, 4, 5, 6, 8, 15, 20, 25, 30, 35]
 
@@ -127,10 +124,38 @@ class StrictModel(BaseModel):
 
 
 class SourceImageInfo(StrictModel):
-    """Metadata about the image the user picked."""
+    """The uploaded image to animate (POST /uploads/images returns ``upload_id``)."""
 
-    content_type: Literal["image/png", "image/jpeg", "image/webp"]
-    size_bytes: int = Field(gt=0, le=MAX_SOURCE_IMAGE_BYTES)
+    upload_id: str = Field(pattern=r"^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")
+    content_type: Literal["image/png", "image/jpeg", "image/webp"] | None = None
+    size_bytes: int | None = Field(None, gt=0, le=MAX_SOURCE_IMAGE_BYTES)
+
+
+# --- Image-to-video (Wan2.1 VACE 1.3B, the image is the first frame) -----------------------------------------
+# One clip: up to 81 frames (5 s at 16 fps), the same limit as text-to-video.
+I2V_DURATION_OPTIONS_SECONDS = (2, 3, 5)
+DURATION_OPTIONS_SECONDS = I2V_DURATION_OPTIONS_SECONDS  # /info limits.duration_options_seconds
+I2VDurationSeconds = Literal[2, 3, 5]
+DEFAULT_I2V_DURATION_SECONDS = 3
+# Motion and camera become words in the prompt; "none" adds nothing, so nothing moves that was not asked for.
+I2V_MOTION_TEXT: dict[str, str] = {
+    "subtle": "subtle, gentle, minimal movement",
+    "normal": "natural, smooth movement",
+    "strong": "lively, clearly visible movement",
+}
+I2V_CAMERA_TEXT: dict[str, str | None] = {
+    "none": None,
+    "static": "static camera, locked-off tripod shot, the frame does not move",
+    "zoom_in": "the camera slowly zooms in",
+    "zoom_out": "the camera slowly zooms out",
+    "pan_left": "the camera slowly pans to the left",
+    "pan_right": "the camera slowly pans to the right",
+    "tilt_up": "the camera slowly tilts up",
+    "orbit": "the camera slowly orbits around the subject",
+}
+I2VMotion = Literal["subtle", "normal", "strong"]
+I2VCamera = Literal["none", "static", "zoom_in", "zoom_out", "pan_left", "pan_right", "tilt_up", "orbit"]
+I2VQuality = Literal["draft", "quality"]
 
 
 class _GenerationBase(StrictModel):
@@ -213,10 +238,16 @@ class TextToVideoRequest(_GenerationBase):
 
 
 class ImageToVideoRequest(_GenerationBase):
+    """``prompt`` describes the movement. ``style`` is ignored: style words would repaint the uploaded image."""
+
     mode: Literal[GenerationMode.IMAGE_TO_VIDEO]
-    duration_seconds: DurationSeconds = DEFAULT_DURATION_SECONDS
-    resolution: ImageResolution = ImageResolution.STANDARD
-    steps: int | None = Field(None, ge=1, le=50)
+    duration_seconds: I2VDurationSeconds = DEFAULT_I2V_DURATION_SECONDS
+    resolution: Literal[ImageResolution.STANDARD, ImageResolution.LARGE] = Field(
+        ImageResolution.STANDARD, description="standard = Draft size (576x320), large = 480p."
+    )
+    quality: I2VQuality = Field("draft", description="draft: 3 distilled steps. quality: more steps with guidance (slower).")
+    motion: I2VMotion = "normal"
+    camera: I2VCamera = "none"
     seed: int | None = Field(None, ge=0, le=MAX_SEED)
     source_image: SourceImageInfo
 
@@ -248,6 +279,10 @@ class GenerationSettings(BaseModel):
     negative_prompt: str | None = None
     guidance_scale: float | None = None
     model_id: str | None = None
+    # Image-to-video
+    quality: str | None = None
+    motion: str | None = None
+    camera: str | None = None
 
 
 class GeneratedVideo(BaseModel):

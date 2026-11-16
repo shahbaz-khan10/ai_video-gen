@@ -46,12 +46,12 @@ def test_validate_image_to_video_with_image_metadata(client: TestClient) -> None
         "prompt": "Petals drift upward",
         "aspect_ratio": "9:16",
         "style": "dreamlike",
-        "duration_seconds": 4,
-        "source_image": {"content_type": "image/png", "size_bytes": 120_000},
+        "duration_seconds": 3,
+        "source_image": {"upload_id": "0b6f8a3e-1d2c-4f5a-9b7e-123456789abc", "content_type": "image/png", "size_bytes": 120_000},
     }
     res = client.post(VALIDATE, json=payload)
     assert res.status_code == 200
-    assert res.json()["settings"]["source_image"] == {"content_type": "image/png", "size_bytes": 120_000}
+    assert res.json()["settings"]["source_image"]["upload_id"] == "0b6f8a3e-1d2c-4f5a-9b7e-123456789abc"
 
 
 def test_video_duration_defaults_when_omitted(client: TestClient, video_request: dict) -> None:
@@ -150,10 +150,12 @@ def test_image_to_video_requires_source_image(client: TestClient) -> None:
 @pytest.mark.parametrize(
     "image",
     [
-        {"content_type": "image/gif", "size_bytes": 1000},
-        {"content_type": "application/pdf", "size_bytes": 1000},
-        {"content_type": "image/png", "size_bytes": 0},
-        {"content_type": "image/png", "size_bytes": 10 * 1024 * 1024 + 1},
+        {"upload_id": "0b6f8a3e-1d2c-4f5a-9b7e-123456789abc", "content_type": "image/gif", "size_bytes": 1000},
+        {"upload_id": "0b6f8a3e-1d2c-4f5a-9b7e-123456789abc", "content_type": "application/pdf", "size_bytes": 1000},
+        {"upload_id": "0b6f8a3e-1d2c-4f5a-9b7e-123456789abc", "content_type": "image/png", "size_bytes": 0},
+        {"upload_id": "0b6f8a3e-1d2c-4f5a-9b7e-123456789abc", "content_type": "image/png", "size_bytes": 10 * 1024 * 1024 + 1},
+        {"content_type": "image/png", "size_bytes": 1000},  # no upload
+        {"upload_id": "../../etc/passwd"},
     ],
 )
 def test_invalid_source_image_rejected(client: TestClient, image: dict) -> None:
@@ -173,7 +175,7 @@ def test_source_image_rejects_filename_or_path(client: TestClient) -> None:
     payload = {
         "mode": "image-to-video",
         "prompt": "Make it move",
-        "source_image": {"content_type": "image/png", "size_bytes": 1000, "filename": "../../etc/passwd"},
+        "source_image": {"upload_id": "0b6f8a3e-1d2c-4f5a-9b7e-123456789abc", "filename": "../../etc/passwd"},
     }
     assert client.post(VALIDATE, json=payload).status_code == 422
 

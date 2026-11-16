@@ -3,29 +3,40 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { FolderOpen, ScanSearch } from "lucide-react";
+import { FolderOpen, ScanSearch, Square } from "lucide-react";
 import { api, ApiError, assetUrl } from "@/lib/api/client";
 import { useBackendStatus } from "@/lib/api/use-backend-status";
 import { isBusy, parseSeed, progressMessage } from "@/lib/generation/job-view";
 import { useImageJob } from "@/lib/generation/use-image-job";
 import { prefersReducedMotion } from "@/lib/motion";
 import {
-  ASPECT_RATIOS,
   DEFAULT_IMAGE_STEPS,
   DEFAULT_VIDEO_DURATIONS,
   DEFAULT_VIDEO_STEPS,
   getMode,
+  estimateI2VSeconds,
   getStyle,
+  I2V_DURATIONS,
   IMAGE_SIZES,
   isVideoMode,
   MODELS,
   VIDEO_SIZES,
 } from "@/lib/studio-options";
-import type { GenerationPayload, GenerationPlan, ImageResolution, SceneInput, VideoResolution } from "@/types/api";
+import type {
+  GenerationPayload,
+  GenerationPlan,
+  I2VCamera,
+  I2VMotion,
+  I2VQuality,
+  ImageResolution,
+  SceneInput,
+  VideoResolution,
+} from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
 import { AspectRatioSelector } from "./aspect-ratio-selector";
 import { DurationSelector } from "./duration-selector";
 import { GenerateButton } from "./generate-button";
+import { formatEstimate, I2VCameraSelector, I2VDurationSelector, I2VMotionSelector, I2VQualitySelector } from "./i2v-options";
 import { buildPayload, interpretError, type CheckOutcome, type FieldErrors } from "./generation-check";
 import { ImageModelCard } from "./image-model-card";
 import { ResolutionSelector, SeedInput, StepsSelector } from "./image-options";
@@ -39,13 +50,13 @@ import { PromptEditor } from "./prompt-editor";
 import { ScenePlanPanel } from "./scene-plan-panel";
 import { SceneProgress } from "./scene-progress";
 import { StyleSelector } from "./style-selector";
-import { useImageSelection } from "./use-image-selection";
+import { nearestAspect, useImageSelection } from "./use-image-selection";
 import { VideoDurationSelector, VideoSizeSelector } from "./video-options";
 
 const GENERATE_LABEL: Record<GenerationMode, string> = {
   "text-to-image": "Generate photograph",
   "text-to-video": "Generate video",
-  "image-to-video": "Check animation settings",
+  "image-to-video": "Animate image",
 };
 
 const collapse = {
@@ -77,6 +88,17 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [videoResolution, setVideoResolution] = useState<VideoResolution>("standard");
   const [pickedVideoSteps, setVideoSteps] = useState<number | null>(null);
   const [model, setModel] = useState(MODELS[0].id);
+  // Image-to-video settings.
+  const [i2vQuality, setI2vQuality] = useState<I2VQuality>("draft");
+  const [i2vSeconds, setI2vSeconds] = useState(3);
+  const [i2vMotion, setI2vMotion] = useState<I2VMotion>("normal");
+  const [i2vCamera, setI2vCamera] = useState<I2VCamera>("none");
+  const [i2vResolution, setI2vResolution] = useState<VideoResolution>("standard");
+  // 480p was measured in Draft only; Quality at 480p is not offered.
+  const i2vSize: VideoResolution = i2vQuality === "draft" ? i2vResolution : "standard";
+  const [cancelling, setCancelling] = useState(false);
+  // Job IDs the user asked to stop; the server stops at the next step (after a model load if one is running).
+  const [stopRequested, setStopRequested] = useState<string | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
   // Video modes: settings check only.
   const [outcome, setOutcome] = useState<CheckOutcome | null>(null);
@@ -97,8 +119,9 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
 
   const isImage = mode === "text-to-image";
   const isTextToVideo = mode === "text-to-video";
-  // Modes that queue a real job on a local model (image-to-video still only checks settings).
-  const runsJob = isImage || isTextToVideo;
+  const isI2V = mode === "image-to-video";
+  // Modes that queue a real job on a local model (all three).
+  const runsJob = isImage || isTextToVideo || isI2V;
   const isVideo = isVideoMode(mode);
   const needsImage = mode === "image-to-video";
   const view = imageJob.view;
@@ -114,10 +137,19 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     return () => clearInterval(timer);
   }, [view]);
 
+  // A new picture picks the closest aspect ratio, so it is cropped as little as possible. The user can change it.
+  const pickedFor = useRef<string | null>(null);
+  useEffect(() => {
+    const img = upload.image;
+    if (!img || pickedFor.current === img.url) return;
+    pickedFor.current = img.url;
+    setAspectRatio(nearestAspect(img.width, img.height));
+  }, [upload.image]);
+
   const elapsedSeconds = viewJob && elapsed?.jobId === viewJob.id ? elapsed.seconds : 0;
   const license =
     backend.state === "online"
-      ? mode === "text-to-video"
+      ? mode !== "text-to-image"
         ? backend.info.video?.license ?? null
         : backend.info.generation.license
       : null;
@@ -170,10 +202,10 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       ]
     : [
         getMode(mode).label,
-        `${aspectRatio} ${ASPECT_RATIOS.find((r) => r.id === aspectRatio)!.label}`,
-        getStyle(style).label,
-        duration,
-        MODELS.find((m) => m.id === model)!.label.split(" · ")[0],
+        `${aspectRatio} · ${VIDEO_SIZES[i2vSize][aspectRatio].width}×${VIDEO_SIZES[i2vSize][aspectRatio].height}`,
+        `${i2vSeconds}s @ ${videoFps} fps`,
+        i2vQuality === "draft" ? "Draft · 3 steps" : "Quality · 20 steps",
+        seedInput.trim() ? `Seed ${seedInput.trim()}` : "Random seed",
       ];
 
   /** Any edit makes the last settings check stale. A running image job keeps going. */
@@ -236,6 +268,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
         steps: fixedVideoSteps ? null : videoSteps,
         scenes,
       },
+      i2v: { durationSeconds: i2vSeconds, resolution: i2vSize, quality: i2vQuality, motion: i2vMotion, camera: i2vCamera },
     });
 
   /** Asks the backend how it understood the prompt; long videos also get an editable scene list. */
@@ -278,6 +311,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
     const localErrors: FieldErrors = {};
     if (!prompt.trim()) localErrors.prompt = "Add a prompt to describe what you want to create.";
     if (needsImage && !upload.image) localErrors.image = "Add a source image to animate.";
+    else if (needsImage && upload.image?.uploading) localErrors.image = "The image is still uploading. Try again in a moment.";
+    else if (needsImage && !upload.image?.uploadId) localErrors.image = "The image was not uploaded. Use “Upload again”.";
     const seed = parseSeed(seedInput);
     if (runsJob && seed.error) localErrors.seed = seed.error;
     setErrors(localErrors);
@@ -321,10 +356,24 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   // A finished job is only shown in the mode that produced it.
   const completedJob = view.phase === "completed" && view.job.settings.mode === mode ? view.job : null;
   const completedImage = isImage ? completedJob?.image ?? null : null;
-  const completedVideo = isTextToVideo ? completedJob?.video ?? null : null;
+  const completedVideo = isTextToVideo || isI2V ? completedJob?.video ?? null : null;
+
+  const handleCancel = async () => {
+    if (!viewJob) return;
+    setCancelling(true);
+    try {
+      setStopRequested(viewJob.id);
+      imageJob.adopt(await api.cancelGeneration(viewJob.id));
+    } catch (err) {
+      setPlanError(err instanceof ApiError ? err.message : "Couldn't cancel the job.");
+    } finally {
+      setCancelling(false);
+    }
+  };
   const resultSrc = completedImage ? assetUrl(completedImage.url) : completedVideo ? assetUrl(completedVideo.url) : null;
   const jobInThisMode = viewJob === null || viewJob.settings.mode === mode;
   const jobBusy = imageBusy && jobInThisMode;
+  const canCancel = jobBusy && viewJob !== null && viewJob.settings.mode !== "text-to-image" && !cancelling;
 
   return (
     <div className="grid gap-6 lg:grid-cols-[minmax(0,400px)_minmax(0,1fr)] xl:grid-cols-[minmax(0,440px)_minmax(0,1fr)]">
@@ -362,6 +411,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                   upload.clear();
                   invalidate();
                 }}
+                onRetryUpload={upload.retryUpload}
               />
             </motion.div>
           )}
@@ -389,13 +439,16 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
             invalidate();
           }}
         />
-        <StyleSelector
-          value={style}
-          onChange={(v) => {
-            setStyle(v);
-            invalidate();
-          }}
-        />
+        {/* Style words would repaint the uploaded picture, so image-to-video has no style. */}
+        {!isI2V && (
+          <StyleSelector
+            value={style}
+            onChange={(v) => {
+              setStyle(v);
+              invalidate();
+            }}
+          />
+        )}
 
         <AnimatePresence initial={false} mode="popLayout">
           {isImage ? (
@@ -438,6 +491,41 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                 <span className="font-mono text-fg">{videoInfo?.model_id ?? "Wan-AI/Wan2.1-T2V-1.3B-Diffusers"}</span>
                 {" · "}
                 {videoInfo ? (videoInfo.available ? videoInfo.message : videoInfo.detail) : "Checking the video model…"}
+              </p>
+            </motion.div>
+          ) : isI2V ? (
+            <motion.div key="i2v-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
+              <I2VQualitySelector value={i2vQuality} onChange={setI2vQuality} seconds={i2vSeconds} resolution={i2vSize} />
+              {i2vQuality === "draft" && (
+                <VideoSizeSelector
+                  value={i2vResolution}
+                  aspectRatio={aspectRatio}
+                  onChange={setI2vResolution}
+                  labels={{ standard: "Small", large: "480p" }}
+                  hint="Small (~320p) is quickest. 480p is sharper and keeps more of the photo's detail, but takes about 3x as long."
+                />
+              )}
+              <I2VDurationSelector
+                options={online?.info.limits.duration_options_seconds?.length ? online.info.limits.duration_options_seconds : I2V_DURATIONS}
+                value={i2vSeconds}
+                onChange={setI2vSeconds}
+              />
+              <I2VMotionSelector value={i2vMotion} onChange={setI2vMotion} />
+              <I2VCameraSelector value={i2vCamera} onChange={setI2vCamera} />
+              <div id="seed-field">
+                <SeedInput
+                  value={seedInput}
+                  onChange={(v) => {
+                    setSeedInput(v);
+                    setErrors((e) => ({ ...e, seed: undefined }));
+                  }}
+                  error={errors.seed}
+                />
+              </div>
+              <p className="rounded-lg border border-line bg-ink-900 px-3 py-2.5 text-xs leading-relaxed text-fg-muted">
+                <span className="font-mono text-fg">Wan-AI/Wan2.1-VACE-1.3B-diffusers</span> · Apache-2.0 · the uploaded image is
+                the first frame and is centre-cropped to {aspectRatio} ({VIDEO_SIZES[i2vSize][aspectRatio].width}×
+                {VIDEO_SIZES[i2vSize][aspectRatio].height}). Faces can drift a little; large or fast movements are weak.
               </p>
             </motion.div>
           ) : (
@@ -495,6 +583,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                 ? "Generating photograph…"
                 : isTextToVideo
                 ? "Generating video…"
+                : isI2V
+                ? "Animating image…"
                 : "Checking settings…"
             }
             note={
@@ -504,7 +594,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                 ? isLongVideo
                   ? `Runs on your GPU · ${videoSeconds}s is built from many clips and takes a long time · one job at a time`
                   : "Runs on your GPU · about a minute or more per clip · one job at a time"
-                : "Image-to-video is coming soon · settings are validated only"
+                : `Runs on your GPU · about ${formatEstimate(estimateI2VSeconds(i2vQuality, i2vSize, i2vSeconds))} (plus ~1 min the first time the model loads) · one job at a time`
             }
           />
         </div>
@@ -529,6 +619,21 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           notice={
             runsJob && jobInThisMode ? (
               <>
+                {jobBusy && viewJob && stopRequested === viewJob.id && (
+                  <p role="status" className="mb-3 text-xs text-fg-muted">
+                    Stopping… the job stops at its next step. If the model is still loading, that finishes first.
+                  </p>
+                )}
+                {canCancel && stopRequested !== viewJob?.id && (
+                  <button
+                    type="button"
+                    onClick={() => void handleCancel()}
+                    className="mb-3 flex items-center gap-1.5 rounded-lg border border-line bg-ink-900 px-3 py-2 text-xs font-medium text-fg-muted hover:border-red-400/40 hover:text-red-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-soft/40"
+                  >
+                    <Square className="size-3" aria-hidden />
+                    Cancel generation
+                  </button>
+                )}
                 <JobNotice
                   view={view}
                   progress={progressMessage(view, elapsedSeconds, imageJob.modelState)}

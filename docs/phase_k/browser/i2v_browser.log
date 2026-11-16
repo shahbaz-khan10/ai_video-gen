@@ -1,0 +1,15 @@
+2026-11-16T04:42:50.765Z screenshot i2v_01_i2v_empty.png
+2026-11-16T04:42:52.305Z invalid file message: This image is damaged or can't be read. Please choose another file.
+2026-11-16T04:42:52.416Z screenshot i2v_02_i2v_invalid.png
+2026-11-16T04:42:52.832Z upload state: Source imageThe first frame of the video. It is sent only to your own studio backend, stored without its metadata, and deleted after 24 hours.k3_sheep.png1344×768 · 1.4 MB · Ready
+2026-11-16T04:42:53.103Z screenshot i2v_03_i2v_ready.png
+2026-11-16T04:42:53.161Z POST http://localhost:8003/api/v1/generations -> 202
+2026-11-16T04:42:57.426Z POST http://localhost:8003/api/v1/generations/acd731fb-a6b4-4ee0-af37-a0d07f3bfe8e/cancel -> 200
+2026-11-16T04:44:07.918Z after cancel: PreviewImage model readySource frame · not animatedImage to Video16:9 · 576×3203s @ 16 fpsDraft · 3 stepsRandom seedCancelledThe generation was cancelled.Try again
+2026-11-16T04:44:08.119Z screenshot i2v_04_i2v_cancelled.png
+2026-11-16T04:44:08.178Z POST http://localhost:8003/api/v1/generations -> 202
+2026-11-16T04:44:08.197Z progress: PreviewImage model readySource frame · not animatedQueued. Starting shortly…Image to Video16:9 · 576×3203s @ 16 fpsDraft · 3 stepsRandom seedCancel generationCancelledThe generation was cancelled.Try again
+2026-11-16T04:44:08.411Z screenshot i2v_05_progress.png
+2026-11-16T04:45:08.597Z i2v result: true
+2026-11-16T04:45:08.599Z video src: http://localhost:8003/api/v1/files/videos/2d046dd6-1587-43c3-a59a-1971f691c046.mp4
+2026-11-16T04:45:08.785Z screenshot i2v_06_i2v_done.png

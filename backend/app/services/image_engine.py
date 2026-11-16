@@ -216,14 +216,12 @@ class DiffusersImageEngine:
             self._pipe = None
             self._device = None
             self._optimizations = []
-            gc.collect()
-            try:
-                import torch
+            # With CPU offload the SDXL weights live in RAM (measured 7.7 GiB). Freed tensors stay in glibc's
+            # arenas until malloc_trim: without it 7.3 GiB stayed and the video model could not load
+            # ("10.5 GiB RAM available, 15 GiB needed"; scripts/check_image_unload.py).
+            from app.services import memory
 
-                if torch.cuda.is_available():
-                    torch.cuda.empty_cache()
-            except ImportError:
-                pass
+            memory.release()
             logger.info("Image model unloaded to free memory")
 
     def _resolve_device(self, torch: Any) -> str:

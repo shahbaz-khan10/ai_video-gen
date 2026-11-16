@@ -1,0 +1,101 @@
+[
+ {
+  "video": "k1_portrait_draft_3s.mp4",
+  "size": "320x576",
+  "frames": 49,
+  "frame0_psnr": 32.97,
+  "last_psnr": 14.66,
+  "motion": 2.52,
+  "flicker_ratio": 1.96
+ },
+ {
+  "video": "k2_standing_draft_3s.mp4",
+  "size": "320x576",
+  "frames": 49,
+  "frame0_psnr": 31.83,
+  "last_psnr": 12.44,
+  "motion": 5.87,
+  "flicker_ratio": 1.99
+ },
+ {
+  "video": "k2_standing_quality_3s.mp4",
+  "size": "320x576",
+  "frames": 49,
+  "frame0_psnr": 28.63,
+  "last_psnr": 11.86,
+  "motion": 5.91,
+  "flicker_ratio": 1.96
+ },
+ {
+  "video": "k2_standing_quality_3s_wrong_scheduler.mp4",
+  "size": "320x576",
+  "frames": 49,
+  "frame0_psnr": 11.61,
+  "last_psnr": 9.07,
+  "motion": 4.25,
+  "flicker_ratio": 8.34
+ },
+ {
+  "video": "k3_sheep_draft_3s.mp4",
+  "size": "576x320",
+  "frames": 49,
+  "frame0_psnr": 31.74,
+  "last_psnr": 11.92,
+  "motion": 4.83,
+  "flicker_ratio": 1.81
+ },
+ {
+  "video": "k3_sheep_draft_5s_5s.mp4",
+  "size": "576x320",
+  "frames": 81,
+  "frame0_psnr": 31.48,
+  "last_psnr": 10.05,
+  "motion": 9.05,
+  "flicker_ratio": 1.97
+ },
+ {
+  "video": "k4_river_draft_2s_warmup.mp4",
+  "size": "576x320",
+  "frames": 33,
+  "frame0_psnr": 32.16,
+  "last_psnr": 14.35,
+  "motion": 6.38,
+  "flicker_ratio": 1.5
+ },
+ {
+  "video": "k4_river_draft_2s_zoom.mp4",
+  "size": "576x320",
+  "frames": 33,
+  "frame0_psnr": 32.2,
+  "last_psnr": 14.58,
+  "motion": 5.46,
+  "flicker_ratio": 1.29
+ },
+ {
+  "video": "k4_river_draft_3s.mp4",
+  "size": "576x320",
+  "frames": 49,
+  "frame0_psnr": 31.99,
+  "last_psnr": 15.16,
+  "motion": 2.69,
+  "flicker_ratio": 1.75
+ },
+ {
+  "video": "k5_market_draft_3s.mp4",
+  "size": "576x320",
+  "frames": 49,
+  "frame0_psnr": 30.99,
+  "last_psnr": 13.66,
+  "motion": 2.67,
+  "flicker_ratio": 1.78
+ },
+ {
+  "video": "k5_market_draft_3s_480p.mp4",
+  "size": "832x480",
+  "frames": 49,
+  "frame0_psnr": 33.41,
+  "last_psnr": 11.71,
+  "motion": 3.65,
+  "flicker_ratio": 2.37
+ }
+]

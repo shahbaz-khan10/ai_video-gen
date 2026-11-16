@@ -13,12 +13,15 @@ import type {
   ImageModelStatus,
   InfoResponse,
   ReadinessResponse,
+  UploadedImage,
   ValidationResponse,
 } from "@/types/api";
 
 const DEV_FALLBACK_URL = "http://localhost:8000";
 const API_PREFIX = "/api/v1";
 const TIMEOUT_MS = 8000;
+// A 10 MB image over a slow link needs longer than a JSON call.
+const UPLOAD_TIMEOUT_MS = 60_000;
 
 /** Resolved base URL, or null when no backend is configured (e.g. a production build without the env var). */
 export function getApiBaseUrl(): string | null {
@@ -61,18 +64,22 @@ function isErrorBody(value: unknown): value is ApiErrorBody {
   );
 }
 
-async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+async function request<T>(
+  path: string,
+  init: RequestInit = {},
+  { contentType = "application/json", timeoutMs = TIMEOUT_MS }: { contentType?: string; timeoutMs?: number } = {},
+): Promise<T> {
   const base = getApiBaseUrl();
   if (!base) throw new ApiError("unconfigured", "The backend URL is not configured (NEXT_PUBLIC_API_BASE_URL).");
 
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
 
   let res: Response;
   try {
     res = await fetch(`${base}${API_PREFIX}${path}`, {
       ...init,
-      headers: { Accept: "application/json", ...(init.body ? { "Content-Type": "application/json" } : {}) },
+      headers: { Accept: "application/json", ...(init.body ? { "Content-Type": contentType } : {}) },
       signal: controller.signal,
       cache: "no-store",
     });
@@ -125,4 +132,17 @@ export const api = {
   /** Retries one failed scene of a long video; finished clips are reused. */
   retryScene: (id: string, index: number) =>
     request<GenerationJob>(`/generations/${encodeURIComponent(id)}/scenes/${index}/retry`, { method: "POST" }),
+  /** Uploads the image to animate. The raw file is the body; the server checks the bytes, not the name. */
+  uploadImage: (file: Blob) =>
+    request<UploadedImage>(
+      "/uploads/images",
+      { method: "POST", body: file },
+      { contentType: file.type || "application/octet-stream", timeoutMs: UPLOAD_TIMEOUT_MS },
+    ),
+  /** Stops a queued or running video job (a running one stops at its next step). */
+  cancelGeneration: (id: string) =>
+    request<GenerationJob>(`/generations/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
+  /** Runs a failed or cancelled job again with the same settings and seed. */
+  retryGeneration: (id: string) =>
+    request<GenerationJob>(`/generations/${encodeURIComponent(id)}/retry`, { method: "POST" }),
 };

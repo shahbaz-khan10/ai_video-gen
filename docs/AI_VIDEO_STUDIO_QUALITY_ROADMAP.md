@@ -269,3 +269,9 @@ Status: **improved, not solved** — wider framing and visible walking; full hea
 ## 11. What happens next
 
 Phase 0 (stability) first, because every later test depends on runs that do not stall. No model is downloaded until Phase 3/4 benchmarks with models already on disk are done and the download is approved.
+
+### Phase K — image-to-video (2026-11-16)
+- Image-to-video is live: upload → motion prompt → Draft/Quality, 2/3/5 s, Small/480p (Draft), motion strength, camera presets, seed → generate → preview/download, with cancel and retry. Full report: `docs/PHASE_K_IMAGE_TO_VIDEO_REPORT.md`.
+- Model: Wan2.1 VACE 1.3B (on disk, nothing downloaded). Draft = VACE + FastWan 3-step base + reference image: 51–72 s for 3 s at 576×320, best photo preservation. Quality = VACE 20 steps + CFG: ~260 s, more motion, more drift. 8 steps flickered and was rejected.
+- Fixed along the way: image-model RAM not returned after unload (the user's "Server out of memory"), wrong scheduler after a mode switch, 22.7 GB peak RAM (now 17.7–18.7 GB), and a cancel race. Stale "video coming soon" text removed (B8).
+- Open: B7 ("Image model ready" pill in video modes), job persistence (B3), faces drift slightly, 5 s clips with large motion can change object counts.

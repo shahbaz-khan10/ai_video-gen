@@ -1,5 +1,5 @@
 import { Camera, Clapperboard, Film, ImageIcon, ImagePlay, Sparkles, Users, Eye } from "lucide-react";
-import type { ImageResolution, VideoResolution } from "@/types/api";
+import type { I2VCamera, I2VMotion, I2VQuality, ImageResolution, VideoResolution } from "@/types/api";
 import type {
   AspectRatio,
   AspectRatioOption,
@@ -109,8 +109,8 @@ export const IMAGE_RESOLUTIONS: { id: ImageResolution; label: string; hint: stri
 /** Step presets used until /info answers; match the backend's default model (RealVisXL Lightning, 4-8 steps). */
 export const DEFAULT_IMAGE_STEPS = [4, 6, 8];
 
-/** Generation modes that actually run on a model today. Image-to-video arrives in a later phase. */
-export const LIVE_MODES: GenerationMode[] = ["text-to-image", "text-to-video"];
+/** Generation modes that run on a local model. */
+export const LIVE_MODES: GenerationMode[] = ["text-to-image", "text-to-video", "image-to-video"];
 
 /**
  * Text-to-video defaults, used until /info answers. They match the backend's Wan2.1 T2V 1.3B limits:
@@ -137,3 +137,42 @@ export const VIDEO_RESOLUTIONS: { id: VideoResolution; label: string; hint: stri
   { id: "standard", label: "Draft", hint: "About 320p. Much faster; good for checking motion and framing." },
   { id: "large", label: "Quality", hint: "480p, the model's trained size. Sharper, but takes roughly 3x as long." },
 ];
+
+/** Image-to-video (Wan2.1 VACE 1.3B; the uploaded image is the first frame). Must match backend I2V_* options. */
+export const I2V_DURATIONS = [2, 3, 5];
+
+export const I2V_QUALITIES: { id: I2VQuality; label: string }[] = [
+  { id: "draft", label: "Draft" },
+  { id: "quality", label: "Quality" },
+];
+
+export const I2V_MOTIONS: { id: I2VMotion; label: string }[] = [
+  { id: "subtle", label: "Subtle" },
+  { id: "normal", label: "Natural" },
+  { id: "strong", label: "Lively" },
+];
+
+export const I2V_CAMERAS: { id: I2VCamera; label: string }[] = [
+  { id: "none", label: "None" },
+  { id: "static", label: "Static" },
+  { id: "zoom_in", label: "Zoom in" },
+  { id: "zoom_out", label: "Zoom out" },
+  { id: "pan_left", label: "Pan left" },
+  { id: "pan_right", label: "Pan right" },
+  { id: "tilt_up", label: "Tilt up" },
+  { id: "orbit", label: "Orbit" },
+];
+
+/**
+ * Measured generation seconds on an RTX 3050 8 GB (docs/phase_k/PHASE_K_IMAGE_TO_VIDEO_REPORT.md), without the
+ * one-time model load (~1 min). Keys: quality → size → clip seconds.
+ */
+export const I2V_MEASURED_SECONDS: Record<I2VQuality, Partial<Record<VideoResolution, Record<number, number>>>> = {
+  draft: { standard: { 2: 55, 3: 65, 5: 165 }, large: { 2: 120, 3: 175, 5: 420 } },
+  quality: { standard: { 2: 185, 3: 260, 5: 600 } },
+};
+
+export function estimateI2VSeconds(quality: I2VQuality, resolution: VideoResolution, seconds: number): number {
+  const table = I2V_MEASURED_SECONDS[quality][resolution] ?? I2V_MEASURED_SECONDS[quality].standard!;
+  return table[seconds] ?? table[3];
+}

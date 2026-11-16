@@ -6,10 +6,11 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import files, generation, health, models
+from app.api.routes import files, generation, health, models, uploads
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimitMiddleware
+from app.services.upload_storage import MAX_UPLOAD_BYTES
 from app.services.generation_service import GenerationService
 from app.services.image_engine import DiffusersImageEngine, ImageEngine
 from app.services.video_engine import VideoEngine, build_video_engine
@@ -56,7 +57,11 @@ def create_app(
     app.state.generation_service = service
 
     # Order matters: the last added middleware runs first, so CORS headers wrap every response.
-    app.add_middleware(BodySizeLimitMiddleware, max_bytes=settings.max_request_bytes)
+    app.add_middleware(
+        BodySizeLimitMiddleware,
+        max_bytes=settings.max_request_bytes,
+        path_limits={f"{API_PREFIX}/uploads/images": MAX_UPLOAD_BYTES},
+    )
     app.add_middleware(
         CORSMiddleware,
         allow_origins=settings.cors_origins,
@@ -73,6 +78,7 @@ def create_app(
     api.include_router(generation.router)
     api.include_router(models.router)
     api.include_router(files.router)
+    api.include_router(uploads.router)
     app.include_router(api)
     return app
 

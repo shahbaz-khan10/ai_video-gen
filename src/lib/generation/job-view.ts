@@ -43,6 +43,8 @@ const ERROR_TITLES: Record<string, string> = {
   mode_not_available: "Not available yet",
   engine_not_configured: "Generation is turned off",
   validation_error: "Check your settings",
+  cancelled: "Cancelled",
+  upload_expired: "Upload expired",
 };
 
 export function errorTitle(code: string | undefined): string {
@@ -53,7 +55,7 @@ export function errorTitle(code: string | undefined): string {
 const SETUP_ERRORS = new Set(["model_not_downloaded", "ai_libraries_missing", "engine_not_configured", "mode_not_available"]);
 
 function isVideoJob(job: GenerationJob): boolean {
-  return job.settings.mode === "text-to-video";
+  return job.settings.mode === "text-to-video" || job.settings.mode === "image-to-video";
 }
 
 export function viewFromJob(job: GenerationJob): JobView {
@@ -116,7 +118,10 @@ export function progressMessage(view: JobView, elapsedSeconds: number, modelStat
       if (view.job.scenes && view.job.scenes.length > 0) return longVideoProgress(view.job, elapsedSeconds);
       if (isVideoJob(view.job)) {
         // Video on an 8 GB GPU takes minutes; the server reports no per-step progress, so none is shown.
-        const base = "Generating your video on the local model. This usually takes several minutes.";
+        const base =
+          view.job.settings.mode === "image-to-video"
+            ? "Animating your image on the local model. The first run also loads the model (about a minute)."
+            : "Generating your video on the local model. This usually takes several minutes.";
         return elapsedSeconds >= 5 ? `${base} ${formatElapsed(elapsedSeconds)} elapsed.` : base;
       }
       const loading = modelState !== "loaded";

@@ -33,6 +33,9 @@ def validate_generation(request: GenerationRequest, service: GenerationServiceDe
     generation_available = False
     if request.mode == GenerationMode.TEXT_TO_IMAGE:
         generation_available = service.available
+    elif request.mode == GenerationMode.IMAGE_TO_VIDEO:
+        status = getattr(service.video_engine, "i2v_status", None)
+        generation_available = bool(status and status()[0])
     elif request.mode == GenerationMode.TEXT_TO_VIDEO:
         try:
             if service.video_engine is not None:
@@ -117,3 +120,30 @@ def retry_scene(
     index: int = Path(ge=1, le=24, description="Scene number (1-based)."),
 ) -> GenerationJob:
     return service.retry_scene(str(generation_id), index)
+
+
+@router.post(
+    "/{generation_id}/cancel",
+    response_model=GenerationJob,
+    responses={404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}},
+    summary="Cancel a queued or running video generation (a running one stops at its next step)",
+)
+def cancel_generation(
+    service: GenerationServiceDep,
+    generation_id: uuid.UUID = Path(description="Generation ID (UUID)."),
+) -> GenerationJob:
+    return service.cancel(str(generation_id))
+
+
+@router.post(
+    "/{generation_id}/retry",
+    response_model=GenerationJob,
+    status_code=202,
+    responses={404: {"model": ErrorResponse}, 409: {"model": ErrorResponse}, 429: {"model": ErrorResponse}},
+    summary="Run a failed or cancelled single generation again with the same settings and seed",
+)
+def retry_generation(
+    service: GenerationServiceDep,
+    generation_id: uuid.UUID = Path(description="Generation ID (UUID)."),
+) -> GenerationJob:
+    return service.retry(str(generation_id))

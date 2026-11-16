@@ -12,9 +12,10 @@ type ImageUploaderProps = {
   accept: string;
   onSelect: (file: File | undefined) => void;
   onClear: () => void;
+  onRetryUpload?: () => void;
 };
 
-export function ImageUploader({ image, error, accept, onSelect, onClear }: ImageUploaderProps) {
+export function ImageUploader({ image, error, accept, onSelect, onClear, onRetryUpload }: ImageUploaderProps) {
   const inputId = useId();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
@@ -29,7 +30,7 @@ export function ImageUploader({ image, error, accept, onSelect, onClear }: Image
     <div>
       <div className="mb-2.5 flex items-center gap-1.5 text-[13px] font-medium text-fg">
         <span id={`${inputId}-label`}>Source image</span>
-        <InfoHint label="The first frame to animate. Images stay in your browser and are not uploaded anywhere in this preview." />
+        <InfoHint label="The first frame of the video. It is sent only to your own studio backend, stored without its metadata, and deleted after 24 hours." />
       </div>
 
       <input
@@ -51,7 +52,16 @@ export function ImageUploader({ image, error, accept, onSelect, onClear }: Image
           <img src={image.url} alt="Selected source image" className="size-16 shrink-0 rounded-lg object-cover" />
           <div className="min-w-0 flex-1">
             <p className="truncate text-sm text-fg">{image.name}</p>
-            <p className="text-xs text-fg-subtle">{formatBytes(image.size)}</p>
+            <p className="text-xs text-fg-subtle">
+              {image.width}×{image.height} · {formatBytes(image.size)} ·{" "}
+              {image.uploading ? (
+                <span className="text-fg-muted">Uploading…</span>
+              ) : image.uploadId ? (
+                <span className="text-emerald-300">Ready</span>
+              ) : (
+                <span className="text-red-300">Not uploaded</span>
+              )}
+            </p>
           </div>
           <button
             type="button"
@@ -92,7 +102,7 @@ export function ImageUploader({ image, error, accept, onSelect, onClear }: Image
             <span className="block text-sm text-fg">
               <span className="text-violet-soft">Choose an image</span> or drag it here
             </span>
-            <span className="mt-1 block text-xs text-fg-subtle">PNG, JPG or WebP · up to 10 MB</span>
+            <span className="mt-1 block text-xs text-fg-subtle">JPG, PNG or WebP · up to 10 MB · at least 256 px</span>
           </span>
         </label>
       )}
@@ -100,6 +110,14 @@ export function ImageUploader({ image, error, accept, onSelect, onClear }: Image
       {error && (
         <p role="alert" className="mt-2 text-xs text-red-300">
           {error}
+          {image && !image.uploading && !image.uploadId && onRetryUpload && (
+            <>
+              {" "}
+              <button type="button" onClick={onRetryUpload} className="underline hover:text-fg">
+                Upload again
+              </button>
+            </>
+          )}
         </p>
       )}
     </div>

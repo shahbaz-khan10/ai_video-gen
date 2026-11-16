@@ -22,6 +22,7 @@ def settings(tmp_path: Path) -> Settings:
         image_output_dir=tmp_path / "outputs",
         image_model_cache_dir=tmp_path / "models",
         video_output_dir=tmp_path / "videos",
+        upload_dir=tmp_path / "uploads",
     )
 
 

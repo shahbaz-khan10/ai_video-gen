@@ -48,6 +48,8 @@ class Settings(BaseSettings):
     # Weights are only read from here (never fetched at request time). See scripts/download_model.py.
     image_model_cache_dir: Path = Field(BACKEND_DIR / "models", validation_alias=_image_env("IMAGE_MODEL_CACHE_DIR"))
     image_output_dir: Path = Field(BACKEND_DIR / "outputs" / "images", validation_alias=_image_env("IMAGE_OUTPUT_DIR"))
+    # Uploaded source images for image-to-video (re-encoded PNGs, deleted after 24 h).
+    upload_dir: Path = Field(BACKEND_DIR / "outputs" / "uploads", validation_alias=_image_env("UPLOAD_DIR"))
     # "auto" uses CUDA when PyTorch can see a GPU, otherwise the CPU.
     image_device: Literal["auto", "cuda", "cpu"] = Field("auto", validation_alias=_image_env("IMAGE_DEVICE"))
     image_max_concurrent_jobs: int = Field(1, ge=1, le=4, validation_alias=_image_env("IMAGE_MAX_CONCURRENT_JOBS"))
@@ -112,7 +114,7 @@ class Settings(BaseSettings):
     def _empty_video_cache_is_unset(cls, value: object) -> object:
         return None if isinstance(value, str) and not value.strip() else value
 
-    @field_validator("image_model_cache_dir", "image_output_dir", "video_output_dir")
+    @field_validator("image_model_cache_dir", "image_output_dir", "video_output_dir", "upload_dir")
     @classmethod
     def _absolute_from_backend(cls, value: Path) -> Path:
         # Relative paths are resolved against backend/, not the shell's working directory.

@@ -41,15 +41,19 @@ export function VideoSizeSelector({
   value,
   aspectRatio,
   onChange,
+  labels,
+  hint = "Draft (~320p) is the quickest way to check an idea; Quality is 480p, the model's native size.",
 }: {
   value: VideoResolution;
   aspectRatio: AspectRatio;
   onChange: (value: VideoResolution) => void;
+  labels?: Record<VideoResolution, string>;
+  hint?: string;
 }) {
   return (
     <OptionGroup
       legend="Video size"
-      hint="Draft (~320p) is the quickest way to check an idea; Quality is 480p, the model's native size."
+      hint={hint}
       options={VIDEO_RESOLUTIONS}
       value={value}
       onChange={onChange}
@@ -61,7 +65,7 @@ export function VideoSizeSelector({
           <span className="block px-2.5 py-2 text-center" title={option.hint}>
             <span className="flex items-center justify-center gap-1.5 text-xs font-medium">
               <Film className="size-3.5 opacity-70" aria-hidden />
-              {option.label}
+              {labels?.[id] ?? option.label}
             </span>
             <span className="mt-0.5 block font-mono text-[10px] text-fg-subtle">
               {width} × {height}

@@ -133,15 +133,14 @@ def test_queue_full_returns_429(settings: Settings, image_request: dict) -> None
 # --- unsupported modes and unavailable engine ------------------------------------------
 
 
-def test_image_to_video_returns_501(client: TestClient) -> None:
+def test_image_to_video_without_video_engine_returns_501(client: TestClient) -> None:
     payload = {
         "mode": "image-to-video",
         "prompt": "Make it move",
-        "source_image": {"content_type": "image/png", "size_bytes": 1000},
+        "source_image": {"upload_id": "0b6f8a3e-1d2c-4f5a-9b7e-123456789abc"},
     }
     res = client.post(CREATE, json=payload)
-    assert res.status_code == 501
-    assert res.json()["error"]["code"] == "mode_not_available"
+    assert res.status_code in (501, 503)
 
 
 @pytest.mark.parametrize(

@@ -86,9 +86,24 @@ export type InfoResponse = {
 };
 
 export type SourceImageInfo = {
+  /** From POST /uploads/images. */
+  upload_id: string;
+  content_type?: "image/png" | "image/jpeg" | "image/webp" | null;
+  size_bytes?: number | null;
+};
+
+/** POST /uploads/images: the stored, re-encoded image. */
+export type UploadedImage = {
+  upload_id: string;
+  width: number;
+  height: number;
   content_type: "image/png" | "image/jpeg" | "image/webp";
   size_bytes: number;
 };
+
+export type I2VQuality = "draft" | "quality";
+export type I2VMotion = "subtle" | "normal" | "strong";
+export type I2VCamera = "none" | "static" | "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "tilt_up" | "orbit";
 
 type GenerationBase = { prompt: string; aspect_ratio: AspectRatio; style: string };
 
@@ -112,7 +127,16 @@ export type GenerationPayload =
       scenes?: SceneInput[];
       continuity?: "prompt" | "last_frame";
     })
-  | (GenerationBase & { mode: "image-to-video"; duration_seconds: number; source_image: SourceImageInfo });
+  | (GenerationBase & {
+      mode: "image-to-video";
+      duration_seconds: number;
+      source_image: SourceImageInfo;
+      resolution?: VideoResolution;
+      quality?: I2VQuality;
+      motion?: I2VMotion;
+      camera?: I2VCamera;
+      seed?: number;
+    });
 
 export type SceneInput = { description: string; duration_seconds?: number };
 
@@ -216,6 +240,9 @@ export type NormalizedSettings = {
   negative_prompt?: string | null;
   guidance_scale?: number | null;
   model_id?: string | null;
+  quality?: I2VQuality | null;
+  motion?: I2VMotion | null;
+  camera?: I2VCamera | null;
 };
 
 export type GenerationStatus = "queued" | "processing" | "completed" | "failed";

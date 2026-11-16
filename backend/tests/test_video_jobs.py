@@ -85,15 +85,6 @@ def test_settings_the_model_does_not_take_are_rejected(vclient: TestClient, fiel
     assert vclient.post(CREATE, json=video(**{field: 1})).status_code == 422
 
 
-def test_image_to_video_is_still_not_available(vclient: TestClient) -> None:
-    payload = {
-        "mode": "image-to-video",
-        "prompt": "Make it move",
-        "source_image": {"content_type": "image/png", "size_bytes": 1000},
-    }
-    assert vclient.post(CREATE, json=payload).status_code == 501
-
-
 # --- job lifecycle ------------------------------------------------------------------
 
 

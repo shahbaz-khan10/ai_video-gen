@@ -33,6 +33,8 @@ from app.schemas.generation import (
     GenerationRequest,
     GenerationSettings,
     GenerationStatus,
+    I2V_CAMERA_TEXT,
+    I2V_MOTION_TEXT,
     ImageToVideoRequest,
     JobError,
     TextToImageRequest,
@@ -47,7 +49,8 @@ from app.services.long_video import CROSSFADE_FRAMES, SCENE_CUT_FRAMES, join_cli
 from app.services.prompt_compiler import VIDEO_STYLE_PROMPTS, compile_plan
 from app.services.prompt_tokens import CLIP_MAX_TOKENS, UMT5_MAX_TOKENS, count_tokens, load_tokenizer
 from app.services.image_storage import ImageStorage
-from app.services.video_engine import VideoEngine, VideoEngineError, VideoParams
+from app.services.upload_storage import UploadStorage
+from app.services.video_engine import ImageVideoParams, VideoEngine, VideoEngineError, VideoParams
 from app.services.video_storage import VideoStorage
 
 logger = logging.getLogger(__name__)
@@ -80,6 +83,17 @@ class JobStore:
             if job_id not in self._jobs:
                 raise KeyError(job_id)
             job = self._jobs[job_id].model_copy(update=changes)
+            self._jobs[job_id] = job
+            return job
+
+    def transition(self, job_id: str, expected: GenerationStatus, **changes: object) -> GenerationJob | None:
+        """Applies ``changes`` only if the job is still in ``expected`` status, atomically. Without this a cancel
+        could mark a queued job failed just as a worker started it, and the worker would overwrite the cancel."""
+        with self._lock:
+            job = self._jobs.get(job_id)
+            if job is None or job.status != expected:
+                return None
+            job = job.model_copy(update=changes)
             self._jobs[job_id] = job
             return job
 
@@ -118,6 +132,9 @@ class GenerationService:
             thread_name_prefix="generation",
         )
         self._video_lock = threading.Lock()
+        self.uploads = UploadStorage(settings.upload_dir)
+        # Set to stop a running job at its next denoising step (POST /generations/{id}/cancel).
+        self._cancel: dict[str, threading.Event] = {}
 
     def engine_status(self) -> EngineStatus | None:
         return self.engine.status() if self.engine else None
@@ -192,6 +209,30 @@ class GenerationService:
                     "model_id": getattr(self.video_engine, "model_id", None),
                 }
             )
+        elif isinstance(request, ImageToVideoRequest):
+            from app.services.video_engine import I2V_GUIDANCE, I2V_QUALITY_STEPS
+
+            fps = self.settings.video_fps
+            width, height = VIDEO_SIZES[request.resolution][request.aspect_ratio]
+            draft = request.quality == "draft"
+            settings = settings.model_copy(
+                update={
+                    "duration_seconds": request.duration_seconds,
+                    "resolution": request.resolution,
+                    "width": width,
+                    "height": height,
+                    "steps": 3 if draft else I2V_QUALITY_STEPS,
+                    "seed": request.seed,
+                    "num_frames": video_frames_for(request.duration_seconds, fps),
+                    "fps": fps,
+                    "guidance_scale": None if draft else I2V_GUIDANCE,
+                    "model_id": self.settings.video_continuity_model_id
+                    + (f" + {self.settings.video_fast_model_id} base (3-step)" if draft else ""),
+                    "quality": request.quality,
+                    "motion": request.motion,
+                    "camera": request.camera,
+                }
+            )
         return settings
 
     def create(self, request: GenerationRequest) -> GenerationJob:
@@ -250,9 +291,175 @@ class GenerationService:
             self._executor.submit(self._run_long_video if scenes else self._run_video, job.id)
             return self.store.get(job.id) or job
         elif request.mode == GenerationMode.IMAGE_TO_VIDEO:
-            raise AppError(501, "mode_not_available", "Image-to-video is not available in this phase.")
+            assert isinstance(request, ImageToVideoRequest)
+            if self.video_engine is None:
+                raise AppError(501, "engine_not_configured", "Video generation is not available on this server.")
+            ok, detail = self.video_engine.i2v_status() if hasattr(self.video_engine, "i2v_status") else (False, "")
+            if not ok:
+                raise AppError(503, "model_not_downloaded", detail or "Image-to-video is not available on this server.")
+            if self.uploads.resolve(request.source_image.upload_id) is None:
+                raise AppError(
+                    422, "validation_error", "The request is invalid.",
+                    [{"field": "source_image.upload_id", "message": "The uploaded image was not found or has expired (24 h). Upload it again."}],
+                )
+            limit = self.settings.video_max_queued_jobs + self.settings.video_max_concurrent_jobs
+            if self.store.active_count() >= limit:
+                raise AppError(429, "queue_full", "The generation queue is full. Try again in a moment.")
+            settings = self.normalize(request)
+            if settings.seed is None:
+                settings = settings.model_copy(update={"seed": secrets.randbelow(MAX_SEED + 1)})
+            job = GenerationJob(
+                id=str(uuid.uuid4()),
+                status=GenerationStatus.QUEUED,
+                settings=settings,
+                model_id=settings.model_id,
+                created_at=_now(),
+                plan=self._i2v_plan(request),
+            )
+            self.store.add(job)
+            logger.info("job %s queued mode=image-to-video quality=%s", job.id, settings.quality)
+            self._executor.submit(self._run_i2v, job.id)
+            return self.store.get(job.id) or job
         else:
             raise AppError(501, "mode_not_available", "This mode is not available.")
+
+    # --- image-to-video ------------------------------------------------------------------
+
+    @staticmethod
+    def i2v_prompt(request: ImageToVideoRequest) -> str:
+        """The movement the user asked for, then motion strength and camera words. Nothing about how the
+        picture looks: VACE takes that from the image, and style words would repaint it."""
+        parts = [request.prompt.rstrip(". ") + "."]
+        parts.append(I2V_MOTION_TEXT[request.motion].capitalize() + ".")
+        camera = I2V_CAMERA_TEXT[request.camera]
+        if camera:
+            parts.append(camera[0].upper() + camera[1:] + ".")
+        parts.append("Keep the same people, faces, clothing, objects, background and lighting as in the first frame.")
+        return " ".join(parts)
+
+    def _i2v_plan(self, request: ImageToVideoRequest) -> ScenePlan:
+        return ScenePlan(
+            original_prompt=request.prompt,
+            planner="image-to-video",
+            model_prompt=self.i2v_prompt(request),
+            limitations=[
+                "The uploaded image is the first frame; it is centre-cropped to the chosen aspect ratio.",
+                "The model invents the frames after the first one: faces can drift a little, fast or large "
+                "movements are weak, and nothing outside the frame is known to the model.",
+                "Video is silent.",
+            ],
+        )
+
+    def _run_i2v(self, job_id: str) -> None:
+        with self._video_lock:
+            cancel = self._cancel.setdefault(job_id, threading.Event())
+            job = self.store.transition(
+                job_id, GenerationStatus.QUEUED,
+                status=GenerationStatus.PROCESSING, started_at=_now(), queue_position=None, error=None,
+            )
+            if job is None:
+                self._cancel.pop(job_id, None)
+                return  # cancelled while queued
+            s = job.settings
+            assert self.video_engine is not None and s.source_image is not None
+            assert s.width and s.height and s.seed is not None and s.num_frames and s.fps
+            try:
+                image_path = self.uploads.resolve(s.source_image.upload_id)
+                if image_path is None:
+                    raise VideoEngineError("upload_expired", "The uploaded image is gone (uploads are kept 24 h). Upload it again.")
+                self._unload(self.engine)
+                tmp = self.video_storage.temp_path(job_id)
+                device = self.video_engine.generate_from_image(  # type: ignore[attr-defined]
+                    ImageVideoParams(
+                        prompt=job.plan.model_prompt if job.plan and job.plan.model_prompt else s.prompt,
+                        image_path=image_path,
+                        width=s.width,
+                        height=s.height,
+                        num_frames=s.num_frames,
+                        seed=s.seed,
+                        quality=s.quality or "draft",
+                        fps=s.fps,
+                    ),
+                    deadline=time.monotonic() + self.settings.video_timeout_seconds,
+                    output_path=tmp,
+                    cancel=cancel,
+                )
+                self.store.update(job_id, device=device)
+                stored = self.video_storage.finalize(job_id, tmp)
+                url = f"{VIDEOS_PREFIX}/{stored.filename}"
+                self.store.update(
+                    job_id,
+                    status=GenerationStatus.COMPLETED,
+                    finished_at=_now(),
+                    video=GeneratedVideo(
+                        url=url,
+                        download_url=f"{url}?download=true",
+                        width=stored.width,
+                        height=stored.height,
+                        size_bytes=stored.size_bytes,
+                        num_frames=stored.num_frames,
+                        duration_seconds=stored.duration_seconds,
+                    ),
+                    output_url=url,
+                )
+                logger.info("image-to-video job %s completed", job_id)
+            except VideoEngineError as err:
+                logger.warning("image-to-video job %s failed: %s", job_id, err.code)
+                self.video_storage.discard(job_id)
+                self._fail(job_id, JobError(code=err.code, message=err.message, retryable=err.retryable))
+            except Exception:
+                logger.exception("image-to-video job %s failed unexpectedly", job_id)
+                self.video_storage.discard(job_id)
+                self._fail(job_id, JobError(code="generation_failed", message="Video generation failed on the server.", retryable=True))
+            finally:
+                self._cancel.pop(job_id, None)
+
+    # --- cancel / retry ------------------------------------------------------------------
+
+    def cancel(self, job_id: str) -> GenerationJob:
+        """Queued jobs stop at once; a running job stops at its next denoising step (seconds, not minutes)."""
+        job = self.get(job_id)
+        if job.status in (GenerationStatus.COMPLETED, GenerationStatus.FAILED):
+            raise AppError(409, "not_cancellable", "This generation has already finished.")
+        if job.settings.mode == GenerationMode.TEXT_TO_IMAGE and job.status == GenerationStatus.PROCESSING:
+            raise AppError(409, "not_cancellable", "An image that is already being generated finishes in seconds.")
+        error = JobError(code="cancelled", message="The generation was cancelled.", retryable=True)
+        if self.store.transition(job_id, GenerationStatus.QUEUED, status=GenerationStatus.FAILED, finished_at=_now(), error=error):
+            return self.get(job_id)
+        # Running: the engine checks this before and between denoising steps. Loading the model (up to a minute
+        # the first time) cannot be interrupted, so the job stops right after that.
+        self._cancel.setdefault(job_id, threading.Event()).set()
+        return self.get(job_id)
+
+    def retry(self, job_id: str) -> GenerationJob:
+        """Runs a failed or cancelled single-clip job again with the same settings and seed."""
+        job = self.get(job_id)
+        if job.status != GenerationStatus.FAILED:
+            raise AppError(409, "not_retryable", "Only failed or cancelled generations can be retried.")
+        if job.scenes:
+            raise AppError(409, "not_retryable", "Long videos are retried per scene.")
+        if job.error and not job.error.retryable:
+            raise AppError(409, "not_retryable", job.error.message)
+        if job.settings.mode == GenerationMode.IMAGE_TO_VIDEO:
+            assert job.settings.source_image is not None
+            if self.uploads.resolve(job.settings.source_image.upload_id) is None:
+                raise AppError(409, "upload_expired", "The uploaded image is gone (uploads are kept 24 h). Upload it again.")
+        limit = (
+            self.settings.image_max_queued_jobs + self.settings.image_max_concurrent_jobs
+            if job.settings.mode == GenerationMode.TEXT_TO_IMAGE
+            else self.settings.video_max_queued_jobs + self.settings.video_max_concurrent_jobs
+        )
+        if self.store.active_count() >= limit:
+            raise AppError(429, "queue_full", "The generation queue is full. Try again in a moment.")
+        self.store.update(job_id, status=GenerationStatus.QUEUED, error=None, finished_at=None, started_at=None, device=None)
+        run = {
+            GenerationMode.TEXT_TO_IMAGE: self._run_image,
+            GenerationMode.TEXT_TO_VIDEO: self._run_video,
+            GenerationMode.IMAGE_TO_VIDEO: self._run_i2v,
+        }[job.settings.mode]
+        self._executor.submit(run, job_id)
+        logger.info("job %s retried", job_id)
+        return self.store.get(job_id) or job
 
     def get(self, job_id: str) -> GenerationJob:
         job = self.store.get(job_id)
@@ -267,6 +474,8 @@ class GenerationService:
         settings = self.normalize(request)
         if isinstance(request, TextToVideoRequest):
             return self._plan_video(request, settings)[0]
+        if isinstance(request, ImageToVideoRequest):
+            return self._i2v_plan(request)
         return self._compile(request.prompt, mode=str(request.mode.value if hasattr(request.mode, "value") else request.mode),
                              style=settings.style, duration=None, user_scenes=None)
 
@@ -383,7 +592,11 @@ class GenerationService:
             logger.warning("Model preload failed")
 
     def _run_image(self, job_id: str) -> None:
-        job = self.store.update(job_id, status=GenerationStatus.PROCESSING, started_at=_now(), queue_position=None)
+        job = self.store.transition(
+            job_id, GenerationStatus.QUEUED, status=GenerationStatus.PROCESSING, started_at=_now(), queue_position=None
+        )
+        if job is None:
+            return  # cancelled while queued
         s = job.settings
         assert self.engine is not None and s.width and s.height and s.steps and s.seed is not None
         try:
@@ -430,7 +643,13 @@ class GenerationService:
 
     def _run_video(self, job_id: str) -> None:
         with self._video_lock:
-            job = self.store.update(job_id, status=GenerationStatus.PROCESSING, started_at=_now(), queue_position=None)
+            cancel = self._cancel.setdefault(job_id, threading.Event())
+            job = self.store.transition(
+                job_id, GenerationStatus.QUEUED, status=GenerationStatus.PROCESSING, started_at=_now(), queue_position=None
+            )
+            if job is None:
+                self._cancel.pop(job_id, None)
+                return  # cancelled while queued
             s = job.settings
             assert self.video_engine is not None
             assert s.width and s.height and s.steps and s.seed is not None and s.num_frames and s.fps
@@ -451,6 +670,7 @@ class GenerationService:
                     ),
                     deadline=time.monotonic() + self.settings.video_timeout_seconds,
                     output_path=tmp,
+                    cancel=cancel,
                 )
                 self.store.update(job_id, device=device)
                 # Decoded and checked before the job may report success.
@@ -483,6 +703,8 @@ class GenerationService:
                     job_id,
                     JobError(code="generation_failed", message="Video generation failed on the server.", retryable=True),
                 )
+            finally:
+                self._cancel.pop(job_id, None)
 
     def _run_long_video(self, job_id: str) -> None:
         """Generates each scene's clips (skipping ones already on disk), then joins and validates the MP4."""

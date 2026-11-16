@@ -85,15 +85,25 @@ class FakeVideoEngine:
     def unload(self) -> None:
         self.unloads += 1
 
-    def generate(self, params, deadline: float, output_path) -> str:
+    def i2v_status(self) -> tuple[bool, str]:
+        return self.i2v_ready, "fake image-to-video"
+
+    i2v_ready = True
+
+    def generate_from_image(self, params, deadline: float, output_path, cancel=None) -> str:
+        return self.generate(params, deadline, output_path, cancel)
+
+    def generate(self, params, deadline: float, output_path, cancel=None) -> str:
         import numpy as np
 
-        from app.services.video_engine import write_mp4
+        from app.services.video_engine import VideoEngineError, write_mp4
 
         self.calls.append(params)
         self.started.set()
         if self.gate is not None:
             self.gate.wait(timeout=10)
+        if cancel is not None and cancel.is_set():
+            raise VideoEngineError("cancelled", "The generation was cancelled.", retryable=True)
         if self.generate_error is not None:
             raise self.generate_error
         if self.output == "garbage":

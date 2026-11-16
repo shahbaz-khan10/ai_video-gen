@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.deps import GenerationServiceDep, SettingsDep
 from app.core.models_registry import get_model_profile, is_known_model
+from app.services.upload_storage import ACCEPTED_FORMATS
 from app.schemas.generation import (
     DURATION_OPTIONS_SECONDS,
     IMAGE_SIZES,
@@ -19,7 +20,6 @@ from app.schemas.generation import (
     VIDEO_STEP_OPTIONS,
     AspectRatio,
     GenerationMode,
-    SourceImageInfo,
     VisualStyle,
 )
 from app.schemas.system import (
@@ -104,8 +104,7 @@ def video_status(service: GenerationService) -> VideoAvailability:
 
 
 def _source_image_types() -> list[str]:
-    annotation = SourceImageInfo.model_fields["content_type"].annotation
-    return list(getattr(annotation, "__args__", ()))
+    return list(ACCEPTED_FORMATS.values())
 
 
 def image_model_status(service: GenerationService) -> ImageModelStatus:

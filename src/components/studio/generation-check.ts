@@ -1,6 +1,9 @@
 import { ApiError } from "@/lib/api/client";
 import type {
   GenerationPayload,
+  I2VCamera,
+  I2VMotion,
+  I2VQuality,
   ImageResolution,
   NormalizedSettings,
   SceneInput,
@@ -41,11 +44,12 @@ export type Draft = {
     /** Long videos: the reviewed scene list. */
     scenes?: SceneInput[];
   };
+  /** Image-to-video only. */
+  i2v?: { durationSeconds: number; resolution: VideoResolution; quality: I2VQuality; motion: I2VMotion; camera: I2VCamera };
 };
 
 export function buildPayload(draft: Draft): GenerationPayload {
   const base = { prompt: draft.prompt, aspect_ratio: draft.aspectRatio, style: draft.style };
-  const duration_seconds = Number.parseInt(draft.duration, 10);
   if (draft.mode === "text-to-image") {
     return {
       ...base,
@@ -70,9 +74,26 @@ export function buildPayload(draft: Draft): GenerationPayload {
       ...(draft.seed === null ? {} : { seed: draft.seed }),
     };
   }
-  if (!draft.image) throw new Error("An image-to-video request needs a source image.");
-  const source_image: SourceImageInfo = { content_type: draft.image.type, size_bytes: draft.image.size };
-  return { ...base, mode: draft.mode, duration_seconds, source_image };
+  if (!draft.image?.uploadId) throw new Error("An image-to-video request needs an uploaded source image.");
+  if (!draft.i2v) throw new Error("An image-to-video request needs its settings.");
+  const source_image: SourceImageInfo = {
+    upload_id: draft.image.uploadId,
+    content_type: draft.image.type,
+    size_bytes: draft.image.size,
+  };
+  return {
+    prompt: draft.prompt,
+    aspect_ratio: draft.aspectRatio,
+    style: draft.style,
+    mode: draft.mode,
+    duration_seconds: draft.i2v.durationSeconds,
+    resolution: draft.i2v.resolution,
+    quality: draft.i2v.quality,
+    motion: draft.i2v.motion,
+    camera: draft.i2v.camera,
+    source_image,
+    ...(draft.seed === null ? {} : { seed: draft.seed }),
+  };
 }
 
 /** Maps a backend error to field messages plus an outcome for the preview panel. */

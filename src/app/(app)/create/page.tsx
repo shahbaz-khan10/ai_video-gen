@@ -11,7 +11,7 @@ export default function CreatePage() {
     <PageContainer width="wide">
       <PageHeader
         title="Create"
-        description="Text to Image runs on a local open-source model. Video modes are coming soon; for those you can set up the shot and check its settings."
+        description="Text to image, text to video and image to video all run on local open-source models on your own GPU."
       />
       <div className="mt-8">
         <Suspense fallback={<CreateWorkspaceSkeleton />}>

@@ -13,8 +13,11 @@ import type {
   ImageModelStatus,
   InfoResponse,
   ReadinessResponse,
+  TalkJob,
+  TalkLanguage,
   UploadedImage,
   ValidationResponse,
+  Voice,
 } from "@/types/api";
 
 const DEV_FALLBACK_URL = "http://localhost:8000";
@@ -143,6 +146,19 @@ export const api = {
   cancelGeneration: (id: string) =>
     request<GenerationJob>(`/generations/${encodeURIComponent(id)}/cancel`, { method: "POST" }),
   /** Runs a failed or cancelled job again with the same settings and seed. */
+  talkingStatus: () => request<Record<string, { status: string; detail?: string }>>("/talking/status"),
+  voices: () => request<Voice[]>("/talking/voices"),
+  /** Adds a reference voice: the raw 5-60 s recording is the body. */
+  addVoice: (file: Blob, name: string, gender: "male" | "female") =>
+    request<Voice>(
+      `/talking/voices?name=${encodeURIComponent(name)}&gender=${gender}`,
+      { method: "POST", body: file },
+      { contentType: file.type || "application/octet-stream", timeoutMs: UPLOAD_TIMEOUT_MS },
+    ),
+  /** Speech (Chatterbox) + lip-sync (MuseTalk) on a finished video job. */
+  createTalk: (body: { text: string; language: TalkLanguage; voice_id?: string; source_job_id?: string; upload_id?: string }) =>
+    request<TalkJob>("/talking", { method: "POST", body: JSON.stringify(body) }),
+  getTalk: (id: string) => request<TalkJob>(`/talking/${encodeURIComponent(id)}`),
   retryGeneration: (id: string) =>
     request<GenerationJob>(`/generations/${encodeURIComponent(id)}/retry`, { method: "POST" }),
 };

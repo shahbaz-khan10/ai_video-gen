@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import APIRouter, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.api.routes import files, generation, health, models, uploads
+from app.api.routes import files, generation, health, models, talking, uploads
 from app.core.config import Settings, get_settings
 from app.core.errors import register_error_handlers
 from app.core.limits import BodySizeLimitMiddleware
@@ -55,12 +55,15 @@ def create_app(
     )
     app.state.settings = settings
     app.state.generation_service = service
+    from app.services.talking_service import TalkingService
+
+    app.state.talking_service = TalkingService(service, settings.speech_url, settings.lipsync_url)
 
     # Order matters: the last added middleware runs first, so CORS headers wrap every response.
     app.add_middleware(
         BodySizeLimitMiddleware,
         max_bytes=settings.max_request_bytes,
-        path_limits={f"{API_PREFIX}/uploads/images": MAX_UPLOAD_BYTES},
+        path_limits={f"{API_PREFIX}/uploads/images": MAX_UPLOAD_BYTES, f"{API_PREFIX}/talking/voices": 20 * 1024 * 1024},
     )
     app.add_middleware(
         CORSMiddleware,
@@ -79,6 +82,7 @@ def create_app(
     api.include_router(models.router)
     api.include_router(files.router)
     api.include_router(uploads.router)
+    api.include_router(talking.router)
     app.include_router(api)
     return app
 

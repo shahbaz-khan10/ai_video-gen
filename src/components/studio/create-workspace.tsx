@@ -35,6 +35,8 @@ import type {
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
 import { AspectRatioSelector } from "./aspect-ratio-selector";
 import { DurationSelector } from "./duration-selector";
+import { AgentReport } from "./agent-report";
+import { TalkingPanel } from "./talking-panel";
 import { GenerateButton } from "./generate-button";
 import { formatEstimate, I2VCameraSelector, I2VDurationSelector, I2VMotionSelector, I2VQualitySelector } from "./i2v-options";
 import { buildPayload, interpretError, type CheckOutcome, type FieldErrors } from "./generation-check";
@@ -97,6 +99,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   // 480p was measured in Draft only; Quality at 480p is not offered.
   const i2vSize: VideoResolution = i2vQuality === "draft" ? i2vResolution : "standard";
   const [cancelling, setCancelling] = useState(false);
+  const [promptAgent, setPromptAgent] = useState(true);
   // Job IDs the user asked to stop; the server stops at the next step (after a model load if one is running).
   const [stopRequested, setStopRequested] = useState<string | null>(null);
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -268,6 +271,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
         steps: fixedVideoSteps ? null : videoSteps,
         scenes,
       },
+      promptAgent,
       i2v: { durationSeconds: i2vSeconds, resolution: i2vSize, quality: i2vQuality, motion: i2vMotion, camera: i2vCamera },
     });
 
@@ -571,6 +575,22 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           </div>
         )}
 
+        {runsJob && (
+          <label className="flex cursor-pointer items-start gap-2.5 rounded-lg border border-line bg-ink-900 px-3 py-2.5 text-xs text-fg-muted">
+            <input
+              type="checkbox"
+              checked={promptAgent}
+              onChange={(e) => setPromptAgent(e.target.checked)}
+              className="mt-0.5 accent-violet-500"
+            />
+            <span>
+              <span className="font-medium text-fg">Prompt agent</span> · looks at the picture with Florence-2: describes an
+              uploaded photo for the prompt, checks counts and background in the result, and tries once more with another
+              seed if a check fails. Adds a few seconds; a retry adds a full generation.
+            </span>
+          </label>
+        )}
+
         <div className="sticky bottom-0 -mx-4 border-t border-line bg-ink-950/85 px-4 pb-4 pt-4 backdrop-blur-xl sm:-mx-6 sm:px-6 lg:static lg:mx-0 lg:border-0 lg:bg-transparent lg:p-0 lg:backdrop-blur-none">
           <GenerateButton
             onClick={handleGenerate}
@@ -641,6 +661,10 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                   onRetry={() => lastImagePayload.current && submitImage(lastImagePayload.current)}
                   onReconnect={imageJob.reconnect}
                 />
+                {viewJob?.agent && <AgentReport agent={viewJob.agent} />}
+                {completedVideo && completedJob && !completedJob.scenes?.length && (
+                  <TalkingPanel sourceJobId={completedJob.id} />
+                )}
                 {viewJob?.scenes && viewJob.scenes.length > 0 && (
                   <SceneProgress
                     scenes={viewJob.scenes}

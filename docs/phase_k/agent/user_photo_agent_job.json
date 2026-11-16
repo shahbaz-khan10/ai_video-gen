@@ -1,0 +1,111 @@
+{
+ "id": "5b16edf0-ad82-49de-b5fa-de05b0a68871",
+ "status": "completed",
+ "settings": {
+  "mode": "image-to-video",
+  "prompt": "The man smiles warmly, nods slightly and turns his head a little to the side, natural subtle movement.",
+  "prompt_length": 102,
+  "aspect_ratio": "1:1",
+  "style": "cinematic",
+  "duration_seconds": 3,
+  "source_image": {
+   "upload_id": "723eab61-2582-4e21-b33a-bacf5e8f52d3",
+   "content_type": null,
+   "size_bytes": null
+  },
+  "resolution": "large",
+  "width": 624,
+  "height": 624,
+  "steps": 3,
+  "seed": 4242,
+  "num_frames": 49,
+  "fps": 16,
+  "negative_prompt": null,
+  "guidance_scale": null,
+  "model_id": "Wan-AI/Wan2.1-VACE-1.3B-diffusers + FastVideo/FastWan2.1-T2V-1.3B-Diffusers base (3-step)",
+  "prompt_agent": true,
+  "quality": "draft",
+  "motion": "normal",
+  "camera": "none"
+ },
+ "model_id": "Wan-AI/Wan2.1-VACE-1.3B-diffusers + FastVideo/FastWan2.1-T2V-1.3B-Diffusers base (3-step)",
+ "device": "cuda",
+ "created_at": "2026-11-16T06:25:41.099008Z",
+ "started_at": "2026-11-16T06:25:41.099423Z",
+ "finished_at": "2026-11-16T06:28:59.545214Z",
+ "queue_position": null,
+ "image": null,
+ "video": {
+  "url": "/api/v1/files/videos/5b16edf0-ad82-49de-b5fa-de05b0a68871.mp4",
+  "download_url": "/api/v1/files/videos/5b16edf0-ad82-49de-b5fa-de05b0a68871.mp4?download=true",
+  "content_type": "video/mp4",
+  "width": 624,
+  "height": 624,
+  "size_bytes": 2256302,
+  "num_frames": 49,
+  "duration_seconds": 3.06
+ },
+ "error": null,
+ "output_url": "/api/v1/files/videos/5b16edf0-ad82-49de-b5fa-de05b0a68871.mp4",
+ "plan": {
+  "original_prompt": "The man smiles warmly, nods slightly and turns his head a little to the side, natural subtle movement.",
+  "planner": "image-to-video",
+  "main_subject": null,
+  "people_count": null,
+  "characters": [],
+  "objects": [],
+  "environment": {
+   "location": null,
+   "setting": null,
+   "background": [],
+   "weather": null,
+   "time_of_day": null,
+   "lighting": null
+  },
+  "camera": {
+   "shot_type": null,
+   "angle": null,
+   "movement": null
+  },
+  "style": null,
+  "scenes": [],
+  "instructions": [],
+  "limitations": [
+   "The uploaded image is the first frame; it is centre-cropped to the chosen aspect ratio.",
+   "The model invents the frames after the first one: faces can drift a little, fast or large movements are weak, and nothing outside the frame is known to the model.",
+   "Video is silent."
+  ],
+  "model_prompt": "The man smiles warmly, nods slightly and turns his head a little to the side, natural subtle movement. Natural, smooth movement. Keep the same people, faces, clothing, objects, background and lighting as in the first frame. The scene: A young man with a beard and mustache. He is standing with his arms crossed in front of him and is wearing a blue long-sleeved t-shirt. The background is a plain grey color. Plain light grey background that stays the same colour.",
+  "compiled": []
+ },
+ "scenes": [],
+ "clips_total": null,
+ "clips_completed": null,
+ "agent": {
+  "description": "A young man with a beard and mustache. He is standing with his arms crossed in front of him and is wearing a blue long-sleeved t-shirt. The background is a plain grey color.",
+  "checks": [
+   {
+    "name": "bear at the end",
+    "expected": "1",
+    "found": "1",
+    "passed": true
+   },
+   {
+    "name": "person at the end",
+    "expected": "1",
+    "found": "1",
+    "passed": true
+   },
+   {
+    "name": "background colour",
+    "expected": "light grey",
+    "found": "light grey",
+    "passed": true
+   }
+  ],
+  "attempts": 1,
+  "notes": [
+   "Detected in the photo: 1 bear, 1 person."
+  ]
+ }
+}

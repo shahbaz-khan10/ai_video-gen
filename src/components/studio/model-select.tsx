@@ -10,7 +10,7 @@ export function ModelSelect({ value, onChange }: { value: string; onChange: (v: 
   const current = MODELS.find((m) => m.id === value);
   return (
     <fieldset>
-      <FieldLegend hint="Video model slots are placeholders. Video generation is coming soon.">Model</FieldLegend>
+      <FieldLegend hint="The server runs its configured local models; this choice is not sent for video jobs.">Model</FieldLegend>
       <div className="relative">
         <select
           id={id}

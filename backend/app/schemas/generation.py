@@ -162,6 +162,11 @@ class _GenerationBase(StrictModel):
     prompt: str = Field(max_length=PROMPT_MAX_CHARS, json_schema_extra={"minLength": 1})
     aspect_ratio: AspectRatio = AspectRatio.LANDSCAPE
     style: VisualStyle = VisualStyle.CINEMATIC
+    prompt_agent: bool = Field(
+        True,
+        description="Florence-2 describes an uploaded photo for the prompt, checks counts/background in the result, "
+        "and retries once with another seed when a check fails. Adds a few seconds; a retry adds a generation.",
+    )
 
     @field_validator("prompt", mode="before")
     @classmethod
@@ -279,6 +284,7 @@ class GenerationSettings(BaseModel):
     negative_prompt: str | None = None
     guidance_scale: float | None = None
     model_id: str | None = None
+    prompt_agent: bool = True
     # Image-to-video
     quality: str | None = None
     motion: str | None = None
@@ -323,6 +329,20 @@ class GeneratedImage(BaseModel):
     size_bytes: int
 
 
+class AgentCheck(BaseModel):
+    name: str
+    expected: str
+    found: str
+    passed: bool
+
+
+class AgentResult(BaseModel):
+    description: str | None = Field(None, description="How the agent described the uploaded photo (added to the prompt).")
+    checks: list[AgentCheck] = []
+    attempts: int = 1
+    notes: list[str] = []
+
+
 class JobError(BaseModel):
     code: str
     message: str
@@ -349,6 +369,7 @@ class GenerationJob(BaseModel):
     scenes: list[SceneJob] = Field(default_factory=list, description="Long videos: per-scene status.")
     clips_total: int | None = None
     clips_completed: int | None = None
+    agent: AgentResult | None = Field(None, description="What the prompt agent saw, checked and retried.")
 
 
 class SceneJob(BaseModel):

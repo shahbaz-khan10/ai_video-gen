@@ -48,6 +48,9 @@ class Settings(BaseSettings):
     # Weights are only read from here (never fetched at request time). See scripts/download_model.py.
     image_model_cache_dir: Path = Field(BACKEND_DIR / "models", validation_alias=_image_env("IMAGE_MODEL_CACHE_DIR"))
     image_output_dir: Path = Field(BACKEND_DIR / "outputs" / "images", validation_alias=_image_env("IMAGE_OUTPUT_DIR"))
+    # Speech (Chatterbox) and lip-sync (MuseTalk) run in their own containers (see docker-compose.yml).
+    speech_url: str = Field("http://speech:8010", validation_alias=_image_env("SPEECH_URL"))
+    lipsync_url: str = Field("http://lipsync:8020", validation_alias=_image_env("LIPSYNC_URL"))
     # Uploaded source images for image-to-video (re-encoded PNGs, deleted after 24 h).
     upload_dir: Path = Field(BACKEND_DIR / "outputs" / "uploads", validation_alias=_image_env("UPLOAD_DIR"))
     # "auto" uses CUDA when PyTorch can see a GPU, otherwise the CPU.

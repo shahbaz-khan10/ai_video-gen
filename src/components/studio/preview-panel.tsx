@@ -138,7 +138,7 @@ export function PreviewPanel({
                     ? "Describe your shot and press Generate. The image renders here on your local model."
                     : mode === "text-to-video"
                     ? "Describe the scene and its motion, then press Generate. The clip plays here when it is ready."
-                    : "Image-to-video is coming soon. You can set up the shot and check its settings."}
+                    : "Upload a photo, describe how it should move, then press Animate image. The clip plays here when it is ready."}
                 </p>
               </motion.div>
             )}

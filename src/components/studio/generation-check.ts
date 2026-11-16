@@ -44,12 +44,14 @@ export type Draft = {
     /** Long videos: the reviewed scene list. */
     scenes?: SceneInput[];
   };
+  /** Prompt agent: describe the photo, check the result, retry once on a failed check. */
+  promptAgent?: boolean;
   /** Image-to-video only. */
   i2v?: { durationSeconds: number; resolution: VideoResolution; quality: I2VQuality; motion: I2VMotion; camera: I2VCamera };
 };
 
 export function buildPayload(draft: Draft): GenerationPayload {
-  const base = { prompt: draft.prompt, aspect_ratio: draft.aspectRatio, style: draft.style };
+  const base = { prompt: draft.prompt, aspect_ratio: draft.aspectRatio, style: draft.style, prompt_agent: draft.promptAgent ?? true };
   if (draft.mode === "text-to-image") {
     return {
       ...base,
@@ -82,9 +84,7 @@ export function buildPayload(draft: Draft): GenerationPayload {
     size_bytes: draft.image.size,
   };
   return {
-    prompt: draft.prompt,
-    aspect_ratio: draft.aspectRatio,
-    style: draft.style,
+    ...base,
     mode: draft.mode,
     duration_seconds: draft.i2v.durationSeconds,
     resolution: draft.i2v.resolution,

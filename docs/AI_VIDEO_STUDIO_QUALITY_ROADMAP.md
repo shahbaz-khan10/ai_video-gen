@@ -275,3 +275,4 @@ Phase 0 (stability) first, because every later test depends on runs that do not 
 - Model: Wan2.1 VACE 1.3B (on disk, nothing downloaded). Draft = VACE + FastWan 3-step base + reference image: 51–72 s for 3 s at 576×320, best photo preservation. Quality = VACE 20 steps + CFG: ~260 s, more motion, more drift. 8 steps flickered and was rejected.
 - Fixed along the way: image-model RAM not returned after unload (the user's "Server out of memory"), wrong scheduler after a mode switch, 22.7 GB peak RAM (now 17.7–18.7 GB), and a cancel race. Stale "video coming soon" text removed (B8).
 - Open: B7 ("Image model ready" pill in video modes), job persistence (B3), faces drift slightly, 5 s clips with large motion can change object counts.
+- Wan2.2 TI2V 5B (GGUF Q8) tried 2026-11-16: a 2 s clip at 832×480 had not finished after 32 min on the RTX 3050 (VRAM full). The user decided to keep Wan2.1 VACE 1.3B.

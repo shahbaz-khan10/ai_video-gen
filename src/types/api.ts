@@ -105,7 +105,7 @@ export type I2VQuality = "draft" | "quality";
 export type I2VMotion = "subtle" | "normal" | "strong";
 export type I2VCamera = "none" | "static" | "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "tilt_up" | "orbit";
 
-type GenerationBase = { prompt: string; aspect_ratio: AspectRatio; style: string };
+type GenerationBase = { prompt: string; aspect_ratio: AspectRatio; style: string; prompt_agent?: boolean };
 
 export type GenerationPayload =
   | (GenerationBase & {
@@ -288,6 +288,29 @@ export type GenerationJob = {
   scenes?: SceneJob[];
   clips_total?: number | null;
   clips_completed?: number | null;
+  agent?: AgentResult | null;
+};
+
+export type TalkLanguage = "en" | "hi" | "ur";
+export type Voice = { id: string; name: string; gender: "male" | "female"; seconds: number };
+export type TalkJob = {
+  id: string;
+  status: "queued" | "speaking" | "lip_syncing" | "completed" | "failed";
+  created_at: string;
+  finished_at: string | null;
+  audio_seconds: number | null;
+  speech_seconds: number | null;
+  lipsync_seconds: number | null;
+  video_url: string | null;
+  error: string | null;
+};
+
+/** What the prompt agent (Florence-2) saw in the photo, checked in the result and retried. */
+export type AgentResult = {
+  description: string | null;
+  checks: { name: string; expected: string; found: string; passed: boolean }[];
+  attempts: number;
+  notes: string[];
 };
 
 export type ValidationResponse = {

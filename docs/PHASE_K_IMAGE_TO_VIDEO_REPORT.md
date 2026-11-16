@@ -46,6 +46,16 @@ frozen, and FastWan is that same base distilled. All 825 base tensors match by n
 blocks were copied into VACE. This combination is our own and is not an official model, so it was only accepted after
 the measurements in §5.
 
+### Wan2.2 TI2V 5B, tried after Phase K (2026-11-16)
+- At the user's request, Wan2.2 TI2V 5B was downloaded (Apache-2.0): the GGUF Q8_0 transformer (5.4 GB) and the
+  Wan2.2 VAE (2.8 GB). The UMT5 text encoder already on disk was reused.
+- Test: one portrait, 2 s at 832×480, 20 steps (test script since deleted). It filled all 8 GB of VRAM
+  and had **not finished after 32 minutes**. The current Draft mode makes a 3 s clip in about 1 minute.
+- The test was stopped because it was holding 12 GB of RAM and the whole GPU, so the app could not load its video
+  model ("Server out of memory").
+- **Decision (user): keep Wan2.1 VACE 1.3B.** Wan2.2 is not wired into the app. Its files (7.8 GB) were deleted from the
+  model cache on 2026-11-16.
+
 ## 3. What was built
 
 ### Backend

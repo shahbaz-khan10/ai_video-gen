@@ -1,0 +1,57 @@
+[
+ {
+  "prompt": "Three white sheep and two children playing in a green meadow, sunny day",
+  "agent": true,
+  "seconds": 54,
+  "result": {
+   "description": null,
+   "checks": [
+    {
+     "name": "count of sheep",
+     "expected": "3",
+     "found": "4",
+     "passed": false
+    },
+    {
+     "name": "count of children",
+     "expected": "2",
+     "found": "1",
+     "passed": false
+    }
+   ],
+   "attempts": 2,
+   "notes": [
+    "First image failed a check; the retry was not better, so the first is shown."
+   ]
+  },
+  "seed": 21
+ },
+ {
+  "prompt": "Four brown dogs sitting on a wooden porch",
+  "agent": true,
+  "seconds": 26,
+  "result": {
+   "description": null,
+   "checks": [
+    {
+     "name": "count of dogs",
+     "expected": "4",
+     "found": "4",
+     "passed": true
+    }
+   ],
+   "attempts": 2,
+   "notes": [
+    "First image failed a check; the retry (seed 6) was better and is shown."
+   ]
+  },
+  "seed": 6
+ },
+ {
+  "prompt": "Four brown dogs sitting on a wooden porch",
+  "agent": false,
+  "seconds": 12,
+  "result": null,
+  "seed": 5
+ }
+]

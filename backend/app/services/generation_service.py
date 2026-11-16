@@ -33,6 +33,8 @@ from app.schemas.generation import (
     GenerationRequest,
     GenerationSettings,
     GenerationStatus,
+    AgentCheck,
+    AgentResult,
     I2V_CAMERA_TEXT,
     I2V_MOTION_TEXT,
     ImageToVideoRequest,
@@ -50,6 +52,7 @@ from app.services.prompt_compiler import VIDEO_STYLE_PROMPTS, compile_plan
 from app.services.prompt_tokens import CLIP_MAX_TOKENS, UMT5_MAX_TOKENS, count_tokens, load_tokenizer
 from app.services.image_storage import ImageStorage
 from app.services.upload_storage import UploadStorage
+from app.services import prompt_agent as agent_mod
 from app.services.video_engine import ImageVideoParams, VideoEngine, VideoEngineError, VideoParams
 from app.services.video_storage import VideoStorage
 
@@ -133,6 +136,7 @@ class GenerationService:
         )
         self._video_lock = threading.Lock()
         self.uploads = UploadStorage(settings.upload_dir)
+        self.agent = agent_mod.PromptAgent(settings)
         # Set to stop a running job at its next denoising step (POST /generations/{id}/cancel).
         self._cancel: dict[str, threading.Event] = {}
 
@@ -158,6 +162,7 @@ class GenerationService:
             style=request.style,
             duration_seconds=None if isinstance(request, TextToImageRequest) else request.duration_seconds,
             source_image=request.source_image if isinstance(request, ImageToVideoRequest) else None,
+            prompt_agent=request.prompt_agent,
         )
         if isinstance(request, TextToImageRequest):
             width, height = IMAGE_SIZES[request.resolution][request.aspect_ratio]
@@ -369,21 +374,29 @@ class GenerationService:
                     raise VideoEngineError("upload_expired", "The uploaded image is gone (uploads are kept 24 h). Upload it again.")
                 self._unload(self.engine)
                 tmp = self.video_storage.temp_path(job_id)
-                device = self.video_engine.generate_from_image(  # type: ignore[attr-defined]
-                    ImageVideoParams(
-                        prompt=job.plan.model_prompt if job.plan and job.plan.model_prompt else s.prompt,
-                        image_path=image_path,
-                        width=s.width,
-                        height=s.height,
-                        num_frames=s.num_frames,
-                        seed=s.seed,
-                        quality=s.quality or "draft",
-                        fps=s.fps,
-                    ),
-                    deadline=time.monotonic() + self.settings.video_timeout_seconds,
-                    output_path=tmp,
-                    cancel=cancel,
-                )
+                prompt = job.plan.model_prompt if job.plan and job.plan.model_prompt else s.prompt
+                check = None
+                if self._agent_on(job):
+                    prompt, check = self._prepare_i2v_agent(job_id, image_path, prompt)
+
+                def make(seed: int, path: Path) -> str:
+                    return self.video_engine.generate_from_image(  # type: ignore[attr-defined]
+                        ImageVideoParams(
+                            prompt=prompt,
+                            image_path=image_path,
+                            width=s.width,
+                            height=s.height,
+                            num_frames=s.num_frames,
+                            seed=seed,
+                            quality=s.quality or "draft",
+                            fps=s.fps,
+                        ),
+                        deadline=time.monotonic() + self.settings.video_timeout_seconds,
+                        output_path=path,
+                        cancel=cancel,
+                    )
+
+                device = self._generate_checked(job_id, s.seed, tmp, make, check)
                 self.store.update(job_id, device=device)
                 stored = self.video_storage.finalize(job_id, tmp)
                 url = f"{VIDEOS_PREFIX}/{stored.filename}"
@@ -413,6 +426,115 @@ class GenerationService:
                 self._fail(job_id, JobError(code="generation_failed", message="Video generation failed on the server.", retryable=True))
             finally:
                 self._cancel.pop(job_id, None)
+
+    # --- prompt agent ----------------------------------------------------------------------
+
+    def _agent_on(self, job: GenerationJob) -> bool:
+        return bool(job.settings.prompt_agent) and self.agent.available()
+
+    def _count_checks(self, image, targets: list[tuple[str, int]]) -> list[AgentCheck]:
+        checks = []
+        for phrase, expected in targets:
+            try:
+                found = self.agent.count(image, phrase)
+            except Exception:
+                logger.exception("prompt agent: count failed")
+                continue
+            checks.append(AgentCheck(name=f"count of {phrase}", expected=str(expected), found=str(found), passed=found == expected))
+        return checks
+
+    def _prepare_i2v_agent(self, job_id: str, image_path: Path, prompt: str):
+        """Describes the photo into the prompt and returns the checks to run on the video (subject counts and, for a
+        plain background, its colour). Agent errors only skip the agent; they never fail the job."""
+        from PIL import Image
+
+        try:
+            with Image.open(image_path) as src:
+                photo = src.convert("RGB")
+            description = self.agent.describe(photo)
+            subjects = {k: v for k, v in self.agent.subjects(photo).items() if k != "person" or v <= 2}
+            r, g, b, spread = agent_mod.border_colour(photo)
+        except Exception:
+            logger.exception("prompt agent: photo analysis failed")
+            self.store.update(job_id, agent=AgentResult(notes=["The prompt agent could not analyse the photo; it was skipped."]))
+            return prompt, None
+        plain = spread < agent_mod.PLAIN_SPREAD
+        extra = f" The scene: {description}" if description else ""
+        if plain:
+            extra += f" Plain {agent_mod.colour_name((r, g, b))} background that stays the same colour."
+        full = prompt + extra
+        job = self.store.get(job_id)
+        if job and job.plan:
+            self.store.update(job_id, plan=job.plan.model_copy(update={"model_prompt": full}))
+        notes = [f"Detected in the photo: {', '.join(f'{v} {k}' for k, v in subjects.items()) or 'no people or animals'}."]
+        self.store.update(job_id, agent=AgentResult(description=description, notes=notes))
+        self.agent.unload()  # the video model needs the VRAM; Florence-2 reloads in ~2 s for the check
+
+        def check(path: Path) -> list[AgentCheck]:
+            first, _middle, last = _frames(path)
+            checks = []
+            for label, expected in subjects.items():
+                try:
+                    found = self.agent.count(last, label)
+                except Exception:
+                    logger.exception("prompt agent: count failed")
+                    continue
+                checks.append(AgentCheck(name=f"{label} at the end", expected=str(expected), found=str(found), passed=found == expected))
+            if plain:
+                shift = agent_mod.colour_distance(agent_mod.border_colour(first), agent_mod.border_colour(last))
+                checks.append(AgentCheck(
+                    name="background colour", expected=agent_mod.colour_name((r, g, b)),
+                    found=agent_mod.colour_name(agent_mod.border_colour(last)[:3]),
+                    passed=shift < agent_mod.BACKGROUND_SHIFT_LIMIT,
+                ))
+            return checks
+
+        return full, check
+
+    def _generate_checked(self, job_id: str, seed: int, tmp: Path, make, check, retry: bool = True) -> str:
+        """Generates once; when the agent's checks fail, generates again with the next seed and keeps the better
+        video. Without checks this is a single generation."""
+        device = make(seed, tmp)
+        if check is None:
+            return device
+        job = self.store.get(job_id)
+        report = (job.agent if job and job.agent else AgentResult()).model_copy(deep=True)
+        try:
+            checks = check(tmp)
+        except Exception:
+            logger.exception("prompt agent: video check failed")
+            report.notes.append("The result could not be checked.")
+            self.store.update(job_id, agent=report)
+            self.agent.unload()
+            return device
+        report.checks = checks
+        if checks and not all(c.passed for c in checks) and not retry:
+            report.notes.append("A check failed; for text-to-video the agent reports it but does not regenerate.")
+        elif checks and not all(c.passed for c in checks):
+            first = tmp.with_name(tmp.name.replace(".part.mp4", ".first.part.mp4"))
+            os.replace(tmp, first)
+            retry_seed = (seed + 1) % (MAX_SEED + 1)
+            self.agent.unload()  # free VRAM for the video model
+            try:
+                device = make(retry_seed, tmp)
+                checks2 = check(tmp)
+            except Exception:
+                os.replace(first, tmp)
+                raise
+            report.attempts = 2
+            if sum(c.passed for c in checks2) > sum(c.passed for c in checks):
+                first.unlink(missing_ok=True)
+                report.checks = checks2
+                job = self.store.get(job_id)
+                if job:
+                    self.store.update(job_id, settings=job.settings.model_copy(update={"seed": retry_seed}))
+                report.notes.append(f"The first video failed a check; the retry (seed {retry_seed}) was better and is shown.")
+            else:
+                os.replace(first, tmp)
+                report.notes.append("The first video failed a check; the retry was not better, so the first is shown.")
+        self.store.update(job_id, agent=report)
+        self.agent.unload()
+        return device
 
     # --- cancel / retry ------------------------------------------------------------------
 
@@ -601,19 +723,40 @@ class GenerationService:
         assert self.engine is not None and s.width and s.height and s.steps and s.seed is not None
         try:
             self._unload(self.video_engine)
-            image, device = self.engine.generate(
-                ImageParams(
-                    prompt=s.prompt,
-                    style=s.style,
-                    width=s.width,
-                    height=s.height,
-                    steps=s.steps,
-                    seed=s.seed,
-                    negative_prompt=s.negative_prompt,
-                    guidance_scale=s.guidance_scale,
-                ),
-                deadline=time.monotonic() + self.settings.image_timeout_seconds,
-            )
+            targets = agent_mod.count_targets(job.plan) if self._agent_on(job) else []
+
+            def make(seed: int):
+                return self.engine.generate(
+                    ImageParams(
+                        prompt=s.prompt,
+                        style=s.style,
+                        width=s.width,
+                        height=s.height,
+                        steps=s.steps,
+                        seed=seed,
+                        negative_prompt=s.negative_prompt,
+                        guidance_scale=s.guidance_scale,
+                    ),
+                    deadline=time.monotonic() + self.settings.image_timeout_seconds,
+                )
+
+            image, device = make(s.seed)
+            if targets:
+                checks = self._count_checks(image, targets)
+                report = AgentResult(checks=checks)
+                if not all(c.passed for c in checks):
+                    retry_seed = (s.seed + 1) % (MAX_SEED + 1)
+                    image2, device = make(retry_seed)
+                    checks2 = self._count_checks(image2, targets)
+                    report.attempts = 2
+                    if sum(c.passed for c in checks2) > sum(c.passed for c in checks):
+                        image, report.checks = image2, checks2
+                        self.store.update(job_id, settings=s.model_copy(update={"seed": retry_seed}))
+                        report.notes.append(f"First image failed a check; the retry (seed {retry_seed}) was better and is shown.")
+                    else:
+                        report.notes.append("First image failed a check; the retry was not better, so the first is shown.")
+                self.store.update(job_id, agent=report)
+                self.agent.unload()
             self.store.update(job_id, device=device)
             stored = self.storage.save(job_id, image)
             url = f"{FILES_PREFIX}/{stored.filename}"
@@ -657,21 +800,29 @@ class GenerationService:
                 # The image and video models do not fit in GPU memory (or comfortably in RAM) together.
                 self._unload(self.engine)
                 tmp = self.video_storage.temp_path(job_id)
-                device = self.video_engine.generate(
-                    VideoParams(
-                        # The planner's scene description (user words first, then cast/place/camera/style).
-                        prompt=(job.plan.model_prompt if job.plan and job.plan.model_prompt else s.prompt),
-                        width=s.width,
-                        height=s.height,
-                        num_frames=s.num_frames,
-                        num_inference_steps=s.steps,
-                        seed=s.seed,
-                        fps=s.fps,
-                    ),
-                    deadline=time.monotonic() + self.settings.video_timeout_seconds,
-                    output_path=tmp,
-                    cancel=cancel,
-                )
+
+                def make(seed: int, path: Path) -> str:
+                    return self.video_engine.generate(
+                        VideoParams(
+                            # The planner's scene description (user words first, then cast/place/camera/style).
+                            prompt=(job.plan.model_prompt if job.plan and job.plan.model_prompt else s.prompt),
+                            width=s.width,
+                            height=s.height,
+                            num_frames=s.num_frames,
+                            num_inference_steps=s.steps,
+                            seed=seed,
+                            fps=s.fps,
+                        ),
+                        deadline=time.monotonic() + self.settings.video_timeout_seconds,
+                        output_path=path,
+                        cancel=cancel,
+                    )
+
+                targets = agent_mod.count_targets(job.plan) if self._agent_on(job) else []
+                check = (lambda path: self._count_checks(_frames(path)[1], targets)) if targets else None
+                # Counts are reported for text-to-video but not retried: in tests a new seed did not fix counts, and a
+                # retry doubles a video's time. Images (seconds) do retry once.
+                device = self._generate_checked(job_id, s.seed, tmp, make, check, retry=False)
                 self.store.update(job_id, device=device)
                 # Decoded and checked before the job may report success.
                 stored = self.video_storage.finalize(job_id, tmp)
@@ -818,6 +969,21 @@ class GenerationService:
             except Exception:
                 pass
         self.store.update(job_id, status=GenerationStatus.FAILED, finished_at=_now(), error=error, device=device)
+
+
+def _frames(path: Path):
+    """First, middle and last frame of an MP4 as PIL images (iterated: list(reader) raises MemoryError)."""
+    import imageio.v2 as imageio
+    from PIL import Image
+
+    frames = []
+    reader = imageio.get_reader(str(path), "ffmpeg")
+    try:
+        for frame in reader:
+            frames.append(frame)
+    finally:
+        reader.close()
+    return Image.fromarray(frames[0]), Image.fromarray(frames[len(frames) // 2]), Image.fromarray(frames[-1])
 
 
 def _estimate_tokens(text: str) -> int:

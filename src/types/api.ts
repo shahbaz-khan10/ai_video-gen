@@ -303,6 +303,8 @@ export type TalkJob = {
   lipsync_seconds: number | null;
   video_url: string | null;
   error: string | null;
+  speaker?: "male" | "female" | null;
+  voice_used?: string | null;
 };
 
 /** What the prompt agent (Florence-2) saw in the photo, checked in the result and retried. */

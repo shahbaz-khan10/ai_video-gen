@@ -51,6 +51,8 @@ def test_job_runs_speech_then_lipsync(vclient: TestClient, monkeypatch) -> None:
     calls = []
 
     def fake_call(base, path, payload=None, **kw):
+        if path == "/voices":
+            return []
         calls.append((base, path, payload))
         if path == "/tts":
             audio = svc.outputs / "audio" / "a.wav"
@@ -85,3 +87,51 @@ def test_job_runs_speech_then_lipsync(vclient: TestClient, monkeypatch) -> None:
     assert calls[0][2]["language"] == "ur"
     assert calls[1][2]["video_path"].startswith("/outputs/uploads/") and calls[1][2]["audio_path"] == "/outputs/audio/a.wav"
     assert vclient.get(job["video_url"]).status_code == 200
+
+
+@pytest.mark.parametrize(("text", "gender"), [
+    ("A young woman with long black hair. She is wearing a blue saree. The background is green.", "female"),
+    ("A young man with a beard and mustache. He is standing with his arms crossed.", "male"),
+    ("The image shows the sea and the sky.", None),
+])
+def test_gender_from_description(text: str, gender) -> None:
+    from app.services.talking_service import gender_from_text
+
+    assert gender_from_text(text) == gender
+
+
+def test_woman_is_not_given_the_male_builtin_voice(vclient: TestClient, monkeypatch) -> None:
+    svc = vclient.app.state.talking_service
+    monkeypatch.setattr(svc, "_speaker", lambda source: "female")
+    monkeypatch.setattr(svc, "voices", lambda: [])
+    calls = []
+    monkeypatch.setattr(svc, "_call", lambda *a, **k: calls.append(a) or {})
+    uid = _photo(vclient)
+    job_id = vclient.post("/api/v1/talking", json={"text": "Hi", "upload_id": uid}).json()["id"]
+    import time
+
+    for _ in range(200):
+        job = vclient.get(f"/api/v1/talking/{job_id}").json()
+        if job["status"] in ("completed", "failed"):
+            break
+        time.sleep(0.05)
+    assert job["status"] == "failed" and "woman" in job["error"] and job["speaker"] == "female"
+    assert calls == []  # no speech was generated with the wrong voice
+
+
+def test_matching_saved_voice_is_chosen(vclient: TestClient, monkeypatch) -> None:
+    svc = vclient.app.state.talking_service
+    monkeypatch.setattr(svc, "_speaker", lambda source: "female")
+    monkeypatch.setattr(svc, "voices", lambda: [
+        {"id": "a" * 32, "name": "Ali", "gender": "male", "seconds": 12},
+        {"id": "b" * 32, "name": "Sara", "gender": "female", "seconds": 14},
+    ])
+    from app.services.talking_service import TalkRequest
+
+    req = TalkRequest(text="Hi", upload_id=_photo(vclient))
+    job = svc.create.__self__  # service instance
+    job_id = "x"
+    svc._jobs[job_id] = svc._jobs.get(job_id) or __import__("app.services.talking_service", fromlist=["TalkJob"]).TalkJob(
+        id=job_id, request=req, created_at=__import__("datetime").datetime.now())
+    assert svc._match_voice(job_id, req, svc._source(req)) == "b" * 32
+    assert svc.get(job_id).voice_used == "Sara (female)"

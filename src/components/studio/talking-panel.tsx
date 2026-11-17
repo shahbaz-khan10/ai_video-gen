@@ -118,7 +118,7 @@ export function TalkingPanel({ sourceJobId }: { sourceJobId: string }) {
           ))}
         </select>
         <select value={voiceId} onChange={(e) => setVoiceId(e.target.value)} aria-label="Voice" className={`min-w-0 flex-1 ${field}`}>
-          <option value="">Built-in voice</option>
+          <option value="">Automatic (matches the person; built-in voice is male)</option>
           {voices.map((v) => (
             <option key={v.id} value={v.id}>
               {v.name} ({v.gender})
@@ -163,6 +163,7 @@ export function TalkingPanel({ sourceJobId }: { sourceJobId: string }) {
           {STEP[job.status]}
           {job.audio_seconds ? ` · ${job.audio_seconds}s of speech` : ""}
           {job.status === "failed" && job.error ? `: ${job.error}` : ""}
+          {job.voice_used ? ` · voice: ${job.voice_used}` : ""}
         </p>
       )}
       {error && (

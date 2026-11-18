@@ -68,6 +68,47 @@ def _to_25fps(path: Path, tmp: Path) -> Path:
     return out
 
 
+_SKIP = """                try:
+                    res_frame = cv2.resize(res_frame.astype(np.uint8), (x2-x1, y2-y1))
+                except:
+                    continue"""
+_KEEP = """                try:
+                    res_frame = cv2.resize(res_frame.astype(np.uint8), (x2-x1, y2-y1))
+                except:
+                    cv2.imwrite(f"{result_img_save_path}/{str(i).zfill(8)}.png", ori_frame)
+                    continue"""
+
+
+def _inference_module() -> str:
+    """MuseTalk drops every frame where it found no face (`except: continue`), leaving gaps in the %08d.png sequence;
+    ffmpeg stops at the first gap, so a clip whose first frames had no clear face came out as ONE frame with 6.6 s
+    of audio (measured, 88 of 166 frames written). This copy writes the original frame instead, so the video keeps
+    its full length and the mouth moves wherever a face was found."""
+    src = MUSETALK / "scripts/inference.py"
+    text = src.read_text()
+    if _SKIP not in text:
+        raise RuntimeError("MuseTalk's inference.py changed; update the frame-gap patch in lipsync/app.py.")
+    (MUSETALK / "scripts/inference_keep_frames.py").write_text(text.replace(_SKIP, _KEEP))
+    return "scripts.inference_keep_frames"
+
+
+def _video_frames(path: Path) -> int:
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-count_frames", "-select_streams", "v", "-show_entries",
+         "stream=nb_read_frames", "-of", "csv=p=0", str(path)],
+        check=True, capture_output=True, text=True,
+    )
+    return int(out.stdout.strip() or 0)
+
+
+def _audio_seconds(path: Path) -> float:
+    out = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(path)],
+        check=True, capture_output=True, text=True,
+    )
+    return float(out.stdout.strip() or 0)
+
+
 @app.get("/health")
 def health() -> dict:
     ok = (MUSETALK / "models/musetalkV15/unet.pth").is_file()
@@ -91,7 +132,7 @@ def lipsync(req: LipSyncRequest) -> dict:
         started = time.perf_counter()
         proc = subprocess.run(
             [
-                "python", "-m", "scripts.inference",
+                "python", "-m", _inference_module(),
                 "--inference_config", str(config),
                 "--result_dir", tmp + "/results",
                 "--unet_model_path", "models/musetalkV15/unet.pth",
@@ -107,6 +148,12 @@ def lipsync(req: LipSyncRequest) -> dict:
         if proc.returncode != 0 or not produced.is_file():
             tail = (proc.stdout + proc.stderr)[-1500:]
             raise HTTPException(500, f"MuseTalk failed: {tail}")
+        # Never hand back a clip that is shorter than its speech (the one-frame bug above): fail loudly instead.
+        expected = int(_audio_seconds(audio) * req.fps)
+        frames = _video_frames(produced)
+        if frames < expected * 0.9:
+            raise HTTPException(500, f"Lip-sync produced {frames} frames for {expected} expected; the face was "
+                                     "not found in the video. Try a clip where the face is larger and clearly visible.")
         final = out_dir / name
         shutil.move(str(produced), final)  # /tmp and /outputs are different filesystems: rename fails
     return {"path": str(final), "seconds": round(time.perf_counter() - started, 1)}

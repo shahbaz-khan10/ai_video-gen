@@ -188,7 +188,11 @@ class _GenerationBase(StrictModel):
 class TextToImageRequest(_GenerationBase):
     mode: Literal[GenerationMode.TEXT_TO_IMAGE]
     resolution: ImageResolution = ImageResolution.STANDARD
-    steps: ImageSteps = Field(1, description="Denoising steps. Offered values for the current model are listed in /info (image_steps).")
+    # Omitted = the model's own default (6 for RealVisXL Lightning). The old default of 1 was clamped to the minimum
+    # (4), which gave over-sharpened faces with halos and mismatched eyes (same seed: 4 vs 6/8 steps).
+    steps: ImageSteps | None = Field(
+        None, description="Denoising steps; omit for the model's default. Offered values are listed in /info (image_steps)."
+    )
     seed: int | None = Field(None, ge=0, le=MAX_SEED, description="Omit for a random seed.")
     negative_prompt: str | None = Field(None, max_length=2000, description="Negative prompt instructions.")
     guidance_scale: float | None = Field(None, ge=0.0, le=20.0, description="CFG scale.")

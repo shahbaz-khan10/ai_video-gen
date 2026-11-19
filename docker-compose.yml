@@ -12,6 +12,8 @@ services:
       # Wan2.1 T2V 1.3B (Apache-2.0). Weights (~29 GB) live in the same models volume; set to none to turn video off.
       AVS_VIDEO_ENGINE: wan
       AVS_CORS_ORIGINS: http://localhost:3001,http://127.0.0.1:3001
+      # Lip-sync engine: LatentSync 1.5 (clearer sync, keeps the beard/face). http://lipsync:8020 = MuseTalk 1.5.
+      AVS_LIPSYNC_URL: http://latentsync:8020
     ports:
       - "8003:8000"
     volumes:
@@ -63,6 +65,24 @@ services:
               count: all
               capabilities: [gpu]
 
+  # Lip-sync: LatentSync 1.5 (ByteDance, Apache-2.0), same API as `lipsync` (MuseTalk). The backend uses it through
+  # AVS_LIPSYNC_URL. Weights live in the latentsync-models volume and are fetched on start when missing.
+  latentsync:
+    build: ./latentsync
+    image: ai_video-gen-latentsync
+    command: sh -c "sh /service/download_weights.sh || echo 'Weight download failed; using what is cached.'; exec uvicorn app:app --app-dir /service --host 0.0.0.0 --port 8020"
+    volumes:
+      - ./latentsync:/service
+      - backend-outputs:/outputs
+      - latentsync-models:/latentsync/checkpoints
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
   frontend:
     image: node:22-bookworm-slim
     working_dir: /app
@@ -83,5 +103,6 @@ volumes:
   speech-models:
   speech-voices:
   lipsync-models:
+  latentsync-models:
   frontend-node-modules:
   frontend-next-cache:

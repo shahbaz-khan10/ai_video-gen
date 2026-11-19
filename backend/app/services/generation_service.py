@@ -171,11 +171,12 @@ class GenerationService:
             model_id = getattr(self.engine, "model_id", None)
             # Distilled models (Turbo, Lightning) produce broken images outside their step range, so the
             # effective count is clamped and recorded on the job.
-            steps = (
-                get_model_profile(model_id).clamp_steps(request.steps)
-                if model_id and is_known_model(model_id)
-                else request.steps
-            )
+            if model_id and is_known_model(model_id):
+                steps = get_model_profile(model_id).clamp_steps(request.steps)
+            elif request.steps is not None:
+                steps = request.steps
+            else:
+                steps = get_model_profile(model_id).default_steps if model_id else 25
             settings = settings.model_copy(
                 update={
                     "resolution": request.resolution,

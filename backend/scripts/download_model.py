@@ -45,13 +45,16 @@ def main() -> int:
         "model_index.json",
         "LICENSE*",
         "scheduler/*",
+        # SDXL has two tokenizers; without tokenizer_2 the pipeline refuses to load ("model_not_downloaded").
         "tokenizer/*",
+        "tokenizer_2/*",
         "*/config.json",
     ]
+    # Sharded weights (e.g. Wan's text encoder) need their *.safetensors.index.json to load.
     if has_fp16:
-        allow_patterns.append("*.fp16.safetensors")
+        allow_patterns += ["*.fp16.safetensors", "*.fp16.safetensors.index.json"]
     else:
-        allow_patterns.append("*.safetensors")
+        allow_patterns += ["*.safetensors", "*.safetensors.index.json"]
 
     files = [s for s in info.siblings if any(fnmatch(s.rfilename, p) for p in allow_patterns)]
     total = sum(s.size or 0 for s in files)

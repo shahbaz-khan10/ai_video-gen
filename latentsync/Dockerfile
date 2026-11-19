@@ -15,6 +15,12 @@ RUN pip install --no-cache-dir torch==2.5.1 torchvision==0.20.1 --index-url http
 # gradio is only for their demo app; leave it out.
 RUN grep -vE "^(torch|torchvision|gradio)==|^--extra-index-url" requirements.txt > /tmp/req.txt \
     && pip install --no-cache-dir -r /tmp/req.txt "fastapi>=0.110,<1" "uvicorn>=0.29,<1" soundfile
+# GFPGAN v1.4 (Apache-2.0) sharpens the redrawn mouth afterwards (restore_mouth.py). basicsr 1.4.2 imports a module
+# torchvision removed in 0.17; point it at the current one.
+RUN pip install --no-cache-dir gfpgan==1.3.8 basicsr==1.4.2 facexlib==0.3.0 \
+    && sed -i "s/torchvision.transforms.functional_tensor import/torchvision.transforms.functional import/" \
+       /usr/local/lib/python3.10/site-packages/basicsr/data/degradations.py \
+    && python -c "from gfpgan import GFPGANer"
 # onnxruntime-gpu (insightface face detector) needs the cuDNN 9 / cuBLAS libraries that the torch wheels ship.
 ENV LD_LIBRARY_PATH=/usr/local/lib/python3.10/site-packages/nvidia/cudnn/lib:/usr/local/lib/python3.10/site-packages/nvidia/cublas/lib:/usr/local/lib/python3.10/site-packages/nvidia/cuda_runtime/lib:/usr/local/lib/python3.10/site-packages/nvidia/cufft/lib:/usr/local/lib/python3.10/site-packages/nvidia/curand/lib
 ENV PYTHONUNBUFFERED=1 PYTHONPATH=/latentsync HF_HOME=/latentsync/checkpoints/hf

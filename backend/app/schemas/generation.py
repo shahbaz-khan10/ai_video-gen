@@ -67,11 +67,19 @@ VIDEO_STEP_OPTIONS = (15, 25, 40)
 VIDEO_MIN_STEPS, VIDEO_MAX_STEPS = 10, 50
 
 
-def video_frames_for(duration_seconds: int, fps: int) -> int:
-    """Smallest valid Wan frame count (4k+1) covering the duration, capped at VIDEO_MAX_FRAMES."""
+def video_frames_for(duration_seconds: int, fps: int, max_frames: int = VIDEO_MAX_FRAMES) -> int:
+    """Smallest valid Wan frame count (4k+1) covering the duration, capped at ``max_frames``."""
     frames = duration_seconds * fps + 1
     frames += (-(frames - 1)) % 4
-    return min(frames, VIDEO_MAX_FRAMES)
+    return min(frames, max_frames)
+
+
+# "high" = Wan2.2 TI2V-5B (Apache-2.0), single clips only. Native 24 fps and up to 121 frames (5 s). On the 8 GB
+# RTX 3050 its 10 GB transformer is streamed from RAM: 2 s at 832x480 / 25 steps took 9 min (vs ~2 min for 5 s
+# with FastWan), with more natural motion but a softer picture. scripts/benchmark_wan22.py.
+T2VQuality = Literal["fast", "high"]
+HQ_VIDEO_FPS = 24
+HQ_VIDEO_MAX_FRAMES = 121
 
 
 class ImageResolution(StrEnum):
@@ -228,6 +236,11 @@ class TextToVideoRequest(_GenerationBase):
         description="Long videos only. prompt: every clip repeats the same character/place description (fast). "
         "last_frame: each clip starts from the previous clip's last frame (Wan VACE; much slower).",
     )
+    quality: T2VQuality = Field(
+        "fast",
+        description="fast: FastWan2.1 1.3B (3 steps, ~2 min for 5 s). high: Wan2.2 TI2V-5B at 24 fps, single clips "
+        "up to 5 s; more natural motion, many times slower on an 8 GB GPU.",
+    )
 
     @model_validator(mode="after")
     def _long_video_fields(self) -> "TextToVideoRequest":
@@ -236,6 +249,10 @@ class TextToVideoRequest(_GenerationBase):
             raise ValueError("Scenes and continuity apply only to videos longer than 5 seconds.")
         if long and self.num_frames is not None:
             raise ValueError("num_frames applies only to single clips (5 seconds or less).")
+        if self.quality == "high" and long:
+            raise ValueError("High quality (Wan2.2) makes single clips only: choose 5 seconds or less.")
+        if self.quality == "high" and self.num_frames is not None:
+            raise ValueError("High quality sets its own frame count (24 fps); leave num_frames out.")
         return self
 
     @field_validator("num_frames")

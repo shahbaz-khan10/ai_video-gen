@@ -89,6 +89,10 @@ class Settings(BaseSettings):
     video_continuity_model_id: str = Field(
         "Wan-AI/Wan2.1-VACE-1.3B-diffusers", validation_alias=_image_env("VIDEO_CONTINUITY_MODEL_ID")
     )
+    # "High quality" text-to-video: Wan2.2 TI2V-5B (Apache-2.0). Only its transformer and VAE are needed (~23 GB);
+    # the text encoder is Wan2.1's. 25 steps (its default is 50) to keep a 5 s clip near half an hour on 8 GB.
+    video_hq_model_id: str = Field("Wan-AI/Wan2.2-TI2V-5B-Diffusers", validation_alias=_image_env("VIDEO_HQ_MODEL_ID"))
+    video_hq_steps: int = Field(25, ge=10, le=50, validation_alias=_image_env("VIDEO_HQ_STEPS"))
     video_fps: int = Field(16, ge=8, le=30, validation_alias=_image_env("VIDEO_FPS"))
     # VAE decode precision. Measured on the RTX 3050 (docs/speed): bf16 decodes a Draft clip in 15.8 s instead of
     # 39.9 s (fp32 tiled) and a 480p clip in 56 s instead of 97 s, PSNR 57 dB vs fp32 (no visible difference).

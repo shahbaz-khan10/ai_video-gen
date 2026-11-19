@@ -8,6 +8,7 @@ import type {
   NormalizedSettings,
   SceneInput,
   SourceImageInfo,
+  T2VQuality,
   VideoResolution,
 } from "@/types/api";
 import type { AspectRatio, ClipDuration, GenerationMode } from "@/types/studio";
@@ -43,6 +44,7 @@ export type Draft = {
     steps: number | null;
     /** Long videos: the reviewed scene list. */
     scenes?: SceneInput[];
+    quality?: T2VQuality;
   };
   /** Prompt agent: describe the photo, check the result, retry once on a failed check. */
   promptAgent?: boolean;
@@ -73,6 +75,7 @@ export function buildPayload(draft: Draft): GenerationPayload {
       resolution: draft.video.resolution,
       ...(draft.video.steps === null ? {} : { steps: draft.video.steps }),
       ...(draft.video.scenes?.length ? { scenes: draft.video.scenes } : {}),
+      ...(draft.video.quality === "high" ? { quality: "high" as const } : {}),
       ...(draft.seed === null ? {} : { seed: draft.seed }),
     };
   }

@@ -65,6 +65,9 @@ class Limits(BaseModel):
     video_sampler: str = Field("none", description="fastwan (3 fixed steps) or wan (configurable steps).")
     video_max_frames: int
     video_fps: int
+    # "High quality" text-to-video (Wan2.2 TI2V-5B): whether its weights are on disk, and why not.
+    video_hq_available: bool = False
+    video_hq_detail: str = ""
 
 
 class ModelLicense(BaseModel):

@@ -77,6 +77,11 @@ class VideoParams:
     num_inference_steps: int
     seed: int
     fps: int = 16
+    quality: str = "fast"  # "fast": FastWan2.1 1.3B. "high": Wan2.2 TI2V-5B (see _generate_hq).
+
+
+# Wan2.2 TI2V-5B: its README's guidance; 5.0 with 25 steps gave clean frames in scripts/benchmark_wan22.py.
+HQ_GUIDANCE = 5.0
 
 
 @dataclass(frozen=True)
@@ -225,6 +230,25 @@ class WanVideoEngine:
             # FastWan ships its transformer as one file.
             return cached(self.model_id, "transformer/diffusion_pytorch_model.safetensors")
         return complete(base, "transformer", "diffusion_pytorch_model.safetensors.index.json")
+
+    def hq_status(self) -> tuple[bool, str]:
+        """Whether "high quality" text-to-video can run: Wan2.2 TI2V-5B transformer and VAE must be on disk (the
+        text encoder is Wan2.1's)."""
+        if self.missing_modules():
+            return False, "Video libraries are not installed on the server."
+        if not self.weights_present():
+            return False, "Video model weights have not been downloaded yet."
+        from huggingface_hub import try_to_load_from_cache
+
+        repo, cache = self._settings.video_hq_model_id, str(self._cache_dir)
+        index = try_to_load_from_cache(repo, "transformer/diffusion_pytorch_model.safetensors.index.json", cache_dir=cache)
+        vae = try_to_load_from_cache(repo, "vae/diffusion_pytorch_model.safetensors", cache_dir=cache)
+        if not isinstance(index, str) or not isinstance(vae, str):
+            return False, (
+                f"The high quality model ({repo}, ~23 GB) is not downloaded. "
+                f"Run: python scripts/download_model.py --yes --model {repo}"
+            )
+        return True, "Wan2.2 TI2V-5B, streamed from RAM block by block."
 
     def i2v_status(self) -> tuple[bool, str]:
         """Whether image-to-video can run: VACE 1.3B (and the base/FastWan weights) must be on disk."""
@@ -443,6 +467,8 @@ class WanVideoEngine:
     # --- inference ----------------------------------------------------------------
 
     def generate(self, params: VideoParams, deadline: float, output_path: Path, cancel: Any = None) -> str:
+        if params.quality == "high":
+            return self._generate_hq(params, deadline, output_path, cancel)
         self.load()
         import torch
 
@@ -530,6 +556,100 @@ class WanVideoEngine:
             del frames
             self._release()
 
+
+    # --- high quality text-to-video (Wan2.2 TI2V-5B) ----------------------------------
+
+    def _generate_hq(self, params: VideoParams, deadline: float, output_path: Path, cancel: Any = None) -> str:
+        """Wan2.2 TI2V-5B text-to-video. Its transformer is ~10 GB in bf16, more than the 8 GB GPU, so its blocks
+        are streamed from RAM one at a time (diffusers group offloading; measured peak 4.8 GB VRAM). The prompt is
+        encoded first with the Wan2.1 text encoder (the same UMT5 model), then the normal pipeline is unloaded:
+        the 11 GB text encoder and the 10 GB transformer do not fit in RAM together. The next normal job reloads."""
+        ok, detail = self.hq_status()
+        if not ok:
+            raise VideoEngineError("model_not_downloaded", detail)
+        import torch
+
+        if not torch.cuda.is_available() or self._settings.video_device == "cpu":
+            raise VideoEngineError("cuda_unavailable", "High quality video needs a CUDA GPU.")
+        self.load()
+        with self._guard():
+            with torch.inference_mode():
+                pos, neg = self._encode(self._pipe, params.prompt, cfg=True)
+        self.unload()
+
+        pipe = None
+        frames = None
+        try:
+            with self._guard():
+                from app.services import memory
+
+                problem = memory.check_room(ram_gib=12, vram_gib=3, what="the high quality video model")
+                if problem:
+                    raise VideoEngineError("out_of_memory", problem, retryable=True)
+                started = time.monotonic()
+                pipe = self._build_hq_pipeline()
+                logger.info("Wan2.2 TI2V-5B loaded in %.0fs", time.monotonic() - started)
+
+                def stop(_p: Any, _step: int, _t: Any, kwargs: dict) -> dict:
+                    if cancel is not None and cancel.is_set():
+                        raise Cancelled
+                    if time.monotonic() > deadline:
+                        raise VideoEngineError(
+                            "generation_timeout", "Video generation took too long and was stopped.", retryable=True
+                        )
+                    return kwargs
+
+                with torch.inference_mode():
+                    output = pipe(
+                        prompt_embeds=pos.to("cuda", torch.bfloat16),
+                        negative_prompt_embeds=neg.to("cuda", torch.bfloat16),
+                        height=params.height,
+                        width=params.width,
+                        num_frames=params.num_frames,
+                        num_inference_steps=params.num_inference_steps,
+                        guidance_scale=HQ_GUIDANCE,
+                        generator=torch.Generator(device="cpu").manual_seed(params.seed),
+                        output_type="np",
+                        callback_on_step_end=stop,
+                    )
+                    frames = output.frames[0]
+                if frames is None or len(frames) == 0:
+                    raise VideoEngineError("generation_failed", "The video model returned no frames.", retryable=True)
+                write_mp4(frames, output_path, fps=params.fps)
+                return "cuda"
+        finally:
+            del pipe, frames
+            self._release()
+
+    def _build_hq_pipeline(self) -> Any:
+        import torch
+        from diffusers import AutoencoderKLWan, WanPipeline, WanTransformer3DModel
+        from transformers import T5TokenizerFast
+
+        repo = self._settings.video_hq_model_id
+        hub = {"cache_dir": str(self._cache_dir), "local_files_only": True}
+        try:
+            tokenizer = T5TokenizerFast.from_pretrained(self._base_id, subfolder="tokenizer", **hub)
+            transformer = WanTransformer3DModel.from_pretrained(repo, subfolder="transformer", dtype=torch.bfloat16, **hub)
+            # float32 as measured in the benchmark; tiled, the decode stays within the GPU.
+            vae = AutoencoderKLWan.from_pretrained(repo, subfolder="vae", dtype=torch.float32, **hub)
+            pipe = WanPipeline.from_pretrained(
+                repo, transformer=transformer, vae=vae, text_encoder=None, tokenizer=tokenizer, dtype=torch.bfloat16, **hub
+            )
+        except OSError:
+            raise VideoEngineError(
+                "model_not_downloaded", "The high quality model weights are missing or incomplete. Re-run the download."
+            ) from None
+        # use_stream=True pins the 10 GB of weights in host memory, which fails under WSL ("CUDA error: out of memory"
+        # with 1.2 GB of VRAM in use, measured).
+        pipe.transformer.enable_group_offload(
+            onload_device=torch.device("cuda"), offload_device=torch.device("cpu"),
+            offload_type="block_level", num_blocks_per_group=1, use_stream=False,
+        )
+        pipe.vae.to("cuda")
+        pipe.vae.enable_tiling()
+        pipe.set_progress_bar_config(disable=True)
+        return pipe
 
     # --- image-to-video -------------------------------------------------------------
 

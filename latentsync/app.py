@@ -17,7 +17,7 @@ import uuid
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 OUTPUTS = Path("/outputs")
 LATENTSYNC = Path("/latentsync")
@@ -35,7 +35,11 @@ class LipSyncRequest(BaseModel):
     # video and voice): 1.5 -> mouth lags by 4 frames, 2.5 -> lag 0 and the mouth opens 2.4x wider when speaking than
     # when silent (MuseTalk 1.5: 1.4x), no visible distortion.
     guidance_scale: float = 2.5
-    deepcache: bool = True  # reuses U-Net features between steps: faster, slightly softer mouth
+    # Reuses U-Net features between steps. Measured: 40 steps without it looked the same as 20 with it, at 2x the time.
+    deepcache: bool = True
+    # GFPGAN on the mouth only (restore_mouth.py): defined lip edges and visible teeth instead of a flat dark gap.
+    # 0 = off; 0.5 looked most natural (0.8 smooths the skin too much). ~1 min for a 6 s clip.
+    restore_mouth: float = Field(0.5, ge=0.0, le=1.0)
 
 
 def _inside_outputs(path: str) -> Path:
@@ -108,6 +112,14 @@ def lipsync(req: LipSyncRequest) -> dict:
                 raise HTTPException(422, "No clear face was found in some frames. Use a clip where the face is "
                                          "large, frontal and visible in every frame.")
             raise HTTPException(500, f"LatentSync failed: {tail}")
+        if req.restore_mouth > 0 and (CKPT / "gfpgan/GFPGANv1.4.pth").is_file():
+            restored = Path(tmp) / f"restored_{name}"
+            fix = subprocess.run(  # child process: GPU memory is returned when it exits
+                ["python", "/service/restore_mouth.py", str(produced), str(restored), str(req.restore_mouth)],
+                cwd=tmp, capture_output=True, text=True, timeout=1800,
+            )
+            if fix.returncode == 0 and restored.is_file():
+                produced = restored  # on failure keep the plain LatentSync result rather than failing the job
         expected = int(_audio_seconds(audio) * 25)
         frames = _video_frames(produced)
         if frames < expected * 0.9:

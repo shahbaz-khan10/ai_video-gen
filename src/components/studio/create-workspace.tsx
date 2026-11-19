@@ -30,6 +30,7 @@ import type {
   I2VQuality,
   ImageResolution,
   SceneInput,
+  T2VQuality,
   VideoResolution,
 } from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
@@ -38,7 +39,7 @@ import { DurationSelector } from "./duration-selector";
 import { AgentReport } from "./agent-report";
 import { TalkingPanel } from "./talking-panel";
 import { GenerateButton } from "./generate-button";
-import { formatEstimate, I2VCameraSelector, I2VDurationSelector, I2VMotionSelector, I2VQualitySelector } from "./i2v-options";
+import { formatEstimate, I2VCameraSelector, I2VDurationSelector, I2VMotionSelector, I2VQualitySelector, T2VQualitySelector } from "./i2v-options";
 import { buildPayload, interpretError, type CheckOutcome, type FieldErrors } from "./generation-check";
 import { ImageModelCard } from "./image-model-card";
 import { ResolutionSelector, SeedInput, StepsSelector } from "./image-options";
@@ -89,6 +90,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [pickedVideoSeconds, setVideoSeconds] = useState<number | null>(null);
   const [videoResolution, setVideoResolution] = useState<VideoResolution>("standard");
   const [pickedVideoSteps, setVideoSteps] = useState<number | null>(null);
+  const [pickedT2vQuality, setT2vQuality] = useState<T2VQuality>("fast");
   const [model, setModel] = useState(MODELS[0].id);
   // Image-to-video settings.
   const [i2vQuality, setI2vQuality] = useState<I2VQuality>("draft");
@@ -168,10 +170,15 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
 
   const online = backend.state === "online" ? backend : null;
   const videoInfo = online?.info.video ?? null;
-  const videoFps = online?.info.limits.video_fps ?? 16;
-  const videoDurations = online?.info.limits.video_duration_options_seconds?.length
+  const hqAvailable = online?.info.limits.video_hq_available ?? false;
+  // High (Wan2.2) needs its weights on the server and makes single clips only (<= 5 s, 24 fps).
+  const t2vQuality: T2VQuality = pickedT2vQuality === "high" && hqAvailable ? "high" : "fast";
+  const isHq = t2vQuality === "high";
+  const videoFps = isHq ? 24 : online?.info.limits.video_fps ?? 16;
+  const allVideoDurations = online?.info.limits.video_duration_options_seconds?.length
     ? online.info.limits.video_duration_options_seconds
     : DEFAULT_VIDEO_DURATIONS;
+  const videoDurations = isHq ? allVideoDurations.filter((s) => s <= 5) : allVideoDurations;
   const videoStepOptions = online?.info.limits.video_steps?.length ? online.info.limits.video_steps : DEFAULT_VIDEO_STEPS;
   const videoSeconds =
     pickedVideoSeconds !== null && videoDurations.includes(pickedVideoSeconds) ? pickedVideoSeconds : videoDurations[0];
@@ -191,7 +198,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
         `${aspectRatio} · ${videoSize.width}×${videoSize.height}`,
         getStyle(style).label,
         `${videoSeconds}s @ ${videoFps} fps`,
-        fixedVideoSteps ? "FastWan · 3 steps" : `${videoSteps} steps`,
+        isHq ? "Wan 2.2 5B · 25 steps" : fixedVideoSteps ? "FastWan · 3 steps" : `${videoSteps} steps`,
         ...(isLongVideo && planScenes ? [`${planScenes.length} scenes`] : []),
         seedInput.trim() ? `Seed ${seedInput.trim()}` : "Random seed",
       ]
@@ -268,8 +275,9 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       video: {
         durationSeconds: videoSeconds,
         resolution: videoResolution,
-        steps: fixedVideoSteps ? null : videoSteps,
+        steps: fixedVideoSteps || isHq ? null : videoSteps,
         scenes,
+        quality: t2vQuality,
       },
       promptAgent,
       i2v: { durationSeconds: i2vSeconds, resolution: i2vSize, quality: i2vQuality, motion: i2vMotion, camera: i2vCamera },
@@ -473,6 +481,15 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
             </motion.div>
           ) : isTextToVideo ? (
             <motion.div key="text-to-video-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
+              <T2VQualitySelector
+                value={t2vQuality}
+                onChange={(q) => {
+                  setT2vQuality(q);
+                  clearPlan();
+                }}
+                highAvailable={hqAvailable}
+                highDetail={online?.info.limits.video_hq_detail}
+              />
               <VideoDurationSelector
                 options={videoDurations}
                 fps={videoFps}
@@ -480,7 +497,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                 onChange={changeVideoSeconds}
               />
               <VideoSizeSelector value={videoResolution} aspectRatio={aspectRatio} onChange={setVideoResolution} />
-              {!fixedVideoSteps && <StepsSelector options={videoStepOptions} value={videoSteps} onChange={setVideoSteps} />}
+              {!fixedVideoSteps && !isHq && <StepsSelector options={videoStepOptions} value={videoSteps} onChange={setVideoSteps} />}
               <div id="seed-field">
                 <SeedInput
                   value={seedInput}

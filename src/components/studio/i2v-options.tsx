@@ -2,7 +2,7 @@
 
 import { Gauge, Sparkles, Timer, Video, Wind } from "lucide-react";
 import { I2V_CAMERAS, I2V_MOTIONS, I2V_QUALITIES, estimateI2VSeconds } from "@/lib/studio-options";
-import type { I2VCamera, I2VMotion, I2VQuality, VideoResolution } from "@/types/api";
+import type { I2VCamera, I2VMotion, I2VQuality, T2VQuality, VideoResolution } from "@/types/api";
 import { OptionGroup } from "./option-group";
 
 /** Draft or Quality sampling. The estimates are measured times on the RTX 3050 (docs/phase_k). */
@@ -34,6 +34,53 @@ export function I2VQualitySelector({
               {option.label}
             </span>
             <span className="mt-0.5 block text-[10px] text-fg-subtle">≈ {formatEstimate(estimateI2VSeconds(id, resolution, seconds))}</span>
+          </span>
+        );
+      }}
+    />
+  );
+}
+
+const T2V_QUALITIES: { id: T2VQuality; label: string; note: string }[] = [
+  { id: "fast", label: "Fast · Wan 2.1", note: "≈ 1–2 min for 5 s" },
+  { id: "high", label: "High · Wan 2.2", note: "≈ 10 min for 2 s (480p)" },
+];
+
+/** Text-to-video model. Times measured on the RTX 3050 8 GB (scripts/benchmark_wan22.py). */
+export function T2VQualitySelector({
+  value,
+  onChange,
+  highAvailable,
+  highDetail,
+}: {
+  value: T2VQuality;
+  onChange: (value: T2VQuality) => void;
+  highAvailable: boolean;
+  highDetail?: string;
+}) {
+  return (
+    <OptionGroup
+      legend="Model"
+      hint={
+        "Fast (FastWan 2.1, 3 steps) is sharp and quick but motion is often small. High (Wan 2.2 5B, 24 fps) gave " +
+        "more natural motion and camera movement in our test, with a softer picture, and is many times slower on " +
+        "an 8 GB GPU. High makes single clips of up to 5 s." +
+        (highAvailable ? "" : ` Not available on this server: ${highDetail || "model not downloaded."}`)
+      }
+      options={T2V_QUALITIES}
+      value={value}
+      onChange={(id) => (id === "high" && !highAvailable ? undefined : onChange(id))}
+      className="grid-cols-2"
+      renderOption={(id) => {
+        const option = T2V_QUALITIES.find((q) => q.id === id)!;
+        const disabled = id === "high" && !highAvailable;
+        return (
+          <span className={`block px-2.5 py-2 text-center ${disabled ? "opacity-40" : ""}`}>
+            <span className="flex items-center justify-center gap-1.5 text-xs font-medium">
+              {id === "fast" ? <Gauge className="size-3.5 opacity-70" aria-hidden /> : <Sparkles className="size-3.5 opacity-70" aria-hidden />}
+              {option.label}
+            </span>
+            <span className="mt-0.5 block text-[10px] text-fg-subtle">{disabled ? "Not downloaded" : option.note}</span>
           </span>
         );
       }}

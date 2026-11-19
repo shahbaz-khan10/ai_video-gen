@@ -168,7 +168,7 @@ export const I2V_CAMERAS: { id: I2VCamera; label: string }[] = [
  * one-time model load (~1 min). Keys: quality → size → clip seconds.
  */
 export const I2V_MEASURED_SECONDS: Record<I2VQuality, Partial<Record<VideoResolution, Record<number, number>>>> = {
-  draft: { standard: { 2: 55, 3: 65, 5: 165 }, large: { 2: 120, 3: 175, 5: 420 } },
+  draft: { standard: { 2: 55, 3: 65, 5: 160 }, large: { 2: 120, 3: 175, 5: 635 } }, // 5 s: measured 2026-11-19
   quality: { standard: { 2: 185, 3: 260, 5: 600 } },
 };
 

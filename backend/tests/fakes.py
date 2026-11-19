@@ -89,6 +89,10 @@ class FakeVideoEngine:
         return self.i2v_ready, "fake image-to-video"
 
     i2v_ready = True
+    hq_ready = True
+
+    def hq_status(self) -> tuple[bool, str]:
+        return self.hq_ready, "fake Wan2.2" if self.hq_ready else "The high quality model is not downloaded."
 
     def generate_from_image(self, params, deadline: float, output_path, cancel=None) -> str:
         return self.generate(params, deadline, output_path, cancel)

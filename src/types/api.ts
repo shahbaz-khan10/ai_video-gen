@@ -73,6 +73,9 @@ export type InfoResponse = {
     video_sampler?: string;
     video_max_frames: number;
     video_fps: number;
+    /** "High quality" text-to-video (Wan2.2 TI2V-5B) weights are on the server. */
+    video_hq_available?: boolean;
+    video_hq_detail?: string;
   };
   generation: {
     available: boolean;
@@ -102,6 +105,8 @@ export type UploadedImage = {
 };
 
 export type I2VQuality = "draft" | "quality";
+/** Text-to-video model: fast = FastWan2.1 1.3B, high = Wan2.2 TI2V-5B (single clips, much slower). */
+export type T2VQuality = "fast" | "high";
 export type I2VMotion = "subtle" | "normal" | "strong";
 export type I2VCamera = "none" | "static" | "zoom_in" | "zoom_out" | "pan_left" | "pan_right" | "tilt_up" | "orbit";
 
@@ -126,6 +131,7 @@ export type GenerationPayload =
       /** Long videos (over 5 s) only: the reviewed/edited scene list. */
       scenes?: SceneInput[];
       continuity?: "prompt" | "last_frame";
+      quality?: T2VQuality;
     })
   | (GenerationBase & {
       mode: "image-to-video";

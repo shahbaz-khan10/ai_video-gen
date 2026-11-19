@@ -23,6 +23,8 @@ from app.core.config import Settings
 from app.core.errors import AppError
 from app.core.models_registry import get_model_profile, is_known_model
 from app.schemas.generation import (
+    HQ_VIDEO_FPS,
+    HQ_VIDEO_MAX_FRAMES,
     VIDEO_SIZES,
     IMAGE_SIZES,
     MAX_SEED,
@@ -53,7 +55,7 @@ from app.services.prompt_tokens import CLIP_MAX_TOKENS, UMT5_MAX_TOKENS, count_t
 from app.services.image_storage import ImageStorage
 from app.services.upload_storage import UploadStorage
 from app.services import prompt_agent as agent_mod
-from app.services.video_engine import ImageVideoParams, VideoEngine, VideoEngineError, VideoParams
+from app.services.video_engine import HQ_GUIDANCE, ImageVideoParams, VideoEngine, VideoEngineError, VideoParams
 from app.services.video_storage import VideoStorage
 
 logger = logging.getLogger(__name__)
@@ -189,6 +191,23 @@ class GenerationService:
                     "model_id": model_id,
                 }
             )
+        elif isinstance(request, TextToVideoRequest) and request.quality == "high":
+            width, height = VIDEO_SIZES[request.resolution][request.aspect_ratio]
+            settings = settings.model_copy(
+                update={
+                    "duration_seconds": request.duration_seconds,
+                    "resolution": request.resolution,
+                    "width": width,
+                    "height": height,
+                    "steps": request.steps or self.settings.video_hq_steps,
+                    "seed": request.seed,
+                    "num_frames": video_frames_for(request.duration_seconds, HQ_VIDEO_FPS, HQ_VIDEO_MAX_FRAMES),
+                    "fps": HQ_VIDEO_FPS,
+                    "guidance_scale": HQ_GUIDANCE,
+                    "model_id": self.settings.video_hq_model_id,
+                    "quality": "high",
+                }
+            )
         elif isinstance(request, TextToVideoRequest):
             fps = self.settings.video_fps
             width, height = VIDEO_SIZES[request.resolution][request.aspect_ratio]
@@ -274,6 +293,12 @@ class GenerationService:
                 self.video_engine.ensure_can_accept()
             except VideoEngineError as err:
                 raise AppError(503, err.code, err.message) from None
+            if getattr(request, "quality", "fast") == "high":
+                ok, detail = (
+                    self.video_engine.hq_status() if hasattr(self.video_engine, "hq_status") else (False, "")
+                )
+                if not ok:
+                    raise AppError(503, "model_not_downloaded", detail or "High quality video is not available on this server.")
             limit = self.settings.video_max_queued_jobs + self.settings.video_max_concurrent_jobs
             if self.store.active_count() >= limit:
                 raise AppError(429, "queue_full", "The generation queue is full. Try again in a moment.")
@@ -813,6 +838,7 @@ class GenerationService:
                             num_inference_steps=s.steps,
                             seed=seed,
                             fps=s.fps,
+                            quality=s.quality or "fast",
                         ),
                         deadline=time.monotonic() + self.settings.video_timeout_seconds,
                         output_path=path,

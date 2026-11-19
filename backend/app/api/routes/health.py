@@ -157,6 +157,8 @@ def ready(settings: SettingsDep, service: GenerationServiceDep) -> ReadinessResp
 def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
     model = image_model_status(service)
     video = video_status(service)
+    hq_status = getattr(service.video_engine, "hq_status", None)
+    hq_ok, hq_detail = hq_status() if hq_status else (False, "High quality video is not available on this server.")
     available = model.can_generate
     if available:
         message = "Text-to-image runs on a local open-weight model."
@@ -194,6 +196,8 @@ def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
             video_sampler=getattr(service.video_engine, "sampler", "none"),
             video_max_frames=VIDEO_MAX_FRAMES,
             video_fps=settings.video_fps,
+            video_hq_available=hq_ok,
+            video_hq_detail=hq_detail,
         ),
         generation=GenerationAvailability(
             available=available,

@@ -83,6 +83,23 @@ services:
               count: all
               capabilities: [gpu]
 
+  # Audio-driven talking video: OmniAvatar 1.3B (Apache-2.0) on Wan2.1-T2V-1.3B. Animates any character from an image
+  # and a voice (animals and cartoons too), unlike the face-only lip-sync services above.
+  omniavatar:
+    build: ./omniavatar
+    image: ai_video-gen-omniavatar
+    volumes:
+      - ./omniavatar:/service
+      - backend-outputs:/outputs
+      - omniavatar-models:/omniavatar/pretrained_models
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
   frontend:
     image: node:22-bookworm-slim
     working_dir: /app
@@ -104,5 +121,6 @@ volumes:
   speech-voices:
   lipsync-models:
   latentsync-models:
+  omniavatar-models:
   frontend-node-modules:
   frontend-next-cache:

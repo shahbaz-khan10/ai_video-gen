@@ -56,3 +56,7 @@ docs/consistency/doomsday_0_before.mp4
 docs/consistency/doomsday_A_original.mp4
 docs/consistency/doomsday_B_with_look.mp4
 docs/doomsday/doomsday_30s.mp4
+
+# Python bytecode (never commit)
+__pycache__/
+*.pyc

@@ -14,7 +14,11 @@ RUN pip install --no-cache-dir torch==2.4.1 torchvision==0.19.1 torchaudio==2.4.
     --index-url https://download.pytorch.org/whl/cu121 --extra-index-url https://pypi.org/simple
 # xfuser pulls the newest diffusers, which needs peft>=0.17 and a newer torch ("infer_schema ... unsupported type");
 # diffusers 0.31 (xfuser 0.4.1's era) works with this torch and OmniAvatar's own peft 0.15.1 (measured).
+# torch is pinned here again: without it pip backtracked through 7 torch wheels (2.10 down to 2.6, ~900 MB each,
+# ~8 min) before settling back on 2.4.1, and a rebuild was stopped for lack of memory midway.
 RUN pip install --no-cache-dir -r requirements.txt "diffusers==0.31.0" "huggingface_hub[cli]<1" \
+    "torch==2.4.1" "torchvision==0.19.1" "torchaudio==2.4.1" \
+    --extra-index-url https://download.pytorch.org/whl/cu121 \
     "fastapi>=0.110,<1" "uvicorn>=0.29,<1" \
     && python -c "import torch, transformers, peft, librosa, diffusers.models.autoencoders.autoencoder_kl; print(torch.__version__)"
 ENV PYTHONUNBUFFERED=1 PYTHONPATH=/omniavatar HF_HUB_DISABLE_PROGRESS_BARS=1

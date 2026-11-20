@@ -1,4 +1,5 @@
-"""Talking videos: text -> speech (Chatterbox, speech container) -> lip-sync (MuseTalk, lipsync container).
+"""Talking videos: text -> speech (Chatterbox, speech container) -> lip-sync (AVS_LIPSYNC_URL: LatentSync 1.5 with a
+GFPGAN mouth restore in the latentsync container by default; MuseTalk 1.5 in the lipsync container as a fallback).
 
 The source is a finished video job or an uploaded photo. The GPU is shared: the job takes the video lock, unloads the
 image/video models and the prompt agent, and each service frees its GPU memory after its step. Files move through the

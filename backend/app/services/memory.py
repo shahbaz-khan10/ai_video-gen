@@ -10,6 +10,7 @@ Two problems measured on the RTX 3050 / 23.5 GiB WSL VM (docs/AI_VIDEO_STUDIO_QU
 from __future__ import annotations
 
 import ctypes
+import functools
 import gc
 import logging
 from dataclasses import dataclass
@@ -67,6 +68,22 @@ def snapshot() -> MemorySnapshot:
     except Exception:  # no torch, or the CUDA context is broken
         pass
     return MemorySnapshot(_meminfo("MemAvailable"), _rss(), vram_free, vram_total)
+
+
+@functools.lru_cache(maxsize=1)
+def gpu_total_gib() -> float | None:
+    """Total VRAM of the first GPU, read once with nvidia-smi. Unlike torch.cuda.mem_get_info this creates no CUDA
+    context in the API process (a context costs a few hundred MB of VRAM for as long as the process lives)."""
+    import subprocess
+
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.total", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=5, check=True,
+        ).stdout.split()
+        return round(int(out[0]) / 1024, 1) if out else None
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return None
 
 
 def release() -> None:

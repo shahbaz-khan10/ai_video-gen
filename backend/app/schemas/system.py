@@ -68,6 +68,8 @@ class Limits(BaseModel):
     # "High quality" text-to-video (Wan2.2 TI2V-5B): whether its weights are on disk, and why not.
     video_hq_available: bool = False
     video_hq_detail: str = ""
+    # Total VRAM of the server's GPU (None without one). The UI warns about slow settings on 8 GB cards.
+    gpu_vram_gb: float | None = None
 
 
 class ModelLicense(BaseModel):

@@ -1,5 +1,6 @@
 services:
   backend:
+    restart: unless-stopped
     build:
       context: .
       dockerfile: docker/backend.Dockerfile
@@ -18,7 +19,7 @@ services:
       - "8003:8000"
     volumes:
       - backend-models:/app/models
-      - backend-outputs:/app/outputs
+      - ${AVS_DATA_DIR:-C:/ai-studio-data}/outputs:/app/outputs
     deploy:
       resources:
         reservations:
@@ -33,13 +34,14 @@ services:
   # the backend. Loads its model only while speaking and frees the GPU afterwards.
   speech:
     build: ./speech
+    restart: unless-stopped
     image: ai_video-gen-speech
     volumes:
       # Code is mounted so edits do not need an image rebuild (the image only carries the heavy libraries).
       - ./speech:/app
-      - backend-outputs:/outputs
+      - ${AVS_DATA_DIR:-C:/ai-studio-data}/outputs:/outputs
       - speech-models:/models
-      - speech-voices:/voices
+      - ${AVS_DATA_DIR:-C:/ai-studio-data}/voices:/voices
     deploy:
       resources:
         reservations:
@@ -52,10 +54,11 @@ services:
   # so the GPU memory is returned when it finishes.
   lipsync:
     build: ./lipsync
+    restart: unless-stopped
     image: ai_video-gen-lipsync
     volumes:
       - ./lipsync:/service
-      - backend-outputs:/outputs
+      - ${AVS_DATA_DIR:-C:/ai-studio-data}/outputs:/outputs
       - lipsync-models:/musetalk/models
     deploy:
       resources:
@@ -69,11 +72,12 @@ services:
   # AVS_LIPSYNC_URL. Weights live in the latentsync-models volume and are fetched on start when missing.
   latentsync:
     build: ./latentsync
+    restart: unless-stopped
     image: ai_video-gen-latentsync
     command: sh -c "sh /service/download_weights.sh || echo 'Weight download failed; using what is cached.'; exec uvicorn app:app --app-dir /service --host 0.0.0.0 --port 8020"
     volumes:
       - ./latentsync:/service
-      - backend-outputs:/outputs
+      - ${AVS_DATA_DIR:-C:/ai-studio-data}/outputs:/outputs
       - latentsync-models:/latentsync/checkpoints
     deploy:
       resources:
@@ -85,12 +89,17 @@ services:
 
   # Audio-driven talking video: OmniAvatar 1.3B (Apache-2.0) on Wan2.1-T2V-1.3B. Animates any character from an image
   # and a voice (animals and cartoons too), unlike the face-only lip-sync services above.
+  # Experimental: not started by `docker compose up` (needs `--profile experimental`). Run beside the backend it took
+  # 17.6 GB RAM + all 8 GB VRAM and the backend failed with "Server out of memory"; it joins the backend's GPU lock in
+  # Phase 6 (docs/STORAGE_AND_GPU.md).
   omniavatar:
+    profiles: ["experimental"]
     build: ./omniavatar
+    restart: unless-stopped
     image: ai_video-gen-omniavatar
     volumes:
       - ./omniavatar:/service
-      - backend-outputs:/outputs
+      - ${AVS_DATA_DIR:-C:/ai-studio-data}/outputs:/outputs
       - omniavatar-models:/omniavatar/pretrained_models
     deploy:
       resources:
@@ -102,6 +111,7 @@ services:
 
   frontend:
     image: node:22-bookworm-slim
+    restart: unless-stopped
     working_dir: /app
     command: sh -c "npm ci && npm run dev -- --hostname 0.0.0.0 --port 3000"
     environment:
@@ -114,13 +124,25 @@ services:
       - frontend-node-modules:/app/node_modules
       - frontend-next-cache:/app/.next
 
+# Model weights (~124 GB) live in external volumes: `docker compose down -v` cannot delete them. On a new machine
+# create them once with `docker volume create <name>` (docs/STORAGE_AND_GPU.md). Recorded voices and outputs are
+# small and live in ${AVS_DATA_DIR:-C:/ai-studio-data} so they are visible in Windows and survive any volume loss.
 volumes:
   backend-models:
-  backend-outputs:
+    external: true
+    name: ai_video-gen_backend-models
   speech-models:
-  speech-voices:
+    external: true
+    name: ai_video-gen_speech-models
   lipsync-models:
+    external: true
+    name: ai_video-gen_lipsync-models
   latentsync-models:
+    external: true
+    name: ai_video-gen_latentsync-models
   omniavatar-models:
+    external: true
+    name: ai_video-gen_omniavatar-models
+  # Rebuildable caches (npm ci / next dev recreate them).
   frontend-node-modules:
   frontend-next-cache:

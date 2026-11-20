@@ -76,6 +76,8 @@ export type InfoResponse = {
     /** "High quality" text-to-video (Wan2.2 TI2V-5B) weights are on the server. */
     video_hq_available?: boolean;
     video_hq_detail?: string;
+    /** Total VRAM of the server's GPU in GB; null/absent without a GPU. */
+    gpu_vram_gb?: number | null;
   };
   generation: {
     available: boolean;

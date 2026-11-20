@@ -6,6 +6,7 @@ from fastapi import APIRouter
 
 from app.api.deps import GenerationServiceDep, SettingsDep
 from app.core.models_registry import get_model_profile, is_known_model
+from app.services import memory
 from app.services.upload_storage import ACCEPTED_FORMATS
 from app.schemas.generation import (
     DURATION_OPTIONS_SECONDS,
@@ -198,6 +199,7 @@ def info(settings: SettingsDep, service: GenerationServiceDep) -> InfoResponse:
             video_fps=settings.video_fps,
             video_hq_available=hq_ok,
             video_hq_detail=hq_detail,
+            gpu_vram_gb=memory.gpu_total_gib(),
         ),
         generation=GenerationAvailability(
             available=available,

@@ -171,6 +171,9 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const online = backend.state === "online" ? backend : null;
   const videoInfo = online?.info.video ?? null;
   const hqAvailable = online?.info.limits.video_hq_available ?? false;
+  // 480p image-to-video overflows an 8 GB card (measured 10.5 min vs 2.6 min for 5 s); warn there.
+  const gpuVram = online?.info.limits.gpu_vram_gb ?? null;
+  const smallGpu = gpuVram !== null && gpuVram <= 8.5;
   // High (Wan2.2) needs its weights on the server and makes single clips only (<= 5 s, 24 fps).
   const t2vQuality: T2VQuality = pickedT2vQuality === "high" && hqAvailable ? "high" : "fast";
   const isHq = t2vQuality === "high";
@@ -525,6 +528,12 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                   labels={{ standard: "Small", large: "480p" }}
                   hint="Small (~320p) is quickest. 480p is sharper and keeps more of the photo's detail, but takes about 3x as long."
                 />
+              )}
+              {i2vSize === "large" && smallGpu && (
+                <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-fg">
+                  This server has a {gpuVram} GB GPU. 480p does not fit in its memory, so it runs about 4x slower: a 5 s clip
+                  took about 10 minutes (Small: about 2.5 minutes). Choose Small unless you need the extra detail.
+                </p>
               )}
               <I2VDurationSelector
                 options={online?.info.limits.duration_options_seconds?.length ? online.info.limits.duration_options_seconds : I2V_DURATIONS}

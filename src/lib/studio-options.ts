@@ -1,4 +1,4 @@
-import { Camera, Clapperboard, Film, ImageIcon, ImagePlay, Sparkles, Users, Eye } from "lucide-react";
+import { Clapperboard, ImageIcon, ImagePlay } from "lucide-react";
 import type { I2VCamera, I2VMotion, I2VQuality, ImageResolution, VideoResolution } from "@/types/api";
 import type {
   AspectRatio,

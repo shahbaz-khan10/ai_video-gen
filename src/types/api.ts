@@ -106,7 +106,9 @@ export type UploadedImage = {
   size_bytes: number;
 };
 
-export type I2VQuality = "draft" | "quality";
+export type I2VQuality = "draft" | "quality" | "kenburns";
+/** ffmpeg colour/grain preset applied after generation (backend postprocess.LOOK_FILTERS). */
+export type VideoLook = "none" | "film" | "documentary_bw" | "sepia" | "warm_commercial";
 /** Text-to-video model: fast = FastWan2.1 1.3B, high = Wan2.2 TI2V-5B (single clips, much slower). */
 export type T2VQuality = "fast" | "high";
 export type I2VMotion = "subtle" | "normal" | "strong";
@@ -134,6 +136,8 @@ export type GenerationPayload =
       scenes?: SceneInput[];
       continuity?: "prompt" | "last_frame";
       quality?: T2VQuality;
+      look?: VideoLook;
+      enhance?: boolean;
     })
   | (GenerationBase & {
       mode: "image-to-video";
@@ -144,6 +148,8 @@ export type GenerationPayload =
       motion?: I2VMotion;
       camera?: I2VCamera;
       seed?: number;
+      look?: VideoLook;
+      enhance?: boolean;
     });
 
 export type SceneInput = { description: string; duration_seconds?: number };
@@ -297,6 +303,8 @@ export type GenerationJob = {
   clips_total?: number | null;
   clips_completed?: number | null;
   agent?: AgentResult | null;
+  /** Non-fatal problems, e.g. a Look that could not be applied (the video is kept). */
+  notes?: string[];
 };
 
 export type TalkLanguage = "en" | "hi" | "ur";

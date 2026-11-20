@@ -1,6 +1,6 @@
 "use client";
 
-import { Gauge, Sparkles, Timer, Video, Wind } from "lucide-react";
+import { Film, Gauge, Sparkles, Timer, Video, Wind } from "lucide-react";
 import { I2V_CAMERAS, I2V_MOTIONS, I2V_QUALITIES, estimateI2VSeconds } from "@/lib/studio-options";
 import type { I2VCamera, I2VMotion, I2VQuality, T2VQuality, VideoResolution } from "@/types/api";
 import { OptionGroup } from "./option-group";
@@ -20,17 +20,18 @@ export function I2VQualitySelector({
   return (
     <OptionGroup
       legend="Mode"
-      hint="Draft samples in 3 distilled steps and kept faces and details closest to the photo in our tests. Quality uses 20 steps with guidance: bigger, more prompt-following motion, but faces and details drift more and it is about 4x slower."
+      hint="Draft samples in 3 distilled steps and kept faces and details closest to the photo in our tests. Quality uses 20 steps with guidance: bigger, more prompt-following motion, but faces and details drift more and it is about 4x slower. Ken Burns uses no AI model: a slow zoom or pan over the photo (pick it under Camera), ready in about a second; the people in the photo do not move."
       options={I2V_QUALITIES}
       value={value}
       onChange={onChange}
-      className="grid-cols-2"
+      className="grid-cols-3"
       renderOption={(id) => {
         const option = I2V_QUALITIES.find((q) => q.id === id)!;
+        const Icon = id === "draft" ? Gauge : id === "quality" ? Sparkles : Film;
         return (
           <span className="block px-2.5 py-2 text-center">
             <span className="flex items-center justify-center gap-1.5 text-xs font-medium">
-              {id === "draft" ? <Gauge className="size-3.5 opacity-70" aria-hidden /> : <Sparkles className="size-3.5 opacity-70" aria-hidden />}
+              <Icon className="size-3.5 opacity-70" aria-hidden />
               {option.label}
             </span>
             <span className="mt-0.5 block text-[10px] text-fg-subtle">≈ {formatEstimate(estimateI2VSeconds(id, resolution, seconds))}</span>

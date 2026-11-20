@@ -1,5 +1,5 @@
 import { Clapperboard, ImageIcon, ImagePlay } from "lucide-react";
-import type { I2VCamera, I2VMotion, I2VQuality, ImageResolution, VideoResolution } from "@/types/api";
+import type { I2VCamera, I2VMotion, I2VQuality, ImageResolution, VideoLook, VideoResolution } from "@/types/api";
 import type {
   AspectRatio,
   AspectRatioOption,
@@ -144,6 +144,7 @@ export const I2V_DURATIONS = [2, 3, 5];
 export const I2V_QUALITIES: { id: I2VQuality; label: string }[] = [
   { id: "draft", label: "Draft" },
   { id: "quality", label: "Quality" },
+  { id: "kenburns", label: "Ken Burns" },
 ];
 
 export const I2V_MOTIONS: { id: I2VMotion; label: string }[] = [
@@ -170,9 +171,20 @@ export const I2V_CAMERAS: { id: I2VCamera; label: string }[] = [
 export const I2V_MEASURED_SECONDS: Record<I2VQuality, Partial<Record<VideoResolution, Record<number, number>>>> = {
   draft: { standard: { 2: 55, 3: 65, 5: 160 }, large: { 2: 120, 3: 175, 5: 635 } }, // 5 s: measured 2026-11-19
   quality: { standard: { 2: 185, 3: 260, 5: 600 } },
+  // No AI model: ffmpeg zoom/pan, measured 0.4-0.6 s for 5 s (Phase 2); shown as ~1 s plus the job overhead.
+  kenburns: { standard: { 2: 1, 3: 1, 5: 1 }, large: { 2: 1, 3: 1, 5: 1 } },
 };
 
 export function estimateI2VSeconds(quality: I2VQuality, resolution: VideoResolution, seconds: number): number {
   const table = I2V_MEASURED_SECONDS[quality][resolution] ?? I2V_MEASURED_SECONDS[quality].standard!;
   return table[seconds] ?? table[3];
 }
+
+/** ffmpeg Look presets (backend app/services/postprocess.py). Measured ~0.5 s for a 5 s clip, CPU only. */
+export const VIDEO_LOOKS: { id: VideoLook; label: string; hint: string }[] = [
+  { id: "none", label: "None", hint: "The video as generated." },
+  { id: "film", label: "Film", hint: "Light moving grain and a soft vignette; colours unchanged." },
+  { id: "documentary_bw", label: "B&W doc", hint: "Black and white with more contrast, grain and vignette." },
+  { id: "sepia", label: "Sepia", hint: "Old photograph tone with heavier grain: good for historical scenes." },
+  { id: "warm_commercial", label: "Warm ad", hint: "Warmer, slightly richer colours, no grain: clean commercial look." },
+];

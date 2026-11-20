@@ -24,6 +24,8 @@ from app.core.errors import AppError
 from app.core.models_registry import get_model_profile, is_known_model
 from app.schemas.generation import (
     HQ_VIDEO_FPS,
+    KEN_BURNS_FPS,
+    KEN_BURNS_MAX_FRAMES,
     HQ_VIDEO_MAX_FRAMES,
     VIDEO_SIZES,
     IMAGE_SIZES,
@@ -54,6 +56,7 @@ from app.services.prompt_compiler import VIDEO_STYLE_PROMPTS, compile_plan
 from app.services.prompt_tokens import CLIP_MAX_TOKENS, UMT5_MAX_TOKENS, count_tokens, load_tokenizer
 from app.services.image_storage import ImageStorage
 from app.services.upload_storage import UploadStorage
+from app.services import postprocess
 from app.services import prompt_agent as agent_mod
 from app.services.video_engine import HQ_GUIDANCE, ImageVideoParams, VideoEngine, VideoEngineError, VideoParams
 from app.services.video_storage import VideoStorage
@@ -258,6 +261,19 @@ class GenerationService:
                     "camera": request.camera,
                 }
             )
+            if request.quality == "kenburns":
+                # No AI model: an ffmpeg move over the photo at a smooth 24 fps (not limited to Wan's 81 frames).
+                settings = settings.model_copy(
+                    update={
+                        "steps": None,
+                        "fps": KEN_BURNS_FPS,
+                        "num_frames": video_frames_for(request.duration_seconds, KEN_BURNS_FPS, KEN_BURNS_MAX_FRAMES),
+                        "guidance_scale": None,
+                        "model_id": "Ken Burns (ffmpeg, no AI model)",
+                    }
+                )
+        if isinstance(request, (TextToVideoRequest, ImageToVideoRequest)):
+            settings = settings.model_copy(update={"look": request.look, "enhance": request.enhance})
         return settings
 
     def create(self, request: GenerationRequest) -> GenerationJob:
@@ -323,11 +339,12 @@ class GenerationService:
             return self.store.get(job.id) or job
         elif request.mode == GenerationMode.IMAGE_TO_VIDEO:
             assert isinstance(request, ImageToVideoRequest)
-            if self.video_engine is None:
-                raise AppError(501, "engine_not_configured", "Video generation is not available on this server.")
-            ok, detail = self.video_engine.i2v_status() if hasattr(self.video_engine, "i2v_status") else (False, "")
-            if not ok:
-                raise AppError(503, "model_not_downloaded", detail or "Image-to-video is not available on this server.")
+            if request.quality != "kenburns":  # Ken Burns needs only ffmpeg, no video model
+                if self.video_engine is None:
+                    raise AppError(501, "engine_not_configured", "Video generation is not available on this server.")
+                ok, detail = self.video_engine.i2v_status() if hasattr(self.video_engine, "i2v_status") else (False, "")
+                if not ok:
+                    raise AppError(503, "model_not_downloaded", detail or "Image-to-video is not available on this server.")
             if self.uploads.resolve(request.source_image.upload_id) is None:
                 raise AppError(
                     422, "validation_error", "The request is invalid.",
@@ -392,14 +409,18 @@ class GenerationService:
                 self._cancel.pop(job_id, None)
                 return  # cancelled while queued
             s = job.settings
-            assert self.video_engine is not None and s.source_image is not None
+            assert s.source_image is not None
             assert s.width and s.height and s.seed is not None and s.num_frames and s.fps
             try:
                 image_path = self.uploads.resolve(s.source_image.upload_id)
                 if image_path is None:
                     raise VideoEngineError("upload_expired", "The uploaded image is gone (uploads are kept 24 h). Upload it again.")
-                self._unload(self.engine)
                 tmp = self.video_storage.temp_path(job_id)
+                if s.quality == "kenburns":
+                    self._ken_burns(job_id, image_path, tmp, s)
+                    return
+                assert self.video_engine is not None
+                self._unload(self.engine)
                 prompt = job.plan.model_prompt if job.plan and job.plan.model_prompt else s.prompt
                 check = None
                 if self._agent_on(job):
@@ -424,23 +445,7 @@ class GenerationService:
 
                 device = self._generate_checked(job_id, s.seed, tmp, make, check)
                 self.store.update(job_id, device=device)
-                stored = self.video_storage.finalize(job_id, tmp)
-                url = f"{VIDEOS_PREFIX}/{stored.filename}"
-                self.store.update(
-                    job_id,
-                    status=GenerationStatus.COMPLETED,
-                    finished_at=_now(),
-                    video=GeneratedVideo(
-                        url=url,
-                        download_url=f"{url}?download=true",
-                        width=stored.width,
-                        height=stored.height,
-                        size_bytes=stored.size_bytes,
-                        num_frames=stored.num_frames,
-                        duration_seconds=stored.duration_seconds,
-                    ),
-                    output_url=url,
-                )
+                self._complete_video(job_id, tmp, s)
                 logger.info("image-to-video job %s completed", job_id)
             except VideoEngineError as err:
                 logger.warning("image-to-video job %s failed: %s", job_id, err.code)
@@ -452,6 +457,56 @@ class GenerationService:
                 self._fail(job_id, JobError(code="generation_failed", message="Video generation failed on the server.", retryable=True))
             finally:
                 self._cancel.pop(job_id, None)
+
+    # --- ffmpeg post-processing (CPU, seconds) ---------------------------------------------------
+
+    def _ken_burns(self, job_id: str, image_path: Path, tmp: Path, s: GenerationSettings) -> None:
+        """Image-to-video without an AI model: a slow zoom/pan over the photo (~0.5 s for 5 s)."""
+        assert s.width and s.height and s.num_frames and s.fps
+        try:
+            postprocess.ken_burns(image_path, tmp, s.width, s.height, s.num_frames, s.fps, s.camera or "zoom_in")
+        except postprocess.PostprocessError as err:
+            raise VideoEngineError("generation_failed", f"Ken Burns failed: {err}", retryable=True) from None
+        self.store.update(job_id, device="cpu")
+        self._complete_video(job_id, tmp, s)
+        logger.info("ken burns job %s completed", job_id)
+
+    def _postprocess(self, job_id: str, path: Path, s: GenerationSettings) -> None:
+        """Enhance and Look, in place, before the video is validated and published. A failure keeps the generated
+        video as it is and says so on the job: losing minutes of GPU work to a colour filter would be worse."""
+        steps = ([("enhance", postprocess.enhance)] if s.enhance else []) + (
+            [("look", lambda p: postprocess.apply_look(p, s.look))] if s.look and s.look != "none" else []
+        )
+        for name, step in steps:
+            try:
+                step(path)
+            except postprocess.PostprocessError as err:
+                logger.warning("job %s: %s failed: %s", job_id, name, err)
+                job = self.store.get(job_id)
+                notes = list(job.notes) if job else []
+                label = "The enhance pass" if name == "enhance" else f"The '{s.look}' look"
+                self.store.update(job_id, notes=[*notes, f"{label} could not be applied; the video is shown without it."])
+
+    def _complete_video(self, job_id: str, tmp: Path, s: GenerationSettings) -> None:
+        """Post-process, validate by decoding (finalize), publish and mark the job completed."""
+        self._postprocess(job_id, tmp, s)
+        stored = self.video_storage.finalize(job_id, tmp)
+        url = f"{VIDEOS_PREFIX}/{stored.filename}"
+        self.store.update(
+            job_id,
+            status=GenerationStatus.COMPLETED,
+            finished_at=_now(),
+            video=GeneratedVideo(
+                url=url,
+                download_url=f"{url}?download=true",
+                width=stored.width,
+                height=stored.height,
+                size_bytes=stored.size_bytes,
+                num_frames=stored.num_frames,
+                duration_seconds=stored.duration_seconds,
+            ),
+            output_url=url,
+        )
 
     # --- prompt agent ----------------------------------------------------------------------
 
@@ -852,23 +907,7 @@ class GenerationService:
                 device = self._generate_checked(job_id, s.seed, tmp, make, check, retry=False)
                 self.store.update(job_id, device=device)
                 # Decoded and checked before the job may report success.
-                stored = self.video_storage.finalize(job_id, tmp)
-                url = f"{VIDEOS_PREFIX}/{stored.filename}"
-                self.store.update(
-                    job_id,
-                    status=GenerationStatus.COMPLETED,
-                    finished_at=_now(),
-                    video=GeneratedVideo(
-                        url=url,
-                        download_url=f"{url}?download=true",
-                        width=stored.width,
-                        height=stored.height,
-                        size_bytes=stored.size_bytes,
-                        num_frames=stored.num_frames,
-                        duration_seconds=stored.duration_seconds,
-                    ),
-                    output_url=url,
-                )
+                self._complete_video(job_id, tmp, s)
                 logger.info("video job %s completed", job_id)
             except VideoEngineError as err:
                 logger.warning("video job %s failed: %s", job_id, err.code)
@@ -943,6 +982,7 @@ class GenerationService:
                 written = join_clips(ordered, tmp_final, s.fps, total)
                 if written != total:
                     raise VideoEngineError("video_invalid", f"Joined {written} of {total} frames.", retryable=True)
+                self._postprocess(job_id, tmp_final, job.settings)
                 stored = self.video_storage.finalize(job_id, tmp_final)
                 if stored.num_frames != total:
                     raise VideoEngineError("video_invalid", "The final video has the wrong length.", retryable=True)

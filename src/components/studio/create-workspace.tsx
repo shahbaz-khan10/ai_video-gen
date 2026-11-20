@@ -31,6 +31,7 @@ import type {
   ImageResolution,
   SceneInput,
   T2VQuality,
+  VideoLook,
   VideoResolution,
 } from "@/types/api";
 import type { AspectRatio, ClipDuration, CreateDraft, GenerationMode } from "@/types/studio";
@@ -55,6 +56,7 @@ import { SceneProgress } from "./scene-progress";
 import { StyleSelector } from "./style-selector";
 import { nearestAspect, useImageSelection } from "./use-image-selection";
 import { VideoDurationSelector, VideoSizeSelector } from "./video-options";
+import { EnhanceToggle, LookSelector } from "./look-options";
 
 const GENERATE_LABEL: Record<GenerationMode, string> = {
   "text-to-image": "Generate photograph",
@@ -91,6 +93,9 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [videoResolution, setVideoResolution] = useState<VideoResolution>("standard");
   const [pickedVideoSteps, setVideoSteps] = useState<number | null>(null);
   const [pickedT2vQuality, setT2vQuality] = useState<T2VQuality>("fast");
+  // ffmpeg post-processing for both video modes.
+  const [look, setLook] = useState<VideoLook>("none");
+  const [enhance, setEnhance] = useState(false);
   const [model, setModel] = useState(MODELS[0].id);
   // Image-to-video settings.
   const [i2vQuality, setI2vQuality] = useState<I2VQuality>("draft");
@@ -98,8 +103,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
   const [i2vMotion, setI2vMotion] = useState<I2VMotion>("normal");
   const [i2vCamera, setI2vCamera] = useState<I2VCamera>("none");
   const [i2vResolution, setI2vResolution] = useState<VideoResolution>("standard");
-  // 480p was measured in Draft only; Quality at 480p is not offered.
-  const i2vSize: VideoResolution = i2vQuality === "draft" ? i2vResolution : "standard";
+  // 480p was measured in Draft only; Quality at 480p is not offered. Ken Burns (ffmpeg) works at any size.
+  const i2vSize: VideoResolution = i2vQuality === "quality" ? "standard" : i2vResolution;
   const [cancelling, setCancelling] = useState(false);
   const [promptAgent, setPromptAgent] = useState(true);
   // Job IDs the user asked to stop; the server stops at the next step (after a model load if one is running).
@@ -284,6 +289,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
       },
       promptAgent,
       i2v: { durationSeconds: i2vSeconds, resolution: i2vSize, quality: i2vQuality, motion: i2vMotion, camera: i2vCamera },
+      post: { look, enhance },
     });
 
   /** Asks the backend how it understood the prompt; long videos also get an editable scene list. */
@@ -501,6 +507,8 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
               />
               <VideoSizeSelector value={videoResolution} aspectRatio={aspectRatio} onChange={setVideoResolution} />
               {!fixedVideoSteps && !isHq && <StepsSelector options={videoStepOptions} value={videoSteps} onChange={setVideoSteps} />}
+              <LookSelector value={look} onChange={setLook} />
+              <EnhanceToggle checked={enhance} onChange={setEnhance} />
               <div id="seed-field">
                 <SeedInput
                   value={seedInput}
@@ -520,7 +528,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
           ) : isI2V ? (
             <motion.div key="i2v-options" {...collapse} className="flex flex-col gap-6 overflow-hidden">
               <I2VQualitySelector value={i2vQuality} onChange={setI2vQuality} seconds={i2vSeconds} resolution={i2vSize} />
-              {i2vQuality === "draft" && (
+              {i2vQuality !== "quality" && (
                 <VideoSizeSelector
                   value={i2vResolution}
                   aspectRatio={aspectRatio}
@@ -529,7 +537,7 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                   hint="Small (~320p) is quickest. 480p is sharper and keeps more of the photo's detail, but takes about 3x as long."
                 />
               )}
-              {i2vSize === "large" && smallGpu && (
+              {i2vSize === "large" && smallGpu && i2vQuality !== "kenburns" && (
                 <p role="alert" className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-fg">
                   This server has a {gpuVram} GB GPU. 480p does not fit in its memory, so it runs about 4x slower: a 5 s clip
                   took about 10 minutes (Small: about 2.5 minutes). Choose Small unless you need the extra detail.
@@ -540,8 +548,11 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                 value={i2vSeconds}
                 onChange={setI2vSeconds}
               />
-              <I2VMotionSelector value={i2vMotion} onChange={setI2vMotion} />
+              {/* Ken Burns moves the camera over a still photo; there is no subject motion to choose. */}
+              {i2vQuality !== "kenburns" && <I2VMotionSelector value={i2vMotion} onChange={setI2vMotion} />}
               <I2VCameraSelector value={i2vCamera} onChange={setI2vCamera} />
+              <LookSelector value={look} onChange={setLook} />
+              <EnhanceToggle checked={enhance} onChange={setEnhance} />
               <div id="seed-field">
                 <SeedInput
                   value={seedInput}
@@ -688,6 +699,13 @@ export function CreateWorkspace({ initial, sourceProject }: CreateWorkspaceProps
                   onReconnect={imageJob.reconnect}
                 />
                 {viewJob?.agent && <AgentReport agent={viewJob.agent} />}
+                {viewJob?.notes && viewJob.notes.length > 0 && (
+                  <ul role="status" className="mt-3 space-y-1 rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2.5 text-xs leading-relaxed text-fg">
+                    {viewJob.notes.map((n) => (
+                      <li key={n}>{n}</li>
+                    ))}
+                  </ul>
+                )}
                 {completedVideo && completedJob && !completedJob.scenes?.length && (
                   <TalkingPanel sourceJobId={completedJob.id} />
                 )}

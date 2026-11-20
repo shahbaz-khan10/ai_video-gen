@@ -1,4 +1,5 @@
 import { ApiError } from "@/lib/api/client";
+import { postFields } from "@/lib/generation/post-fields";
 import type {
   GenerationPayload,
   I2VCamera,
@@ -9,6 +10,7 @@ import type {
   SceneInput,
   SourceImageInfo,
   T2VQuality,
+  VideoLook,
   VideoResolution,
 } from "@/types/api";
 import type { AspectRatio, ClipDuration, GenerationMode } from "@/types/studio";
@@ -50,7 +52,10 @@ export type Draft = {
   promptAgent?: boolean;
   /** Image-to-video only. */
   i2v?: { durationSeconds: number; resolution: VideoResolution; quality: I2VQuality; motion: I2VMotion; camera: I2VCamera };
+  /** Video modes: ffmpeg post-processing (Look preset, 2x enhance). */
+  post?: { look: VideoLook; enhance: boolean };
 };
+
 
 export function buildPayload(draft: Draft): GenerationPayload {
   const base = { prompt: draft.prompt, aspect_ratio: draft.aspectRatio, style: draft.style, prompt_agent: draft.promptAgent ?? true };
@@ -76,6 +81,7 @@ export function buildPayload(draft: Draft): GenerationPayload {
       ...(draft.video.steps === null ? {} : { steps: draft.video.steps }),
       ...(draft.video.scenes?.length ? { scenes: draft.video.scenes } : {}),
       ...(draft.video.quality === "high" ? { quality: "high" as const } : {}),
+      ...postFields(draft.post),
       ...(draft.seed === null ? {} : { seed: draft.seed }),
     };
   }
@@ -95,6 +101,7 @@ export function buildPayload(draft: Draft): GenerationPayload {
     motion: draft.i2v.motion,
     camera: draft.i2v.camera,
     source_image,
+    ...postFields(draft.post),
     ...(draft.seed === null ? {} : { seed: draft.seed }),
   };
 }

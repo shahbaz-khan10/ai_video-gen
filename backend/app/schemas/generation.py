@@ -163,7 +163,12 @@ I2V_CAMERA_TEXT: dict[str, str | None] = {
 }
 I2VMotion = Literal["subtle", "normal", "strong"]
 I2VCamera = Literal["none", "static", "zoom_in", "zoom_out", "pan_left", "pan_right", "tilt_up", "orbit"]
-I2VQuality = Literal["draft", "quality"]
+# kenburns: no AI model, a slow ffmpeg zoom/pan over the photo (camera picks the move); ~0.5 s for 5 s at 24 fps.
+I2VQuality = Literal["draft", "quality", "kenburns"]
+KEN_BURNS_FPS = 24
+KEN_BURNS_MAX_FRAMES = 121
+# Post-processing Look presets (app.services.postprocess.LOOK_FILTERS), applied with ffmpeg on the CPU.
+VideoLook = Literal["none", "film", "documentary_bw", "sepia", "warm_commercial"]
 
 
 class _GenerationBase(StrictModel):
@@ -241,6 +246,8 @@ class TextToVideoRequest(_GenerationBase):
         description="fast: FastWan2.1 1.3B (3 steps, ~2 min for 5 s). high: Wan2.2 TI2V-5B at 24 fps, single clips "
         "up to 5 s; more natural motion, many times slower on an 8 GB GPU.",
     )
+    look: VideoLook = Field("none", description="Colour/grain preset applied with ffmpeg after generation (~0.5 s).")
+    enhance: bool = Field(False, description="Light denoise + 2x Lanczos upscale + sharpen with ffmpeg (~1 s).")
 
     @model_validator(mode="after")
     def _long_video_fields(self) -> "TextToVideoRequest":
@@ -271,11 +278,17 @@ class ImageToVideoRequest(_GenerationBase):
     resolution: Literal[ImageResolution.STANDARD, ImageResolution.LARGE] = Field(
         ImageResolution.STANDARD, description="standard = Draft size (576x320), large = 480p."
     )
-    quality: I2VQuality = Field("draft", description="draft: 3 distilled steps. quality: more steps with guidance (slower).")
+    quality: I2VQuality = Field(
+        "draft",
+        description="draft: 3 distilled steps. quality: more steps with guidance (slower). kenburns: no AI model, a "
+        "slow zoom/pan over the photo chosen by `camera` (seconds instead of minutes; the photo itself does not move).",
+    )
     motion: I2VMotion = "normal"
     camera: I2VCamera = "none"
     seed: int | None = Field(None, ge=0, le=MAX_SEED)
     source_image: SourceImageInfo
+    look: VideoLook = Field("none", description="Colour/grain preset applied with ffmpeg after generation (~0.5 s).")
+    enhance: bool = Field(False, description="Light denoise + 2x Lanczos upscale + sharpen with ffmpeg (~1 s).")
 
 
 GenerationRequest = Annotated[
@@ -310,6 +323,9 @@ class GenerationSettings(BaseModel):
     quality: str | None = None
     motion: str | None = None
     camera: str | None = None
+    # Video post-processing (ffmpeg, CPU)
+    look: str = "none"
+    enhance: bool = False
 
 
 class GeneratedVideo(BaseModel):
@@ -391,6 +407,9 @@ class GenerationJob(BaseModel):
     clips_total: int | None = None
     clips_completed: int | None = None
     agent: AgentResult | None = Field(None, description="What the prompt agent saw, checked and retried.")
+    notes: list[str] = Field(
+        default_factory=list, description="Non-fatal problems, e.g. a Look that could not be applied (video kept)."
+    )
 
 
 class SceneJob(BaseModel):
